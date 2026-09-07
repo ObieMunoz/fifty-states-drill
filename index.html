@@ -247,6 +247,91 @@ svg.map text.lab{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weigh
   border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--ink-2)}
 .mini{font-size:12px;color:var(--ink-3);margin-top:10px;line-height:1.5}
 .mini b{color:var(--ink-2);font-weight:500}
+
+/* ---- level control in the rail ---- */
+.lvl{display:flex;align-items:center;gap:6px}
+.lvl select{background:var(--ground);border:1px solid var(--line);border-radius:8px;
+  padding:5px 7px;font-size:12.5px;cursor:pointer;color:var(--ink)}
+body[data-lvl="guided"] .lvl select{color:var(--hydro);border-color:color-mix(in srgb,var(--hydro) 45%,var(--line))}
+body[data-lvl="expert"] .lvl select{color:var(--signal);border-color:color-mix(in srgb,var(--signal) 45%,var(--line))}
+
+/* ---- map-free modes ---- */
+body[data-nomap="1"] .stage{display:none}
+@media (min-width:1001px){
+  body[data-nomap="1"] .body{grid-template-columns:minmax(0,1fr);grid-template-areas:"ctrl" "roster"}
+  body[data-nomap="1"] .ctrl{max-width:720px;margin:0 auto;width:100%;border-left:0}
+  body[data-nomap="1"] .rosterwrap{max-width:720px;margin:0 auto;width:100%;border-left:0}
+}
+
+/* ---- silhouette ---- */
+.st.solo{fill:var(--ink-2);stroke:var(--ink-2);stroke-width:1;stroke-dasharray:none}
+svg.map.solo{background:transparent;border-color:transparent}
+svg.map.solo text{display:none}
+svg.map.solo .dc{display:none}
+
+/* ---- flashcards ---- */
+.card{display:block;width:100%;margin-top:14px;background:var(--ground);border:1px solid var(--line);
+  border-radius:14px;padding:26px 20px;cursor:pointer;text-align:left;min-height:210px;
+  box-shadow:var(--shadow);transition:border-color .15s}
+.card:hover{border-color:var(--hydro)}
+.card-front{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;min-height:158px;text-align:center}
+.card-front b{font-family:Fraunces,Georgia,serif;font-optical-sizing:auto;font-weight:600;
+  font-size:clamp(28px,6vw,40px);letter-spacing:-.02em;line-height:1.05;font-variation-settings:"WONK" 1}
+.card-front span{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-3)}
+.card-back{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.card-shape{width:104px;height:104px;flex:none}
+.card-shape path{fill:var(--ink-2)}
+.card-facts{flex:1;min-width:190px;display:grid;gap:7px}
+.cf{display:flex;justify-content:space-between;gap:14px;align-items:baseline;
+  border-bottom:1px solid var(--line-soft);padding-bottom:5px}
+.cf span{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-3);flex:none}
+.cf b{font-weight:500;font-size:13.5px;text-align:right}
+
+/* ---- roll call ---- */
+.rl{color:var(--signal)}
+.slots{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.slot{border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:13.5px;
+  background:var(--ground);color:var(--ink-3);font-family:"IBM Plex Mono",monospace;letter-spacing:.05em}
+.slot.got{background:color-mix(in srgb,var(--right) 15%,var(--surface));border-color:var(--right);
+  color:var(--ink);font-family:inherit;letter-spacing:0}
+.slot.miss{background:color-mix(in srgb,var(--wrong) 12%,var(--surface));border-color:var(--wrong);
+  color:var(--ink);font-family:inherit;letter-spacing:0}
+.letters button.done{border-color:var(--m3);color:var(--m3)}
+
+/* ---- hooks ---- */
+.hookgrp{margin-top:18px}
+.hookgrp h3{margin:0 0 8px}
+.hook{display:block;width:100%;text-align:left;background:var(--ground);border:1px solid var(--line);
+  border-radius:var(--r);padding:11px 13px;margin-bottom:7px;cursor:pointer}
+.hook:hover{border-color:var(--hydro)}
+.hook.on{border-color:var(--hydro);background:color-mix(in srgb,var(--hydro) 10%,var(--surface))}
+.hook b{display:block;font-weight:600;font-size:14px;margin-bottom:3px}
+.hook span{display:block;font-size:13px;color:var(--ink-2);line-height:1.45}
+.hook u{display:block;margin-top:6px;font-size:10.5px;color:var(--ink-3);text-decoration:none;letter-spacing:.06em}
+
+/* ---- progress ---- */
+.acc{display:grid;gap:7px;margin-top:8px}
+.accrow{display:grid;grid-template-columns:96px 1fr 40px 52px;gap:10px;align-items:center;font-size:12.5px}
+.accbar{height:7px;border-radius:4px;background:var(--sunk);overflow:hidden}
+.accbar i{display:block;height:100%;background:var(--m3)}
+.accrow u{text-decoration:none;color:var(--ink-3);font-size:11px;text-align:right}
+.wk{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+.wk tr{border-bottom:1px solid var(--line-soft);cursor:pointer}
+.wk tr:hover{background:var(--ground)}
+.wk td{padding:7px 6px;vertical-align:middle}
+.wk td:first-child{width:34px;padding-left:0}
+.wk td:last-child{text-align:right;padding-right:0;color:var(--wrong)}
+.wk-shape{width:28px;height:28px;display:block}
+.wk-shape path{fill:var(--ink-3)}
+.wk b{display:block;font-weight:500}
+.wk span{display:block;font-size:10.5px;color:var(--ink-3)}
+
+/* ---- mode bar wraps once there are many modes ---- */
+@media (min-width:1001px){.modebar{flex-wrap:wrap;overflow:visible}}
+
 @media (max-width:560px){
   .choices{grid-template-columns:1fr}
   .grp ul{grid-template-columns:1fr}
@@ -260,6 +345,8 @@ svg.map text.lab{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weigh
   <header class="rail">
     <div class="wordmark"><b>Fifty States</b><span>Drill</span></div>
     <div class="rail-right">
+      <label class="lvl"><span class="eyebrow">Level</span>
+        <select id="lvlSel" aria-label="Difficulty level"></select></label>
       <div class="stat"><b id="statA">0</b><span id="statAl">Correct</span></div>
       <div class="stat hot"><b id="statB">0</b><span id="statBl">Streak</span></div>
       <div class="stat"><b id="statC">0/50</b><span id="statCl">Solid</span></div>
@@ -269,8 +356,6 @@ svg.map text.lab{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weigh
     <span class="glab">Learn</span><div class="mgroup learn" id="mgLearn"></div>
     <span class="sep" aria-hidden="true"></span>
     <span class="glab">Quiz</span><div class="mgroup quiz" id="mgQuiz"></div>
-    <span class="sep" aria-hidden="true"></span>
-    <span class="glab">Level</span><div class="mgroup diff" id="mgDiff"></div>
   </nav>
   <div class="body">
     <section class="stage">
@@ -290,17 +375,24 @@ const DATA={"states":[{"n":"Alabama","a":"AL","cap":"Montgomery","ord":22,"adm":
 /* ---------------- model ---------------- */
 const ST = DATA.states, BY = {};
 ST.forEach(s => BY[s.a] = s);
-const TRACKS = ['find','name','capital','code','border'];
+const TRACKS = ['find','name','shape','capital','code','border'];
 const MODES = {
-  map:    {g:'learn', label:'Map',        kind:'explore'},
-  letter: {g:'learn', label:'By Letter',  kind:'letters'},
-  find:   {g:'quiz',  label:'Find It',    kind:'click'},
-  name:   {g:'quiz',  label:'Name It',    kind:'choice'},
-  all50:  {g:'quiz',  label:'Name All 50',kind:'recall'},
-  capital:{g:'quiz',  label:'Capitals',   kind:'type'},
-  code:   {g:'quiz',  label:'Postal Codes',kind:'type'},
-  border: {g:'quiz',  label:'Borders',    kind:'choice'}
+  map:    {g:'learn', label:'Map',      kind:'explore'},
+  letter: {g:'learn', label:'Letters',  kind:'letters'},
+  cards:  {g:'learn', label:'Cards',    kind:'cards',  nomap:true},
+  hooks:  {g:'learn', label:'Hooks',    kind:'hooks'},
+  weak:   {g:'learn', label:'Progress', kind:'weak'},
+  find:   {g:'quiz',  label:'Find It',  kind:'click'},
+  name:   {g:'quiz',  label:'Name It',  kind:'choice'},
+  shape:  {g:'quiz',  label:'Silhouette',kind:'choice'},
+  roll:   {g:'quiz',  label:'Roll Call',kind:'roll',   nomap:true},
+  all50:  {g:'quiz',  label:'All 50',   kind:'recall'},
+  capital:{g:'quiz',  label:'Capitals', kind:'type'},
+  code:   {g:'quiz',  label:'Codes',    kind:'type'},
+  border: {g:'quiz',  label:'Borders',  kind:'choice'},
+  mixed:  {g:'quiz',  label:'Mixed',    kind:'choice'}
 };
+const MIXPOOL = ['find','name','shape','capital','code','border'];
 const DIVS = ['New England','Middle Atlantic','South Atlantic','East South Central',
   'West South Central','East North Central','West North Central','Mountain','Pacific'];
 const REGS = ['Northeast','South','Midwest','West'];
@@ -333,6 +425,9 @@ const overall = a => Math.round(TRACKS.reduce((n, t) => n + lvl(a, t), 0) / TRAC
 
 let dif = DIFFS[P.dif] ? P.dif : 'standard';
 const D = () => DIFFS[dif];
+let qm = 'map';   // effective question type; differs from `mode` only in Mixed
+let hookSet = null, needFit = false;
+let card = 0, cardBack = false, deck = [], roll = null;
 let mode = 'map', scope = 'all', ask = null, locked = false, sel = null,
     letter = 'M', labels = false, tries = 0,
     run = {right: 0, asked: 0, streak: 0, best: 0}, recent = [],
@@ -360,13 +455,30 @@ function lev(a, b) {
 const near = (a, b) => { a = norm(a); b = norm(b); return a === b || (a.length >= 5 && lev(a, b) <= 1); };
 const dist = (a, b) => Math.hypot(a.c[0] - b.c[0], a.c[1] - b.c[1]);
 
+function weakList() {
+  const out = [];
+  ST.forEach(s => {
+    let worst = null;
+    TRACKS.forEach(t => {
+      const r = P.st && P.st[s.a] && P.st[s.a][t];
+      if (!r || r.a < 2) return;
+      const rate = r.c / r.a;
+      if (rate >= 0.7) return;
+      if (!worst || rate < worst.rate) worst = {track: t, rate: rate, a: r.a, c: r.c};
+    });
+    if (worst) out.push(Object.assign({s: s}, worst));
+  });
+  return out.sort((x, y) => x.rate - y.rate || y.a - x.a);
+}
 function inScope(s) {
+  if (scope === 'weak') { const w = weakList(); return w.some(x => x.s.a === s.a); }
   if (scope === 'all') return true;
   if (scope.startsWith('r:')) return s.reg === scope.slice(2);
   return s.div === scope;
 }
 const pool = () => ST.filter(inScope);
 function scopeLabel() {
+  if (scope === 'weak') return pool().length + ' weak states';
   if (scope === 'all') return 'all 50 states';
   const n = pool().length;
   return n + ' ' + (scope.startsWith('r:') ? 'states in the ' + scope.slice(2) : scope + ' states');
@@ -429,8 +541,11 @@ function fitBox(list, padFrac) {
   if (!list.length) return Object.assign({}, VB0);
   let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
   list.forEach(s => { x0 = Math.min(x0, s.bb[0]); y0 = Math.min(y0, s.bb[1]); x1 = Math.max(x1, s.bb[2]); y1 = Math.max(y1, s.bb[3]); });
+  // An explicit padFrac means "pad proportionally"; the fixed minimum is only a default,
+  // and it swamps the frame for a small state like Rhode Island.
   const pf = padFrac == null ? 0.1 : padFrac;
-  const px = (x1 - x0) * pf + 10, py = (y1 - y0) * pf + 10;
+  const fixed = padFrac == null ? 10 : 0;
+  const px = (x1 - x0) * pf + fixed, py = (y1 - y0) * pf + fixed;
   x0 -= px; x1 += px; y0 -= py; y1 += py;
   let w = x1 - x0, h = y1 - y0;
   if (w / h < ASPECT) { const nw = h * ASPECT; x0 -= (nw - w) / 2; w = nw; }
@@ -462,11 +577,22 @@ function paintLabels() {
 }
 
 function paint() {
-  const track = TRACKS.includes(mode) ? mode : null;
+  const solo = qm === 'shape' && ask ? ask.s.a : null;
+  map.classList.toggle('solo', !!solo);
+  const track = TRACKS.includes(qm) ? qm : null;
   const hov = $('hit').dataset.hov;
   const letterSet = mode === 'letter' ? new Set(ST.filter(s => s.n[0] === letter).map(s => s.a)) : null;
   ST.forEach(s => {
     const u = useOf[s.a], c = ['st'];
+    if (solo) {
+      u.style.display = s.a === solo ? '' : 'none';
+      if (s.a === solo) {
+        u.setAttribute('class', locked ? (ask.won ? 'st ok' : 'st bad') : 'st solo');
+        return;
+      }
+      return;
+    }
+    u.style.display = '';
     const L = track ? lvl(s.a, track) : overall(s.a);
     if (recall) {
       if (recall.got.has(s.a)) c.push('ok');
@@ -476,7 +602,8 @@ function paint() {
       if (track && L < 2 && P.err[s.a] > 0) c.push('weak');
     }
     if (letterSet && !letterSet.has(s.a)) c.push('mute');
-    if (ask && !locked && mode === 'find' && D().regionHint && s.div !== ask.s.div) c.push('mute');
+    if (mode === 'hooks' && hookSet) c.push(hookSet.has(s.a) ? 'pick' : 'mute');
+    if (ask && !locked && qm === 'find' && D().regionHint && s.div !== ask.s.div) c.push('mute');
     if (scope !== 'all' && !inScope(s)) c.push('mute');
     if (ask && ask.show === s.a && !locked) c.push('target');
     if (ask && locked && ask.s.a === s.a) c.push('ok');
@@ -488,10 +615,14 @@ function paint() {
   $('hit').setAttribute('class', 'hit' + (interactive() ? ' live' : ' off'));
   paintLabels();
 }
-const interactive = () => mode === 'map' || mode === 'letter' || (mode === 'find' && !locked);
+const interactive = () => mode === 'map' || mode === 'letter' || mode === 'hooks' || mode === 'weak' || (qm === 'find' && !locked);
 
 /* ---------------- scoring ---------------- */
 function grade(a, track, won) {
+  P.st = P.st || {};
+  P.st[a] = P.st[a] || {};
+  const t = P.st[a][track] = P.st[a][track] || {a: 0, c: 0};
+  t.a++; if (won) t.c++;
   const cur = lvl(a, track);
   P.lv[a][track] = won ? Math.min(D().cap, cur + 1) : Math.max(0, cur - 2);
   if (!won) P.err[a] = (P.err[a] || 0) + 1;
@@ -512,10 +643,10 @@ function stats() {
     $('statB').textContent = run.streak;
     $('statBl').textContent = 'Streak';
   }
-  const track = TRACKS.includes(mode) ? mode : null;
+  const track = TRACKS.includes(qm) ? qm : null;
   const solid = ST.filter(s => (track ? lvl(s.a, track) : overall(s.a)) >= 3).length;
   $('statC').textContent = solid + '/50';
-  $('statCl').textContent = track ? MODES[mode].label + ' solid' : 'Solid';
+  $('statCl').textContent = track ? MODES[track].label + ' solid' : 'Solid';
 }
 const fmtTime = ms => {
   const t = Math.floor(ms / 1000);
@@ -525,13 +656,16 @@ const fmtTime = ms => {
 /* ---------------- question engine ---------------- */
 function nextQ() {
   locked = false; tries = 0; sel = null;
-  const p = pool().filter(s => mode !== 'border' || s.nb.length);
+  qm = mode === 'mixed' ? pickRnd(MIXPOOL) : mode;
+  const wasSolo = map.classList.contains('solo');
+  if (!pool().length) { scope = 'all'; const sc = $('scope'); if (sc) sc.value = 'all'; }
+  const p = pool().filter(s => qm !== 'border' || s.nb.length);
   const avoid = new Set(recent.slice(-Math.min(6, Math.max(0, p.length - 1))));
   let cand = p.filter(s => !avoid.has(s.a));
   if (!cand.length) cand = p;
   let total = 0;
   const w = cand.map(s => {
-    const L = lvl(s.a, mode);
+    const L = lvl(s.a, qm);
     const v = (3 - L) * (3 - L) + 0.5 + (P.err[s.a] > 0 && L < 3 ? 1.5 : 0);
     total += v; return v;
   });
@@ -542,28 +676,31 @@ function nextQ() {
 
   const d = D();
   ask = {s: s, show: null, won: false, hit: null, choices: null, answer: null, labelBy: 'n', rev: false};
-  if (mode === 'name') {
+  if (qm === 'name' || qm === 'shape') {
     ask.show = s.a; ask.answer = s.a;
     if (!d.typeNames) ask.choices = choicesFor(s, d.easyDistractors);
   }
-  else if (mode === 'border') {
+  else if (qm === 'border') {
     if (d.showTarget) ask.show = s.a;
     const right = pickRnd(s.nb);
     const bad = ST.filter(x => x.a !== s.a && !s.nb.includes(x.a))
       .sort((a, b) => dist(s, a) - dist(s, b)).slice(0, 9);
     ask.answer = right;
     ask.choices = shuffle([right].concat(shuffle(bad).slice(0, 3).map(x => x.a)));
-  } else if (mode === 'capital') {
+  } else if (qm === 'capital') {
     if (d.showTarget) ask.show = s.a;
     if (d.forceChoice) { ask.choices = choicesFor(s, d.easyDistractors); ask.labelBy = 'cap'; ask.answer = s.a; }
     else ask.answer = s.cap;
   }
-  else if (mode === 'code') {
-    if (d.reverseCode) { ask.rev = true; ask.answer = s.n; }   // code shown, name it
+  else if (qm === 'code') {
+    if (d.reverseCode) { ask.rev = true; ask.answer = s.n; }
     else if (d.forceChoice) { ask.show = s.a; ask.choices = choicesFor(s, d.easyDistractors); ask.labelBy = 'a'; ask.answer = s.a; }
     else { ask.show = s.a; ask.answer = s.a; }
   }
-  else if (mode === 'find') { ask.answer = s.a; }
+  else if (qm === 'find') { ask.answer = s.a; }
+  if (qm === 'shape') zoomTo(fitBox([s], 0.06));
+  else if (wasSolo || needFit) zoomScope();
+  needFit = false;
   render(); paint();
 }
 function choicesFor(s, easy) {
@@ -588,7 +725,7 @@ function onPick(a) {
     if (mode === 'letter' && BY[a].n[0] !== letter) letter = BY[a].n[0];
     render(); paint(); return;
   }
-  if (mode !== 'find' || locked) return;
+  if (qm !== 'find' || locked) return;
   tries++;
   if (a === ask.answer) { ask.won = true; locked = true; grade(ask.s.a, 'find', true); render(); paint(); setTimeout(() => { if (locked && ask && ask.won) nextQ(); }, 850); }
   else if (tries >= D().tries) { ask.hit = a; locked = true; grade(ask.s.a, 'find', false); render(); paint(); }
@@ -597,7 +734,7 @@ function onPick(a) {
 function submitChoice(a) {
   if (locked) return;
   locked = true; ask.hit = a; ask.won = a === ask.answer;
-  grade(ask.s.a, mode, ask.won);
+  grade(ask.s.a, qm, ask.won);
   render(); paint();
   if (ask.won) setTimeout(() => { if (locked && ask && ask.won) nextQ(); }, 800);
 }
@@ -608,18 +745,18 @@ function submitText() {
   locked = true;
   // ask.answer holds an abbreviation for chip matching; typed answers compare against
   // the text actually being asked for.
-  const twoLetter = mode === 'code' && !ask.rev;
-  const expect = mode === 'capital' ? ask.s.cap : twoLetter ? ask.s.a : ask.s.n;
+  const twoLetter = qm === 'code' && !ask.rev;
+  const expect = qm === 'capital' ? ask.s.cap : twoLetter ? ask.s.a : ask.s.n;
   ask.won = twoLetter ? norm(v) === norm(expect) : near(v, expect);
   ask.typed = v;
-  grade(ask.s.a, mode, ask.won);
+  grade(ask.s.a, qm, ask.won);
   render(); paint();
   if (ask.won) setTimeout(() => { if (locked && ask && ask.won) nextQ(); }, 800);
 }
 function reveal() {
   if (locked) return;
   locked = true; ask.won = false; ask.gave = true;
-  grade(ask.s.a, mode, false);
+  grade(ask.s.a, qm, false);
   render(); paint();
 }
 /* ---------------- recall (Name All 50) ---------------- */
@@ -662,9 +799,14 @@ function recallTry(raw, fuzzy) {
 const ctrl = $('ctrl');
 function render() {
   const M = MODES[mode];
+  document.body.dataset.nomap = M.nomap ? '1' : '';
   if (M.kind === 'explore')      renderExplore();
   else if (M.kind === 'letters') renderLetters();
   else if (M.kind === 'recall')  renderRecall();
+  else if (M.kind === 'cards')   renderCards();
+  else if (M.kind === 'roll')    renderRoll();
+  else if (M.kind === 'hooks')   renderHooks();
+  else if (M.kind === 'weak')    renderWeak();
   else                           renderQuiz();
   renderRoster();
   stats();
@@ -723,30 +865,34 @@ function renderLetters() {
 }
 
 function renderQuiz() {
-  const M = MODES[mode], s = ask && ask.s, d = D();
+  const M = MODES[qm] || MODES[mode], s = ask && ask.s, d = D();
   if (!s) return;
   let head = '', body = '', headCls = '';
-  if (mode === 'find') {
+  if (qm === 'find') {
     const left = d.tries - tries;
     head = esc(s.n);
     body = `<div class="sub">Tap it on the map${!locked && tries > 0
       ? ` \u2014 not quite, ${left} ${left === 1 ? 'try' : 'tries'} left` : ''}.${
       d.regionHint && !locked ? ` Only <b>${esc(s.div)}</b> is lit.` : ''}</div>`;
   }
-  if (mode === 'name') {
+  if (qm === 'name') {
     head = 'Which state is this?';
     body = `<div class="sub">${d.typeNames ? 'Type its name \u2014 no options.' : 'The highlighted one.'}</div>`;
   }
-  if (mode === 'border') {
+  if (qm === 'shape') {
+    head = 'Which state is this?';
+    body = `<div class="sub">Shape only \u2014 no map, no neighbours.</div>`;
+  }
+  if (qm === 'border') {
     head = `Which one borders ${esc(s.n)}?`;
     body = `<div class="sub">${d.showTarget ? esc(s.n) + ' is highlighted.' : 'No anchor on the map.'}</div>`;
   }
-  if (mode === 'capital') {
+  if (qm === 'capital') {
     head = esc(s.n);
     body = `<div class="sub">${d.forceChoice ? 'Pick the capital.' : 'Name the capital.'}${
       d.showTarget ? '' : ' The map will not help.'}</div>`;
   }
-  if (mode === 'code') {
+  if (qm === 'code') {
     if (ask.rev) { head = esc(s.a); headCls = ' code'; body = `<div class="sub">Which state uses this postal code?</div>`; }
     else { head = esc(s.n); body = `<div class="sub">${d.forceChoice ? 'Pick the postal code.' : 'Two-letter postal code.'}</div>`; }
   }
@@ -759,8 +905,8 @@ function renderQuiz() {
         locked && a === ask.answer ? 'pick-ok' : locked && a === ask.hit ? 'pick-bad' : ''}">
         <kbd>${i + 1}</kbd>${esc(lab(a))}</button>`).join('')}</div>`;
   } else {
-    const two = mode === 'code' && !ask.rev;
-    const ph = two ? 'XX' : mode === 'capital' ? 'Capital city' : 'State name';
+    const two = qm === 'code' && !ask.rev;
+    const ph = two ? 'XX' : qm === 'capital' ? 'Capital city' : 'State name';
     input = `<div class="entry">
       <input id="inp" ${two ? 'maxlength="2" class="up"' : ''} autocomplete="off" autocorrect="off"
         autocapitalize="${two ? 'characters' : 'words'}" spellcheck="false"
@@ -774,17 +920,17 @@ function renderQuiz() {
     const good = ask.won;
     let msg;
     if (good) msg = `<b>Correct.</b>`;
-    else if (mode === 'find')    msg = `<b>That's ${esc(s.n)}</b> \u2014 shown in green.${ask.hit && ask.hit !== s.a ? `<span class="note">You tapped ${esc(BY[ask.hit].n)}, marked red.</span>` : ''}`;
-    else if (mode === 'capital') msg = `<b>${esc(s.cap)}</b> is the capital of ${esc(s.n)}.`;
-    else if (mode === 'code')    msg = ask.rev ? `<b>${esc(s.n)}</b> uses ${esc(s.a)}.` : `<b>${esc(s.a)}</b> \u2014 ${esc(s.n)}.`;
-    else if (mode === 'border')  msg = `<b>${esc(BY[ask.answer].n)}</b> borders ${esc(s.n)}.<span class="note">${esc(s.n)} touches ${s.nb.length}: ${s.nb.join(' \u00b7 ')}</span>`;
+    else if (qm === 'find')    msg = `<b>That's ${esc(s.n)}</b> \u2014 shown in green.${ask.hit && ask.hit !== s.a ? `<span class="note">You tapped ${esc(BY[ask.hit].n)}, marked red.</span>` : ''}`;
+    else if (qm === 'capital') msg = `<b>${esc(s.cap)}</b> is the capital of ${esc(s.n)}.`;
+    else if (qm === 'code')    msg = ask.rev ? `<b>${esc(s.n)}</b> uses ${esc(s.a)}.` : `<b>${esc(s.a)}</b> \u2014 ${esc(s.n)}.`;
+    else if (qm === 'border')  msg = `<b>${esc(BY[ask.answer].n)}</b> borders ${esc(s.n)}.<span class="note">${esc(s.n)} touches ${s.nb.length}: ${s.nb.join(' \u00b7 ')}</span>`;
     else                         msg = `<b>${esc(s.n)}</b> \u2014 ${esc(s.cap)} \u00b7 ${esc(s.nick)}.`;
-    if (good && mode !== 'name') msg += `<span class="note">${esc(s.n)} \u00b7 ${esc(s.a)} \u00b7 ${esc(s.cap)} \u00b7 ${esc(s.div)}</span>`;
+    if (good && qm !== 'name' && qm !== 'shape') msg += `<span class="note">${esc(s.n)} \u00b7 ${esc(s.a)} \u00b7 ${esc(s.cap)} \u00b7 ${esc(s.div)}</span>`;
     verdict = `<div class="verdict ${good ? 'ok' : 'bad'}">${msg}</div>`;
   }
 
   ctrl.className = 'ctrl';
-  ctrl.innerHTML = `<div class="eyebrow">Quiz \u00b7 ${M.label} \u00b7 ${d.label} \u00b7 ${esc(scopeLabel())}</div>
+  ctrl.innerHTML = `<div class="eyebrow">Quiz \u00b7 ${mode === 'mixed' ? 'Mixed \u2192 ' + M.label : M.label} \u00b7 ${d.label} \u00b7 ${esc(scopeLabel())}</div>
     <h2 class="ask${head.length > 22 ? ' sm' : ''}${headCls}">${head}</h2>${body}${input}${verdict}
     <div class="row spread">
       <button class="btn ghost sm" id="skip" type="button">${locked ? 'Next question \u2192' : 'Show me'}</button>
@@ -798,7 +944,7 @@ function renderQuiz() {
     $('go').onclick = () => locked ? nextQ() : submitText();
     if (!locked) {
       inp.focus({preventScroll: true});
-      if (mode === 'code' && !ask.rev) inp.oninput = () => { if (inp.value.trim().length === 2) submitText(); };
+      if (qm === 'code' && !ask.rev) inp.oninput = () => { if (inp.value.trim().length === 2) submitText(); };
     }
     inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); locked ? nextQ() : submitText(); } };
   }
@@ -872,7 +1018,20 @@ function patchRecall() {
 /* ---------------- roster ---------------- */
 function renderRoster() {
   const r = $('roster'), track = TRACKS.includes(mode) ? mode : null;
-  if (recall && !D().letterGroups) {
+  if (mode === 'roll' && roll) {
+    r.innerHTML = LETTERS.map(L => {
+      const g = ST.filter(s => s.n[0] === L && inScope(s));
+      if (!g.length) return '';
+      const got = g.filter(s => roll.got.has(s.a));
+      const done = got.length === g.length;
+      return `<div class="grp"><h4><span>${L}${done ? ' \u2713' : ''}</span><span>${got.length}/${g.length}</span></h4><ul>${
+        g.map(s => roll.got.has(s.a)
+          ? `<li><button type="button" class="got" data-a="${s.a}"><s class="pip got"></s><em>${esc(s.n)}</em></button></li>`
+          : (roll.shown.has(L)
+            ? `<li><button type="button" class="miss" data-a="${s.a}"><s class="pip miss"></s><em>${esc(s.n)}</em></button></li>`
+            : `<li class="blank">\u00b7\u00b7\u00b7\u00b7</li>`)).join('')}</ul></div>`;
+    }).join('');
+  } else if (recall && !D().letterGroups) {
     const got = ST.filter(s => inScope(s) && recall.got.has(s.a));
     const missed = recall.done ? ST.filter(s => inScope(s) && !recall.got.has(s.a)) : [];
     r.innerHTML = `<div class="grp"><h4><span>Found</span><span>${got.length}/${recall.total}</span></h4><ul>${
@@ -928,19 +1087,263 @@ function renderRoster() {
     else { zoomTo(fitBox([BY[a]], 1.6)); }
   });
 }
+/* ============ shared bits ============ */
+function shapeSVG(s, cls) {
+  const w = s.bb[2] - s.bb[0], h = s.bb[3] - s.bb[1], p = Math.max(w, h) * 0.09;
+  return `<svg class="${cls}" viewBox="${(s.bb[0] - p).toFixed(1)} ${(s.bb[1] - p).toFixed(1)} ${(w + 2 * p).toFixed(1)} ${(h + 2 * p).toFixed(1)}"
+    aria-hidden="true"><path d="${s.d}"/></svg>`;
+}
+const abbrsWhere = fn => ST.filter(fn).map(s => s.a);
+
+/* ============ Flashcards ============ */
+function buildDeck(keepPos) {
+  const prev = deck[card];
+  deck = pool().slice();
+  if (!keepPos) { card = 0; cardBack = false; }
+  else { const i = deck.findIndex(s => prev && s.a === prev.a); card = i < 0 ? 0 : i; }
+}
+function renderCards() {
+  if (!deck.length || !deck.every(inScope) || deck.length !== pool().length) buildDeck(true);
+  card = Math.max(0, Math.min(card, deck.length - 1));
+  const s = deck[card];
+  if (!s) { ctrl.innerHTML = '<div class="sub">No states in this selection.</div>'; return; }
+  ctrl.className = 'ctrl';
+  ctrl.innerHTML = `<div class="eyebrow">Learn · Cards · ${esc(scopeLabel())}</div>
+    <button class="card ${cardBack ? 'flipped' : ''}" id="cardFace" type="button"
+      aria-label="${cardBack ? 'Back of card' : 'Front of card, tap to flip'}">
+      ${cardBack ? `<div class="card-back">
+          ${shapeSVG(s, 'card-shape')}
+          <div class="card-facts">
+            <div class="cf"><span>Capital</span><b>${esc(s.cap)}</b></div>
+            <div class="cf"><span>Code</span><b class="mono">${s.a}</b></div>
+            <div class="cf"><span>Admitted</span><b>${esc(s.adm)} · ${s.ord}${ordSuf(s.ord)}</b></div>
+            <div class="cf"><span>Nickname</span><b>${esc(s.nick)}</b></div>
+            <div class="cf"><span>Region</span><b>${esc(s.div)}</b></div>
+            <div class="cf"><span>Borders</span><b class="mono">${s.nb.length ? s.nb.join(' ') : 'none'}</b></div>
+          </div></div>`
+        : `<div class="card-front"><b>${esc(s.n)}</b><span>tap to flip</span></div>`}
+    </button>
+    <div class="row spread">
+      <span class="eyebrow">Card ${card + 1} of ${deck.length}</span>
+      <span class="eyebrow">${P.err[s.a] > 0 ? 'flagged for review' : ''}</span>
+    </div>
+    <div class="row">
+      <button class="btn ghost sm" id="cPrev" type="button">← Back</button>
+      <button class="btn ghost sm" id="cShuf" type="button">Shuffle</button>
+      <button class="btn ghost sm" id="cFlag" type="button">Need work</button>
+      <button class="btn sm" id="cNext" type="button" style="margin-left:auto">Next →</button>
+    </div>
+    <div class="mini">Space flips · arrow keys move · <b>Need work</b> flags a state so the quizzes ask about it more often.</div>`;
+  $('cardFace').onclick = () => { cardBack = !cardBack; render(); };
+  $('cPrev').onclick = () => { card = (card - 1 + deck.length) % deck.length; cardBack = false; render(); paint(); };
+  $('cNext').onclick = () => { card = (card + 1) % deck.length; cardBack = false; render(); paint(); };
+  $('cShuf').onclick = () => { shuffle(deck); card = 0; cardBack = false; render(); paint(); };
+  $('cFlag').onclick = () => {
+    P.err[s.a] = (P.err[s.a] || 0) + 1; save();
+    card = (card + 1) % deck.length; cardBack = false; render(); paint();
+  };
+}
+
+/* ============ Roll Call — names only, no map ============ */
+function startRoll() {
+  roll = {letter: null, got: new Set(), shown: new Set(), msg: ''};
+  roll.letter = nextLetter();
+}
+function rollLetters() { return LETTERS.filter(L => ST.some(s => s.n[0] === L && inScope(s))); }
+function letterDone(L) {
+  const g = ST.filter(s => s.n[0] === L && inScope(s));
+  return g.length > 0 && g.every(s => roll.got.has(s.a) || roll.shown.has(L));
+}
+function nextLetter() {
+  const ls = rollLetters();
+  return ls.find(L => !letterDone(L)) || ls[0] || 'A';
+}
+function renderRoll() {
+  if (!roll) startRoll();
+  const L = roll.letter;
+  const g = ST.filter(s => s.n[0] === L && inScope(s));
+  const got = g.filter(s => roll.got.has(s.a));
+  const revealed = roll.shown.has(L);
+  const ls = rollLetters();
+  const allDone = ls.every(letterDone);
+  ctrl.className = 'ctrl';
+  ctrl.innerHTML = `<div class="eyebrow">Quiz · Roll Call · names only · ${esc(scopeLabel())}</div>
+    <h2 class="ask">${g.length} start with <span class="rl">${L}</span></h2>
+    <div class="sub">${roll.msg
+      ? `<span style="color:var(--wrong)">${esc(roll.msg)}</span>`
+      : revealed ? 'Revealed. Move on when you are ready.'
+      : allDone ? 'Every group done. Start over to go again.'
+      : 'Type them in any order. No map, no options — just the names.'}</div>
+    <div class="slots">${g.map(s => roll.got.has(s.a)
+      ? `<span class="slot got">${esc(s.n)}</span>`
+      : revealed ? `<span class="slot miss">${esc(s.n)}</span>`
+      : `<span class="slot">${'·'.repeat(Math.min(12, s.n.length))}</span>`).join('')}</div>
+    ${revealed || allDone ? '' : `<div class="entry">
+      <input id="inp" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false"
+        placeholder="A state starting with ${L}…" aria-label="State name"></div>`}
+    <div class="letters" role="group" aria-label="Letter">${ls.map(x =>
+      `<button type="button" data-l="${x}" aria-pressed="${x === L}" class="${letterDone(x) ? 'done' : ''}">
+        <i>${x}</i><u>${ST.filter(y => y.n[0] === x && inScope(y)).length}</u></button>`).join('')}</div>
+    <div class="row spread">
+      <button class="btn ghost sm" id="rReveal" type="button">${revealed ? 'Next letter →' : 'Reveal this group'}</button>
+      <span class="eyebrow">${roll.got.size} of ${pool().length} named</span>
+    </div>`;
+  ctrl.querySelectorAll('.letters button').forEach(b => b.onclick = () => {
+    roll.letter = b.dataset.l; roll.msg = ''; render();
+  });
+  $('rReveal').onclick = () => {
+    if (revealed) { roll.letter = nextLetter(); roll.msg = ''; }
+    else roll.shown.add(L);
+    render();
+  };
+  const inp = $('inp');
+  if (inp) {
+    inp.focus({preventScroll: true});
+    const tryIt = (fuzzy) => {
+      const v = norm(inp.value);
+      if (v.length < 3) return false;
+      const all = ST.filter(inScope);
+      let hit = all.find(s => norm(s.n) === v);
+      if (!hit && fuzzy) hit = all.find(s => norm(s.n).length >= 5 && lev(norm(s.n), v) <= 1);
+      if (!hit) return false;
+      if (hit.n[0] !== L) { roll.msg = `${hit.n} starts with ${hit.n[0]}, not ${L}.`; inp.value = ''; render(); return true; }
+      if (roll.got.has(hit.a)) { roll.msg = `${hit.n} is already up there.`; inp.value = ''; render(); return true; }
+      roll.got.add(hit.a); roll.msg = ''; inp.value = '';
+      if (ST.filter(s => s.n[0] === L && inScope(s)).every(s => roll.got.has(s.a))) roll.letter = nextLetter();
+      render();
+      return true;
+    };
+    inp.oninput = () => { const had = roll.msg; if (!tryIt(false) && had) { roll.msg = ''; render(); } };
+    inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); if (!tryIt(true) && inp.value.trim()) { roll.msg = 'Not a state name.'; render(); } } };
+  }
+}
+
+/* ============ Memory hooks ============ */
+const HOOKS = [
+  {g: 'Telling the confusable pairs apart', items: [
+    {t: 'Vermont vs New Hampshire', s: ['VT', 'NH'],
+     b: 'Vermont is the western one and touches New York. New Hampshire is the eastern one and touches Maine. Neither touches the other’s giveaway.'},
+    {t: 'North vs South Carolina', s: ['NC', 'SC'],
+     b: 'South Carolina touches only two states, Georgia and North Carolina. North Carolina touches four and reaches Virginia and Tennessee.'},
+    {t: 'North vs South Dakota', s: ['ND', 'SD'],
+     b: 'South Dakota is the busier one — six neighbours to North Dakota’s three. Bismarck sits north, Pierre south.'},
+    {t: 'Missouri vs Mississippi', s: ['MO', 'MS'],
+     b: 'Mississippi reaches the Gulf. Missouri is landlocked in the middle and ties Tennessee for the most neighbours in the country, at eight.'},
+    {t: 'Iowa vs Ohio', s: ['IA', 'OH'],
+     b: 'Ohio is the eastern one, on Lake Erie, touching Pennsylvania. Iowa sits between the Mississippi and the Missouri and touches no Great Lake.'},
+    {t: 'Kansas vs Arkansas', s: ['KS', 'AR'],
+     b: 'Arkansas spells out “Kansas” but sits well to its south-east. They share no border at all.'}
+  ]},
+  {g: 'Groups worth learning whole', items: [
+    {t: 'Eight M’s and eight N’s', s: abbrsWhere(s => s.n[0] === 'M' || s.n[0] === 'N'),
+     b: 'Sixteen of the fifty — close to a third of the map — begin with M or N. Learn those two groups and the rest gets much smaller.'},
+    {t: 'The Four Corners', s: ['UT', 'CO', 'AZ', 'NM'],
+     b: 'Utah, Colorado, Arizona and New Mexico meet at one point, the only place four states touch. Utah and New Mexico share no border, and neither do Colorado and Arizona — they meet only at that corner.'},
+    {t: 'The four “New” states', s: abbrsWhere(s => /^New /.test(s.n)),
+     b: 'New Hampshire, New Jersey, New York, New Mexico. Three cluster in the north-east; New Mexico is the outlier.'},
+    {t: 'The five directional states', s: abbrsWhere(s => /^(North|South|West) /.test(s.n)),
+     b: 'North and South Carolina, North and South Dakota, and West Virginia — which split from Virginia in 1863 and is the only one without a partner.'},
+    {t: 'The two perfect rectangles', s: ['CO', 'WY'],
+     b: 'Colorado and Wyoming are bounded entirely by lines of latitude and longitude. Utah looks close but has a notch bitten out by Wyoming.'},
+    {t: 'Bordering Mexico', s: ['CA', 'AZ', 'NM', 'TX'],
+     b: 'Just four, west to east: California, Arizona, New Mexico, Texas.'}
+  ]},
+  {g: 'Records and oddities', items: [
+    {t: 'Michigan is a mitten', s: ['MI'],
+     b: 'The clearest shape on the map. Michigan touches Ohio, Indiana and Wisconsin — but not Illinois or Minnesota, which is the part people get wrong.'},
+    {t: 'Maine stands nearly alone', s: ['ME', 'NH'],
+     b: 'The only state with exactly one neighbour: New Hampshire.'},
+    {t: 'Alaska and Hawaii touch nothing', s: ['AK', 'HI'],
+     b: 'The only two with no land border, the only two outside the contiguous block, and the last two admitted — both in 1959.'},
+    {t: 'First in, last in', s: ['DE', 'HI'],
+     b: 'Delaware ratified first, on 7 December 1787, which is why it is “The First State”. Hawaii came last, on 21 August 1959 — 172 years later.'},
+    {t: 'The busiest borders', s: ['MO', 'TN'],
+     b: 'Missouri and Tennessee tie for most neighbours, at eight each. Between them they touch sixteen of the other forty-nine.'},
+    {t: 'A to W', s: ['AL', 'WY'],
+     b: 'Alphabetically the fifty run from Alabama to Wyoming. No state begins with B, E, J, Q, X, Y or Z.'}
+  ]}
+];
+function renderHooks() {
+  ctrl.className = 'ctrl detail';
+  ctrl.innerHTML = `<div class="eyebrow">Learn · Hooks</div>
+    <h2 class="ask sm">Things that make the fifty stick</h2>
+    <div class="sub">Tap any hook to light the states it talks about.</div>
+    ${HOOKS.map((sec, gi) => `<div class="hookgrp"><h3 class="eyebrow">${esc(sec.g)}</h3>${
+      sec.items.map((h, ii) => `<button class="hook ${sel === 'h' + gi + '-' + ii ? 'on' : ''}"
+        type="button" data-h="${gi}-${ii}">
+        <b>${esc(h.t)}</b><span>${esc(h.b)}</span>
+        <u class="mono">${h.s.length > 8 ? h.s.length + ' states' : h.s.join(' · ')}</u></button>`).join('')}</div>`).join('')}`;
+  ctrl.querySelectorAll('.hook').forEach(b => b.onclick = () => {
+    const [gi, ii] = b.dataset.h.split('-').map(Number);
+    const h = HOOKS[gi].items[ii];
+    sel = 'h' + gi + '-' + ii;
+    hookSet = new Set(h.s);
+    render(); paint();
+    zoomTo(fitBox(h.s.map(a => BY[a])));
+  });
+}
+
+/* ============ Progress / weak spots ============ */
+function renderWeak() {
+  const w = weakList();
+  const rows = w.slice(0, 12);
+  const perMode = TRACKS.map(t => {
+    let a = 0, c = 0;
+    ST.forEach(s => { const r = P.st && P.st[s.a] && P.st[s.a][t]; if (r) { a += r.a; c += r.c; } });
+    return {t: t, a: a, c: c};
+  }).filter(x => x.a > 0);
+  const solidAll = ST.filter(s => overall(s.a) >= 3).length;
+  ctrl.className = 'ctrl detail';
+  ctrl.innerHTML = `<div class="eyebrow">Learn · Progress</div>
+    <h2 class="ask">${solidAll} of 50 solid</h2>
+    <div class="sub">${w.length
+      ? `${w.length} state${w.length === 1 ? '' : 's'} you keep getting wrong, weakest first.`
+      : 'Nothing is dragging yet — answer a few more questions and weak spots will surface here.'}</div>
+    ${perMode.length ? `<h3 class="eyebrow" style="margin-top:18px">Accuracy by quiz</h3>
+      <div class="acc">${perMode.map(x => {
+        const pct = Math.round(x.c / x.a * 100);
+        return `<div class="accrow"><span>${MODES[x.t].label}</span>
+          <div class="accbar"><i style="width:${pct}%"></i></div>
+          <b class="mono">${pct}%</b><u class="mono">${x.c}/${x.a}</u></div>`;
+      }).join('')}</div>` : ''}
+    ${rows.length ? `<h3 class="eyebrow" style="margin-top:18px">Weakest</h3>
+      <table class="wk"><tbody>${rows.map(x => `<tr data-a="${x.s.a}">
+        <td>${shapeSVG(x.s, 'wk-shape')}</td>
+        <td><b>${esc(x.s.n)}</b><span class="mono">${esc(x.s.cap)} · ${x.s.a}</span></td>
+        <td class="mono">${MODES[x.track].label}</td>
+        <td class="mono">${x.c}/${x.a}</td></tr>`).join('')}</tbody></table>
+      <div class="row"><button class="btn sm" id="drillWeak" type="button">Drill these ${w.length}</button>
+        <button class="btn ghost sm" id="clearWeak" type="button">Reset progress</button></div>`
+      : `<div class="row"><button class="btn ghost sm" id="clearWeak" type="button">Reset progress</button></div>`}`;
+  if ($('drillWeak')) $('drillWeak').onclick = () => {
+    scope = 'weak'; $('scope').value = 'weak';
+    setMode('mixed');
+  };
+  $('clearWeak').onclick = () => {
+    if (!confirm('Reset all progress on all 50 states? This cannot be undone.')) return;
+    P.lv = {}; P.err = {}; P.st = {}; P.best = {};
+    ST.forEach(s => { P.lv[s.a] = {}; P.err[s.a] = 0; });
+    save(); render(); paint();
+  };
+  ctrl.querySelectorAll('tr[data-a]').forEach(t => t.onclick = () => zoomTo(fitBox([BY[t.dataset.a]], 1.6)));
+}
 /* ---------------- chrome ---------------- */
 function setMode(m) {
   if (recall) { stopRecall(false); recall = null; }
-  mode = m; sel = null; ask = null; locked = false; tries = 0; recent = [];
+  mode = m; qm = m; sel = null; ask = null; locked = false; tries = 0; recent = [];
   run = {right: 0, asked: 0, streak: 0, best: 0};
   const learn = MODES[m].g === 'learn';
-  labels = learn;
+  hookSet = null; roll = null; cardBack = false;
+  labels = learn && !MODES[m].nomap;
   $('btnLab').hidden = !learn;
   $('btnLab').setAttribute('aria-pressed', String(labels));
   document.querySelectorAll('#mgLearn button, #mgQuiz button').forEach(b =>
     b.setAttribute('aria-pressed', String(b.dataset.m === m)));
-  if (MODES[m].kind === 'recall') { startRecall(); render(); paint(); }
-  else if (!learn) nextQ();
+  const k = MODES[m].kind;
+  if (k === 'recall')      { startRecall(); render(); paint(); }
+  else if (k === 'roll')   { startRoll();   render(); paint(); }
+  else if (k === 'cards')  { buildDeck(false); render(); paint(); }
+  else if (!learn)         { needFit = true; nextQ(); return; }
   else { if (m === 'letter') letter = 'M'; render(); paint(); }
   zoomScope();
 }
@@ -948,8 +1351,8 @@ function setMode(m) {
 function setDiff(k) {
   if (!DIFFS[k] || k === dif) return;
   dif = k; P.dif = k; save();
-  $('mgDiff').querySelectorAll('button').forEach(b =>
-    b.setAttribute('aria-pressed', String(b.dataset.d === k)));
+  $('lvlSel').value = k; $('lvlSel').title = DIFFS[k].blurb;
+  document.body.dataset.lvl = k;
   locked = false; tries = 0; recent = [];
   run = {right: 0, asked: 0, streak: 0, best: 0};
   if (MODES[mode].kind === 'recall') { startRecall(); render(); paint(); }
@@ -965,15 +1368,16 @@ function setDiff(k) {
   document.querySelectorAll('#mgLearn button, #mgQuiz button').forEach(b =>
     b.onclick = () => setMode(b.dataset.m));
 
-  $('mgDiff').innerHTML = Object.keys(DIFFS).map(k =>
-    `<button type="button" data-d="${k}" title="${esc(DIFFS[k].blurb)}"
-      aria-pressed="${k === dif}">${DIFFS[k].label}</button>`).join('');
-  $('mgDiff').querySelectorAll('button').forEach(b => b.onclick = () => setDiff(b.dataset.d));
+  $('lvlSel').innerHTML = Object.keys(DIFFS).map(k =>
+    `<option value="${k}"${k === dif ? ' selected' : ''}>${DIFFS[k].label}</option>`).join('');
+  $('lvlSel').title = DIFFS[dif].blurb;
+  $('lvlSel').onchange = e => setDiff(e.target.value);
 
   $('scope').innerHTML =
     `<option value="all">All 50 states</option>` +
     `<optgroup label="Region">` + REGS.map(r =>
       `<option value="r:${r}">${r} (${ST.filter(s => s.reg === r).length})</option>`).join('') + `</optgroup>` +
+    `<option value="weak">Weak spots only</option>` +
     `<optgroup label="Census division">` + DIVS.map(d =>
       `<option value="${d}">${d} (${ST.filter(s => s.div === d).length})</option>`).join('') + `</optgroup>`;
   $('scope').onchange = e => {
@@ -992,6 +1396,12 @@ function setDiff(k) {
 
   addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.metaKey || e.ctrlKey) return;
+    if (MODES[mode].kind === 'cards') {
+      if (e.key === ' ') { e.preventDefault(); $('cardFace').click(); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); $('cNext').click(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); $('cPrev').click(); }
+      return;
+    }
     if (MODES[mode].kind === 'choice' && !locked && /^[1-4]$/.test(e.key)) {
       const b = ctrl.querySelectorAll('.choices button')[+e.key - 1];
       if (b) { e.preventDefault(); b.click(); }

@@ -15,7 +15,10 @@ stylesheet. The whole app — map geometry included — is one HTML file.
 | Mode | What it does |
 | --- | --- |
 | Map | Tap any state for its capital, postal code, admission date and order, census division, and the states it borders. |
-| By Letter | The 19 first-letter groups, lit up on the map. Eight states start with **M** and eight with **N** — nearly a third of the map in two groups. |
+| Letters | The 19 first-letter groups, lit up on the map. Eight states start with **M** and eight with **N** — nearly a third of the map in two groups. |
+| Cards | Self-paced flashcards. Name on the front; capital, code, admission, nickname, region, borders and the state's silhouette on the back. **Need work** flags a state so the quizzes ask about it more often. |
+| Hooks | Memory aids for the parts people actually get wrong — telling Vermont from New Hampshire, the Dakotas, the Carolinas, Missouri from Mississippi. Tap one to light the states it talks about. |
+| Progress | Weak spots, weakest first, with accuracy per quiz type and a **Drill these** button that narrows every quiz to just those states. |
 
 **Quiz**
 
@@ -23,10 +26,13 @@ stylesheet. The whole app — map geometry included — is one HTML file.
 | --- | --- |
 | Find It | Named state, tap it on the map. |
 | Name It | A state highlights; pick it from four. |
+| Silhouette | One state's outline alone — no map, no neighbours, no position. Shape recognition on its own. |
+| Roll Call | Names only, no map at all. "Four states start with A" — type them, group by group, through all 19 letters. |
 | Name All 50 | Free-recall sprint against the clock. The map fills in as you type; misses are revealed at the end. Best time is saved. |
 | Capitals | Type the capital. |
 | Postal Codes | Type the two-letter code. |
 | Borders | "Which one borders Ohio?" |
+| Mixed | All six question types shuffled together. Interleaving is harder in the moment and better for retention than drilling one type at a time. |
 
 ## Difficulty
 
@@ -41,6 +47,7 @@ It applies to every quiz and is remembered between sessions.
 | Capitals | Pick from four | Type it | Type it, with no state highlighted on the map |
 | Postal Codes | Pick from four | Type the code | Reversed: given `DE`, name the state |
 | Borders | Four options, target highlighted | Four options, target highlighted | No highlight |
+| Silhouette | Four options, decoys from other regions | Four options, neighbouring decoys | Type the name |
 
 Guided caps mastery at *Learning* — a state only reaches *Solid* if you have got it
 without multiple choice. Spelling stays forgiving at every level, since misspelling a
@@ -55,9 +62,16 @@ state you plainly know is not a knowledge failure; press Enter to submit a near 
   recently-asked states suppressed so you are not re-drilling the same four.
 - **Distractors are geographic neighbours**, not random states, which makes a wrong
   answer informative rather than a coin flip.
+- **Weak spots resurface.** Anything you miss is weighted more heavily in later
+  questions, and Progress → *Drill these* narrows every quiz to only what you keep
+  getting wrong.
 - **The region selector doubles as zoom.** Picking *New England* both restricts the
   question pool and zooms the map about 3×, which is what makes Rhode Island and
   Delaware tappable on a phone.
+
+Every hook in the Hooks screen is checked against the map data rather than written from
+memory — that South Carolina touches exactly two states, that Utah and New Mexico share
+no border and meet only at the Four Corners point, that Maine has exactly one neighbour.
 
 Progress is stored in `localStorage`, so it is per-browser and never leaves the device.
 
