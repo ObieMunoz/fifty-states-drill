@@ -69,14 +69,14 @@ button{-webkit-tap-highlight-color:transparent}
 
 /* ================= shell ================= */
 .app{min-height:100dvh;display:flex;flex-direction:column}
-.rail{display:flex;align-items:center;gap:14px;padding:10px 16px;
+.rail{display:flex;align-items:center;gap:14px;padding:10px 16px;flex-wrap:wrap;
   border-bottom:1px solid var(--line);background:var(--surface)}
-.wordmark{display:flex;align-items:baseline;gap:8px;min-width:0}
+.wordmark{display:flex;align-items:baseline;gap:8px;flex:0 0 auto}
 .wordmark b{font-family:Fraunces,Georgia,serif;font-optical-sizing:auto;font-weight:600;
   font-size:19px;letter-spacing:-.015em;font-variation-settings:"WONK" 1;white-space:nowrap}
 .wordmark span{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.14em;
   text-transform:uppercase;color:var(--ink-3);white-space:nowrap}
-.rail-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.rail-right{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .stat{display:flex;flex-direction:column;align-items:flex-end;line-height:1.1}
 .stat b{font-family:"IBM Plex Mono",monospace;font-size:16px;font-weight:500;font-variant-numeric:tabular-nums}
 .stat span{font-size:9px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);
@@ -332,6 +332,16 @@ svg.map.solo .dc{display:none}
 /* ---- mode bar wraps once there are many modes ---- */
 @media (min-width:1001px){.modebar{flex-wrap:wrap;overflow:visible}}
 
+@media (max-width:680px){
+  .wordmark b{font-size:16.5px}
+  .lvl span{display:none}
+  .rail{gap:10px;padding:9px 12px}
+  .rail-right{gap:11px}
+  .stat b{font-size:14.5px}
+  .stat span{font-size:8.5px;letter-spacing:.08em}
+  .stat.solid{display:none}
+  .lvl select{padding:4px 6px;font-size:12px}
+}
 @media (max-width:560px){
   .choices{grid-template-columns:1fr}
   .grp ul{grid-template-columns:1fr}
@@ -349,7 +359,7 @@ svg.map.solo .dc{display:none}
         <select id="lvlSel" aria-label="Difficulty level"></select></label>
       <div class="stat"><b id="statA">0</b><span id="statAl">Correct</span></div>
       <div class="stat hot"><b id="statB">0</b><span id="statBl">Streak</span></div>
-      <div class="stat"><b id="statC">0/50</b><span id="statCl">Solid</span></div>
+      <div class="stat solid"><b id="statC">0/50</b><span id="statCl">Solid</span></div>
     </div>
   </header>
   <nav class="modebar" aria-label="Modes">
