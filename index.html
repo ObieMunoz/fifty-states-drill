@@ -85,26 +85,15 @@ button{-webkit-tap-highlight-color:transparent}
 
 /* mode bar */
 .modebar{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--surface);
-  border-bottom:1px solid var(--line);flex-wrap:wrap}
-.mrow{display:flex;align-items:center;gap:8px;min-width:0}
+  border-bottom:1px solid var(--line);flex-wrap:wrap;max-width:100%;overflow-x:hidden}
+.mrow{display:flex;align-items:center;gap:8px;min-width:0;position:relative;max-width:100%}
 .glab{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.15em;
   text-transform:uppercase;color:var(--ink-3);flex:none;padding-right:2px}
-/* On a phone each group gets its own row, so Quiz is never wholly off-screen.
-   A right-edge fade appears only while there is more to scroll to. */
-@media (max-width:680px){
-  .modebar{flex-direction:column;align-items:stretch;gap:6px;padding:7px 12px}
-  .sep{display:none}
-  .mgroup{flex:1 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
-  .mgroup::-webkit-scrollbar{display:none}
-  .mgroup[data-more="1"]{
-    -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);
-    mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent)}
-}
 .mgroup{display:flex;gap:3px;background:var(--sunk);padding:3px;border-radius:9px;
   border:1px solid var(--line-soft);flex:none}
 .mgroup button{border:0;background:transparent;padding:7px 11px;border-radius:7px;cursor:pointer;
   font-size:13px;font-weight:500;color:var(--ink-2);white-space:nowrap;min-height:34px;
-  transition:background .14s,color .14s}
+  flex:none;transition:background .14s,color .14s}
 .mgroup button:hover{color:var(--ink)}
 .mgroup button[aria-pressed="true"]{background:var(--surface);color:var(--ink);
   box-shadow:0 1px 2px rgba(0,0,0,.1)}
@@ -112,6 +101,21 @@ button{-webkit-tap-highlight-color:transparent}
 .mgroup.diff button[aria-pressed="true"][data-d="guided"]{color:var(--hydro)}
 .mgroup.diff button[aria-pressed="true"][data-d="expert"]{color:var(--signal)}
 .sep{width:1px;align-self:stretch;background:var(--line);flex:none;margin:2px 3px}
+/* Phones: one row per group so Quiz is never wholly off-screen. Each group scrolls
+   on its own; the fade is an overlay on the row, not a mask on the scroller, since
+   masking a scroll container janks badly on iOS.
+   NB: this block must stay after the base .mgroup rules - a media query adds no
+   specificity, so an earlier copy loses to `.mgroup{flex:none}` below. */
+@media (max-width:680px){
+  .modebar{flex-direction:column;align-items:stretch;gap:6px;padding:7px 12px}
+  .sep{display:none}
+  .mgroup{flex:1 1 auto;min-width:0;max-width:100%;overflow-x:auto;
+    overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .mgroup::-webkit-scrollbar{display:none}
+  .mrow.more::after{content:'';position:absolute;right:1px;top:1px;bottom:1px;width:30px;
+    pointer-events:none;border-radius:0 8px 8px 0;
+    background:linear-gradient(to right,transparent,var(--sunk))}
+}
 
 /* ================= body ================= */
 .body{flex:1;display:grid;grid-template-columns:1fr;
@@ -1365,20 +1369,31 @@ function setMode(m) {
   if (k === 'recall')      { startRecall(); render(); paint(); }
   else if (k === 'roll')   { startRoll();   render(); paint(); }
   else if (k === 'cards')  { buildDeck(false); render(); paint(); }
-  else if (!learn)         { needFit = true; nextQ(); syncModeBar(); return; }
+  else if (!learn)         { needFit = true; nextQ(); revealActiveTab(); return; }
   else { if (m === 'letter') letter = 'M'; render(); paint(); }
-  syncModeBar();
+  revealActiveTab();
   zoomScope();
 }
 
-function syncModeBar() {
+// Only ever updates the fade. Must not move anything: this runs on every scroll
+// event, so nudging the scroller here would fight the finger and snap back.
+function updateFade() {
   document.querySelectorAll('.mgroup').forEach(g => {
     const more = g.scrollWidth > g.clientWidth + 1 &&
                  g.scrollLeft + g.clientWidth < g.scrollWidth - 1;
-    g.dataset.more = more ? '1' : '';
+    g.parentElement.classList.toggle('more', more);
   });
+}
+// Called on mode change only, and scrolls the group itself rather than using
+// scrollIntoView, which walks every ancestor and pans the whole page on mobile.
+function revealActiveTab() {
   const on = document.querySelector('#mgLearn [aria-pressed="true"], #mgQuiz [aria-pressed="true"]');
-  if (on) on.scrollIntoView({block: 'nearest', inline: 'nearest'});
+  if (on) {
+    const g = on.parentElement, gr = g.getBoundingClientRect(), br = on.getBoundingClientRect();
+    if (br.left < gr.left) g.scrollLeft -= gr.left - br.left + 12;
+    else if (br.right > gr.right) g.scrollLeft += br.right - gr.right + 12;
+  }
+  updateFade();
 }
 
 function setDiff(k) {
@@ -1428,9 +1443,9 @@ function setDiff(k) {
   };
 
   document.querySelectorAll('.mgroup').forEach(g =>
-    g.addEventListener('scroll', syncModeBar, {passive: true}));
-  addEventListener('resize', syncModeBar);
-  syncModeBar();
+    g.addEventListener('scroll', updateFade, {passive: true}));
+  addEventListener('resize', updateFade);
+  revealActiveTab();
 
   addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.metaKey || e.ctrlKey) return;
