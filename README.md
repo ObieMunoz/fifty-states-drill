@@ -28,6 +28,24 @@ stylesheet. The whole app — map geometry included — is one HTML file.
 | Postal Codes | Type the two-letter code. |
 | Borders | "Which one borders Ohio?" |
 
+## Difficulty
+
+A **Level** control sits beside the mode tabs and changes how much scaffolding you get.
+It applies to every quiz and is remembered between sessions.
+
+| | Guided | Standard | Expert |
+| --- | --- | --- | --- |
+| Find It | Only the target's census division is lit; 3 tries | 2 tries | 1 try |
+| Name It | Four options, decoys from other regions | Four options, neighbouring states as decoys | Type the name, no options |
+| Name All 50 | Letter groups, per-letter counts, placeholders sized to each missing name | Letter groups and counts | No letter breakdown at all — just what you have found |
+| Capitals | Pick from four | Type it | Type it, with no state highlighted on the map |
+| Postal Codes | Pick from four | Type the code | Reversed: given `DE`, name the state |
+| Borders | Four options, target highlighted | Four options, target highlighted | No highlight |
+
+Guided caps mastery at *Learning* — a state only reaches *Solid* if you have got it
+without multiple choice. Spelling stays forgiving at every level, since misspelling a
+state you plainly know is not a knowledge failure; press Enter to submit a near miss.
+
 ## How it helps you learn
 
 - **The map is the progress bar.** States deepen from pale paper to teal as you master

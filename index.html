@@ -98,6 +98,8 @@ button{-webkit-tap-highlight-color:transparent}
 .mgroup button[aria-pressed="true"]{background:var(--surface);color:var(--ink);
   box-shadow:0 1px 2px rgba(0,0,0,.1)}
 .mgroup.quiz button[aria-pressed="true"]{color:var(--signal)}
+.mgroup.diff button[aria-pressed="true"][data-d="guided"]{color:var(--hydro)}
+.mgroup.diff button[aria-pressed="true"][data-d="expert"]{color:var(--signal)}
 .sep{width:1px;align-self:stretch;background:var(--line);flex:none;margin:2px 3px}
 
 /* ================= body ================= */
@@ -153,6 +155,7 @@ svg.map text.lab{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weigh
   font-size:clamp(25px,5.6vw,33px);line-height:1.08;letter-spacing:-.02em;
   text-wrap:balance;margin:6px 0 2px;font-variation-settings:"WONK" 1}
 .ask.sm{font-size:clamp(20px,4.4vw,25px)}
+.ask.code{font-family:"IBM Plex Mono",monospace;letter-spacing:.18em;font-weight:500}
 .sub{color:var(--ink-2);font-size:13.5px}
 .choices{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
 .choices button{text-align:left;background:var(--ground);border:1px solid var(--line);
@@ -266,6 +269,8 @@ svg.map text.lab{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weigh
     <span class="glab">Learn</span><div class="mgroup learn" id="mgLearn"></div>
     <span class="sep" aria-hidden="true"></span>
     <span class="glab">Quiz</span><div class="mgroup quiz" id="mgQuiz"></div>
+    <span class="sep" aria-hidden="true"></span>
+    <span class="glab">Level</span><div class="mgroup diff" id="mgDiff"></div>
   </nav>
   <div class="body">
     <section class="stage">
@@ -300,6 +305,17 @@ const DIVS = ['New England','Middle Atlantic','South Atlantic','East South Centr
   'West South Central','East North Central','West North Central','Mountain','Pacific'];
 const REGS = ['Northeast','South','Midwest','West'];
 const LETTERS = [...new Set(ST.map(s => s.n[0]))].sort();
+const DIFFS = {
+  guided: {label: 'Guided', tries: 3, regionHint: true,  forceChoice: true,  easyDistractors: true,
+           typeNames: false, reverseCode: false, showTarget: true,  letterGroups: true,  lengths: true,  cap: 2,
+           blurb: 'Multiple choice, a region hint on the map, and the full letter breakdown. Caps mastery at Learning.'},
+  standard:{label: 'Standard', tries: 2, regionHint: false, forceChoice: false, easyDistractors: false,
+           typeNames: false, reverseCode: false, showTarget: true,  letterGroups: true,  lengths: false, cap: 3,
+           blurb: 'Typed answers, neighbouring states as decoys, letter counts still visible.'},
+  expert:  {label: 'Expert', tries: 1, regionHint: false, forceChoice: false, easyDistractors: false,
+           typeNames: true,  reverseCode: true,  showTarget: false, letterGroups: false, lengths: false, cap: 3,
+           blurb: 'No map anchor, no letter splits, one attempt, and codes run backwards.'}
+};
 const KEY = 'fiftyStatesDrill.v1';
 const VB0 = {x:0, y:0, w:975, h:622};
 const ASPECT = VB0.w / VB0.h;
@@ -315,6 +331,8 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(P)); } catch
 const lvl = (a, t) => P.lv[a][t] || 0;
 const overall = a => Math.round(TRACKS.reduce((n, t) => n + lvl(a, t), 0) / TRACKS.length);
 
+let dif = DIFFS[P.dif] ? P.dif : 'standard';
+const D = () => DIFFS[dif];
 let mode = 'map', scope = 'all', ask = null, locked = false, sel = null,
     letter = 'M', labels = false, tries = 0,
     run = {right: 0, asked: 0, streak: 0, best: 0}, recent = [],
@@ -458,6 +476,7 @@ function paint() {
       if (track && L < 2 && P.err[s.a] > 0) c.push('weak');
     }
     if (letterSet && !letterSet.has(s.a)) c.push('mute');
+    if (ask && !locked && mode === 'find' && D().regionHint && s.div !== ask.s.div) c.push('mute');
     if (scope !== 'all' && !inScope(s)) c.push('mute');
     if (ask && ask.show === s.a && !locked) c.push('target');
     if (ask && locked && ask.s.a === s.a) c.push('ok');
@@ -474,7 +493,7 @@ const interactive = () => mode === 'map' || mode === 'letter' || (mode === 'find
 /* ---------------- scoring ---------------- */
 function grade(a, track, won) {
   const cur = lvl(a, track);
-  P.lv[a][track] = won ? Math.min(3, cur + 1) : Math.max(0, cur - 2);
+  P.lv[a][track] = won ? Math.min(D().cap, cur + 1) : Math.max(0, cur - 2);
   if (!won) P.err[a] = (P.err[a] || 0) + 1;
   run.asked++;
   if (won) { run.right++; run.streak++; run.best = Math.max(run.best, run.streak); }
@@ -521,23 +540,39 @@ function nextQ() {
   const s = cand[i];
   recent.push(s.a); if (recent.length > 12) recent.shift();
 
-  ask = {s: s, show: null, won: false, hit: null, choices: null, answer: null};
-  if (mode === 'name') { ask.show = s.a; ask.answer = s.a; ask.choices = choicesFor(s); }
+  const d = D();
+  ask = {s: s, show: null, won: false, hit: null, choices: null, answer: null, labelBy: 'n', rev: false};
+  if (mode === 'name') {
+    ask.show = s.a; ask.answer = s.a;
+    if (!d.typeNames) ask.choices = choicesFor(s, d.easyDistractors);
+  }
   else if (mode === 'border') {
-    ask.show = s.a;
+    if (d.showTarget) ask.show = s.a;
     const right = pickRnd(s.nb);
     const bad = ST.filter(x => x.a !== s.a && !s.nb.includes(x.a))
       .sort((a, b) => dist(s, a) - dist(s, b)).slice(0, 9);
     ask.answer = right;
     ask.choices = shuffle([right].concat(shuffle(bad).slice(0, 3).map(x => x.a)));
-  } else if (mode === 'capital') { ask.show = s.a; ask.answer = s.cap; }
-  else if (mode === 'code') { ask.show = s.a; ask.answer = s.a; }
+  } else if (mode === 'capital') {
+    if (d.showTarget) ask.show = s.a;
+    if (d.forceChoice) { ask.choices = choicesFor(s, d.easyDistractors); ask.labelBy = 'cap'; ask.answer = s.a; }
+    else ask.answer = s.cap;
+  }
+  else if (mode === 'code') {
+    if (d.reverseCode) { ask.rev = true; ask.answer = s.n; }   // code shown, name it
+    else if (d.forceChoice) { ask.show = s.a; ask.choices = choicesFor(s, d.easyDistractors); ask.labelBy = 'a'; ask.answer = s.a; }
+    else { ask.show = s.a; ask.answer = s.a; }
+  }
   else if (mode === 'find') { ask.answer = s.a; }
   render(); paint();
 }
-function choicesFor(s) {
+function choicesFor(s, easy) {
   const seen = new Set([s.a]);
   const out = [];
+  if (easy) {
+    const far = shuffle(ST.filter(x => x.reg !== s.reg));
+    return shuffle([s.a].concat(far.slice(0, 3).map(x => x.a)));
+  }
   s.nr.forEach(a => { if (!seen.has(a)) { seen.add(a); out.push(a); } });
   shuffle(out);
   const extra = shuffle(ST.filter(x => !seen.has(x.a) && x.reg === s.reg));
@@ -556,7 +591,7 @@ function onPick(a) {
   if (mode !== 'find' || locked) return;
   tries++;
   if (a === ask.answer) { ask.won = true; locked = true; grade(ask.s.a, 'find', true); render(); paint(); setTimeout(() => { if (locked && ask && ask.won) nextQ(); }, 850); }
-  else if (tries >= 2) { ask.hit = a; locked = true; grade(ask.s.a, 'find', false); render(); paint(); }
+  else if (tries >= D().tries) { ask.hit = a; locked = true; grade(ask.s.a, 'find', false); render(); paint(); }
   else { ask.hit = a; render(); paint(); setTimeout(() => { if (!locked) { ask.hit = null; paint(); } }, 700); }
 }
 function submitChoice(a) {
@@ -571,7 +606,11 @@ function submitText() {
   const v = $('inp').value.trim();
   if (!v) return;
   locked = true;
-  ask.won = mode === 'code' ? norm(v) === norm(ask.answer) : near(v, ask.answer);
+  // ask.answer holds an abbreviation for chip matching; typed answers compare against
+  // the text actually being asked for.
+  const twoLetter = mode === 'code' && !ask.rev;
+  const expect = mode === 'capital' ? ask.s.cap : twoLetter ? ask.s.a : ask.s.n;
+  ask.won = twoLetter ? norm(v) === norm(expect) : near(v, expect);
   ask.typed = v;
   grade(ask.s.a, mode, ask.won);
   render(); paint();
@@ -684,28 +723,49 @@ function renderLetters() {
 }
 
 function renderQuiz() {
-  const M = MODES[mode], s = ask && ask.s;
+  const M = MODES[mode], s = ask && ask.s, d = D();
   if (!s) return;
-  let head = '', body = '';
-  if (mode === 'find')    { head = esc(s.n); body = `<div class="sub">Tap it on the map${tries === 1 && !locked ? ' — not quite, try again' : ''}.</div>`; }
-  if (mode === 'name')    { head = 'Which state is this?'; body = `<div class="sub">The highlighted one.</div>`; }
-  if (mode === 'border')  { head = `Which one borders ${esc(s.n)}?`; body = `<div class="sub">${esc(s.n)} is highlighted.</div>`; }
-  if (mode === 'capital') { head = esc(s.n); body = `<div class="sub">Name the capital.</div>`; }
-  if (mode === 'code')    { head = esc(s.n); body = `<div class="sub">Two-letter postal code.</div>`; }
+  let head = '', body = '', headCls = '';
+  if (mode === 'find') {
+    const left = d.tries - tries;
+    head = esc(s.n);
+    body = `<div class="sub">Tap it on the map${!locked && tries > 0
+      ? ` \u2014 not quite, ${left} ${left === 1 ? 'try' : 'tries'} left` : ''}.${
+      d.regionHint && !locked ? ` Only <b>${esc(s.div)}</b> is lit.` : ''}</div>`;
+  }
+  if (mode === 'name') {
+    head = 'Which state is this?';
+    body = `<div class="sub">${d.typeNames ? 'Type its name \u2014 no options.' : 'The highlighted one.'}</div>`;
+  }
+  if (mode === 'border') {
+    head = `Which one borders ${esc(s.n)}?`;
+    body = `<div class="sub">${d.showTarget ? esc(s.n) + ' is highlighted.' : 'No anchor on the map.'}</div>`;
+  }
+  if (mode === 'capital') {
+    head = esc(s.n);
+    body = `<div class="sub">${d.forceChoice ? 'Pick the capital.' : 'Name the capital.'}${
+      d.showTarget ? '' : ' The map will not help.'}</div>`;
+  }
+  if (mode === 'code') {
+    if (ask.rev) { head = esc(s.a); headCls = ' code'; body = `<div class="sub">Which state uses this postal code?</div>`; }
+    else { head = esc(s.n); body = `<div class="sub">${d.forceChoice ? 'Pick the postal code.' : 'Two-letter postal code.'}</div>`; }
+  }
 
+  const lab = a => ask.labelBy === 'cap' ? BY[a].cap : ask.labelBy === 'a' ? BY[a].a : BY[a].n;
   let input = '';
-  if (M.kind === 'choice') {
+  if (ask.choices) {
     input = `<div class="choices">${ask.choices.map((a, i) =>
       `<button type="button" data-a="${a}" ${locked ? 'disabled' : ''} class="${
         locked && a === ask.answer ? 'pick-ok' : locked && a === ask.hit ? 'pick-bad' : ''}">
-        <kbd>${i + 1}</kbd>${esc(BY[a].n)}</button>`).join('')}</div>`;
-  } else if (M.kind === 'type') {
-    const two = mode === 'code';
+        <kbd>${i + 1}</kbd>${esc(lab(a))}</button>`).join('')}</div>`;
+  } else {
+    const two = mode === 'code' && !ask.rev;
+    const ph = two ? 'XX' : mode === 'capital' ? 'Capital city' : 'State name';
     input = `<div class="entry">
       <input id="inp" ${two ? 'maxlength="2" class="up"' : ''} autocomplete="off" autocorrect="off"
         autocapitalize="${two ? 'characters' : 'words'}" spellcheck="false"
-        placeholder="${two ? 'XX' : 'Capital city'}" ${locked ? 'disabled' : ''}
-        value="${locked ? esc(ask.typed || '') : ''}" aria-label="${two ? 'Postal code' : 'Capital city'}">
+        placeholder="${ph}" ${locked ? 'disabled' : ''}
+        value="${locked ? esc(ask.typed || '') : ''}" aria-label="${esc(ph)}">
       <button class="btn" id="go" type="button">${locked ? 'Next' : 'Check'}</button></div>`;
   }
 
@@ -714,20 +774,20 @@ function renderQuiz() {
     const good = ask.won;
     let msg;
     if (good) msg = `<b>Correct.</b>`;
-    else if (mode === 'find')    msg = `<b>That's ${esc(s.n)}</b> — shown in green.${ask.hit && ask.hit !== s.a ? `<span class="note">You tapped ${esc(BY[ask.hit].n)}, marked red.</span>` : ''}`;
+    else if (mode === 'find')    msg = `<b>That's ${esc(s.n)}</b> \u2014 shown in green.${ask.hit && ask.hit !== s.a ? `<span class="note">You tapped ${esc(BY[ask.hit].n)}, marked red.</span>` : ''}`;
     else if (mode === 'capital') msg = `<b>${esc(s.cap)}</b> is the capital of ${esc(s.n)}.`;
-    else if (mode === 'code')    msg = `<b>${esc(s.a)}</b> — ${esc(s.n)}.`;
-    else if (mode === 'border')  msg = `<b>${esc(BY[ask.answer].n)}</b> borders ${esc(s.n)}.<span class="note">${esc(s.n)} touches ${s.nb.length}: ${s.nb.join(' · ')}</span>`;
-    else                         msg = `<b>${esc(s.n)}</b> — ${esc(s.cap)} · ${esc(s.nick)}.`;
-    if (good && mode !== 'name') msg += `<span class="note">${esc(s.n)} · ${esc(s.a)} · ${esc(s.cap)} · ${esc(s.div)}</span>`;
+    else if (mode === 'code')    msg = ask.rev ? `<b>${esc(s.n)}</b> uses ${esc(s.a)}.` : `<b>${esc(s.a)}</b> \u2014 ${esc(s.n)}.`;
+    else if (mode === 'border')  msg = `<b>${esc(BY[ask.answer].n)}</b> borders ${esc(s.n)}.<span class="note">${esc(s.n)} touches ${s.nb.length}: ${s.nb.join(' \u00b7 ')}</span>`;
+    else                         msg = `<b>${esc(s.n)}</b> \u2014 ${esc(s.cap)} \u00b7 ${esc(s.nick)}.`;
+    if (good && mode !== 'name') msg += `<span class="note">${esc(s.n)} \u00b7 ${esc(s.a)} \u00b7 ${esc(s.cap)} \u00b7 ${esc(s.div)}</span>`;
     verdict = `<div class="verdict ${good ? 'ok' : 'bad'}">${msg}</div>`;
   }
 
   ctrl.className = 'ctrl';
-  ctrl.innerHTML = `<div class="eyebrow">Quiz · ${M.label} · ${esc(scopeLabel())}</div>
-    <h2 class="ask${head.length > 22 ? ' sm' : ''}">${head}</h2>${body}${input}${verdict}
+  ctrl.innerHTML = `<div class="eyebrow">Quiz \u00b7 ${M.label} \u00b7 ${d.label} \u00b7 ${esc(scopeLabel())}</div>
+    <h2 class="ask${head.length > 22 ? ' sm' : ''}${headCls}">${head}</h2>${body}${input}${verdict}
     <div class="row spread">
-      <button class="btn ghost sm" id="skip" type="button">${locked ? 'Next question →' : "Show me"}</button>
+      <button class="btn ghost sm" id="skip" type="button">${locked ? 'Next question \u2192' : 'Show me'}</button>
       <span class="eyebrow">${run.asked ? Math.round(run.right / run.asked * 100) + '% this session' : 'Enter to submit'}</span>
     </div>`;
 
@@ -738,7 +798,7 @@ function renderQuiz() {
     $('go').onclick = () => locked ? nextQ() : submitText();
     if (!locked) {
       inp.focus({preventScroll: true});
-      if (mode === 'code') inp.oninput = () => { if (inp.value.trim().length === 2) submitText(); };
+      if (mode === 'code' && !ask.rev) inp.oninput = () => { if (inp.value.trim().length === 2) submitText(); };
     }
     inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); locked ? nextQ() : submitText(); } };
   }
@@ -747,7 +807,7 @@ function renderQuiz() {
 function renderRecall() {
   const done = recall.done;
   ctrl.className = 'ctrl';
-  ctrl.innerHTML = `<div class="eyebrow">Quiz · Name All 50 · ${esc(scopeLabel())}</div>
+  ctrl.innerHTML = `<div class="eyebrow">Quiz · Name All 50 · ${D().label} · ${esc(scopeLabel())}</div>
     <h2 class="ask" id="rcHead"></h2><div class="sub" id="rcSub"></div>
     ${done ? '' : `<div class="entry">
       <input id="inp" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false"
@@ -812,7 +872,15 @@ function patchRecall() {
 /* ---------------- roster ---------------- */
 function renderRoster() {
   const r = $('roster'), track = TRACKS.includes(mode) ? mode : null;
-  if (recall) {
+  if (recall && !D().letterGroups) {
+    const got = ST.filter(s => inScope(s) && recall.got.has(s.a));
+    const missed = recall.done ? ST.filter(s => inScope(s) && !recall.got.has(s.a)) : [];
+    r.innerHTML = `<div class="grp"><h4><span>Found</span><span>${got.length}/${recall.total}</span></h4><ul>${
+      got.map(s => `<li><button type="button" class="got" data-a="${s.a}"><s class="pip got"></s><em>${esc(s.n)}</em></button></li>`).join('')
+      || '<li class="blank">nothing yet</li>'}</ul></div>` +
+      (missed.length ? `<div class="grp"><h4><span>Missed</span><span>${missed.length}</span></h4><ul>${
+        missed.map(s => `<li><button type="button" class="miss" data-a="${s.a}"><s class="pip miss"></s><em>${esc(s.n)}</em></button></li>`).join('')}</ul></div>` : '');
+  } else if (recall) {
     r.innerHTML = LETTERS.map(L => {
       const g = ST.filter(s => s.n[0] === L && inScope(s));
       if (!g.length) return '';
@@ -822,7 +890,7 @@ function renderRoster() {
           ? `<li><button type="button" class="got" data-a="${s.a}"><s class="pip got"></s><em>${esc(s.n)}</em></button></li>`
           : recall.done
             ? `<li><button type="button" class="miss" data-a="${s.a}"><s class="pip miss"></s><em>${esc(s.n)}</em></button></li>`
-            : `<li class="blank">${'·'.repeat(Math.min(14, s.n.length))}</li>`).join('')}</ul></div>`;
+            : `<li class="blank">${D().lengths ? '·'.repeat(Math.min(14, s.n.length)) : '····'}</li>`).join('')}</ul></div>`;
     }).join('');
   } else {
     const counts = [0, 0, 0, 0];
@@ -869,7 +937,7 @@ function setMode(m) {
   labels = learn;
   $('btnLab').hidden = !learn;
   $('btnLab').setAttribute('aria-pressed', String(labels));
-  document.querySelectorAll('.mgroup button').forEach(b =>
+  document.querySelectorAll('#mgLearn button, #mgQuiz button').forEach(b =>
     b.setAttribute('aria-pressed', String(b.dataset.m === m)));
   if (MODES[m].kind === 'recall') { startRecall(); render(); paint(); }
   else if (!learn) nextQ();
@@ -877,12 +945,30 @@ function setMode(m) {
   zoomScope();
 }
 
+function setDiff(k) {
+  if (!DIFFS[k] || k === dif) return;
+  dif = k; P.dif = k; save();
+  $('mgDiff').querySelectorAll('button').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.d === k)));
+  locked = false; tries = 0; recent = [];
+  run = {right: 0, asked: 0, streak: 0, best: 0};
+  if (MODES[mode].kind === 'recall') { startRecall(); render(); paint(); }
+  else if (MODES[mode].g === 'quiz') nextQ();
+  else { render(); paint(); }
+}
+
 (function chrome() {
   const mk = (host, keys) => $(host).innerHTML = keys.map(k =>
     `<button type="button" data-m="${k}" aria-pressed="false">${MODES[k].label}</button>`).join('');
   mk('mgLearn', Object.keys(MODES).filter(k => MODES[k].g === 'learn'));
   mk('mgQuiz',  Object.keys(MODES).filter(k => MODES[k].g === 'quiz'));
-  document.querySelectorAll('.mgroup button').forEach(b => b.onclick = () => setMode(b.dataset.m));
+  document.querySelectorAll('#mgLearn button, #mgQuiz button').forEach(b =>
+    b.onclick = () => setMode(b.dataset.m));
+
+  $('mgDiff').innerHTML = Object.keys(DIFFS).map(k =>
+    `<button type="button" data-d="${k}" title="${esc(DIFFS[k].blurb)}"
+      aria-pressed="${k === dif}">${DIFFS[k].label}</button>`).join('');
+  $('mgDiff').querySelectorAll('button').forEach(b => b.onclick = () => setDiff(b.dataset.d));
 
   $('scope').innerHTML =
     `<option value="all">All 50 states</option>` +
