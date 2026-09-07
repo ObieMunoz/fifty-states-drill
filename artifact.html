@@ -106,10 +106,10 @@ button{-webkit-tap-highlight-color:transparent}
 }
 
 /* ================= map ================= */
-.maptools{position:absolute;top:14px;left:16px;z-index:3;display:flex;gap:5px;flex-wrap:wrap;max-width:60%}
-.maptools button{background:color-mix(in srgb,var(--surface) 90%,transparent);
+.maptools{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:0 0 8px}
+.maptools button{background:var(--surface);
   border:1px solid var(--line);border-radius:7px;padding:6px 10px;cursor:pointer;
-  font-size:11.5px;color:var(--ink-2);backdrop-filter:blur(6px);min-height:32px;
+  font-size:11.5px;color:var(--ink-2);min-height:32px;
   font-family:"IBM Plex Mono",monospace;letter-spacing:.03em}
 .maptools button:hover{color:var(--ink);border-color:var(--hydro)}
 .maptools button[aria-pressed="true"]{color:var(--ink);border-color:var(--hydro);background:var(--surface)}
@@ -893,7 +893,7 @@ function renderQuiz() {
       `<button type="button" data-a="${a}" ${locked ? 'disabled' : ''} class="${
         locked && a === ask.answer ? 'pick-ok' : locked && a === ask.hit ? 'pick-bad' : ''}">
         <kbd>${i + 1}</kbd>${esc(lab(a))}</button>`).join('')}</div>`;
-  } else {
+  } else if (qm !== 'find') {
     const two = qm === 'code' && !ask.rev;
     const ph = two ? 'XX' : qm === 'capital' ? 'Capital city' : 'State name';
     input = `<div class="entry">
@@ -923,7 +923,8 @@ function renderQuiz() {
     <h2 class="ask${head.length > 22 ? ' sm' : ''}${headCls}">${head}</h2>${body}${input}${verdict}
     <div class="row spread">
       <button class="btn ghost sm" id="skip" type="button">${locked ? 'Next question \u2192' : 'Show me'}</button>
-      <span class="eyebrow">${run.asked ? Math.round(run.right / run.asked * 100) + '% this session' : 'Enter to submit'}</span>
+      <span class="eyebrow">${run.asked ? Math.round(run.right / run.asked * 100) + '% this session'
+        : qm === 'find' ? 'Tap the map' : ask.choices ? 'Keys 1\u20134' : 'Enter to submit'}</span>
     </div>`;
 
   ctrl.querySelectorAll('.choices button').forEach(b => b.onclick = () => submitChoice(b.dataset.a));
