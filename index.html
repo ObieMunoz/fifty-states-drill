@@ -85,10 +85,21 @@ button{-webkit-tap-highlight-color:transparent}
 
 /* mode bar */
 .modebar{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--surface);
-  border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:thin}
-.modebar::-webkit-scrollbar{height:0}
+  border-bottom:1px solid var(--line);flex-wrap:wrap}
+.mrow{display:flex;align-items:center;gap:8px;min-width:0}
 .glab{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.15em;
   text-transform:uppercase;color:var(--ink-3);flex:none;padding-right:2px}
+/* On a phone each group gets its own row, so Quiz is never wholly off-screen.
+   A right-edge fade appears only while there is more to scroll to. */
+@media (max-width:680px){
+  .modebar{flex-direction:column;align-items:stretch;gap:6px;padding:7px 12px}
+  .sep{display:none}
+  .mgroup{flex:1 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
+  .mgroup::-webkit-scrollbar{display:none}
+  .mgroup[data-more="1"]{
+    -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);
+    mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent)}
+}
 .mgroup{display:flex;gap:3px;background:var(--sunk);padding:3px;border-radius:9px;
   border:1px solid var(--line-soft);flex:none}
 .mgroup button{border:0;background:transparent;padding:7px 11px;border-radius:7px;cursor:pointer;
@@ -363,9 +374,9 @@ svg.map.solo .dc{display:none}
     </div>
   </header>
   <nav class="modebar" aria-label="Modes">
-    <span class="glab">Learn</span><div class="mgroup learn" id="mgLearn"></div>
+    <div class="mrow"><span class="glab">Learn</span><div class="mgroup learn" id="mgLearn"></div></div>
     <span class="sep" aria-hidden="true"></span>
-    <span class="glab">Quiz</span><div class="mgroup quiz" id="mgQuiz"></div>
+    <div class="mrow"><span class="glab">Quiz</span><div class="mgroup quiz" id="mgQuiz"></div></div>
   </nav>
   <div class="body">
     <section class="stage">
@@ -1354,9 +1365,20 @@ function setMode(m) {
   if (k === 'recall')      { startRecall(); render(); paint(); }
   else if (k === 'roll')   { startRoll();   render(); paint(); }
   else if (k === 'cards')  { buildDeck(false); render(); paint(); }
-  else if (!learn)         { needFit = true; nextQ(); return; }
+  else if (!learn)         { needFit = true; nextQ(); syncModeBar(); return; }
   else { if (m === 'letter') letter = 'M'; render(); paint(); }
+  syncModeBar();
   zoomScope();
+}
+
+function syncModeBar() {
+  document.querySelectorAll('.mgroup').forEach(g => {
+    const more = g.scrollWidth > g.clientWidth + 1 &&
+                 g.scrollLeft + g.clientWidth < g.scrollWidth - 1;
+    g.dataset.more = more ? '1' : '';
+  });
+  const on = document.querySelector('#mgLearn [aria-pressed="true"], #mgQuiz [aria-pressed="true"]');
+  if (on) on.scrollIntoView({block: 'nearest', inline: 'nearest'});
 }
 
 function setDiff(k) {
@@ -1404,6 +1426,11 @@ function setDiff(k) {
     $('btnLab').setAttribute('aria-pressed', String(labels));
     paintLabels();
   };
+
+  document.querySelectorAll('.mgroup').forEach(g =>
+    g.addEventListener('scroll', syncModeBar, {passive: true}));
+  addEventListener('resize', syncModeBar);
+  syncModeBar();
 
   addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.metaKey || e.ctrlKey) return;
