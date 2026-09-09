@@ -83,7 +83,7 @@ button{-webkit-tap-highlight-color:transparent}
 .mgroup button{border:0;background:transparent;padding:7px 11px;border-radius:7px;cursor:pointer;
   font-size:13px;font-weight:500;color:var(--ink-2);white-space:nowrap;min-height:34px;
   flex:none;transition:background .14s,color .14s}
-.mgroup button:hover{color:var(--ink)}
+@media (hover:hover){.mgroup button:hover{color:var(--ink)}}
 .mgroup button[aria-pressed="true"]{background:var(--surface);color:var(--ink);
   box-shadow:0 1px 2px rgba(0,0,0,.1)}
 .mgroup.quiz button[aria-pressed="true"]{color:var(--signal)}
@@ -126,7 +126,7 @@ button{-webkit-tap-highlight-color:transparent}
   border:1px solid var(--line);border-radius:7px;padding:6px 10px;cursor:pointer;
   font-size:11.5px;color:var(--ink-2);min-height:32px;
   font-family:"IBM Plex Mono",monospace;letter-spacing:.03em}
-.maptools button:hover{color:var(--ink);border-color:var(--hydro)}
+@media (hover:hover){.maptools button:hover{color:var(--ink);border-color:var(--hydro)}}
 .maptools button[aria-pressed="true"]{color:var(--ink);border-color:var(--hydro);background:var(--surface)}
 svg.map{width:100%;height:auto;display:block;touch-action:manipulation;
   background:var(--water);border:1px solid var(--line-soft);border-radius:12px}
@@ -166,7 +166,7 @@ svg.map text.lab{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weigh
   border-radius:var(--r);padding:11px 12px;cursor:pointer;font-size:14px;line-height:1.25;
   display:flex;align-items:center;gap:9px;min-height:46px;
   transition:border-color .12s,background .12s}
-.choices button:hover:not(:disabled){border-color:var(--hydro)}
+@media (hover:hover){.choices.live button:hover:not(:disabled){border-color:var(--hydro)}}
 .choices button kbd{font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--ink-3);
   border:1px solid var(--line);border-radius:4px;padding:1px 4px;flex:none;background:var(--surface)}
 .choices button:disabled{cursor:default}
@@ -179,9 +179,9 @@ svg.map text.lab{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weigh
   letter-spacing:.3em;font-size:20px;text-align:center}
 .btn{background:var(--hydro);color:var(--btn-ink);border:0;border-radius:var(--r);
   padding:12px 16px;cursor:pointer;font-size:14px;font-weight:500;white-space:nowrap;min-height:46px}
-.btn:hover{background:var(--hydro-2)}
+@media (hover:hover){.btn:hover{background:var(--hydro-2)}}
 .btn.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
-.btn.ghost:hover{background:var(--ground);color:var(--ink)}
+@media (hover:hover){.btn.ghost:hover{background:var(--ground);color:var(--ink)}}
 .btn.sm{padding:7px 11px;min-height:34px;font-size:12.5px}
 .verdict{margin-top:13px;padding:11px 13px;border-radius:var(--r);font-size:13.5px;
   line-height:1.45;border:1px solid}
@@ -199,14 +199,14 @@ svg.map text.lab{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weigh
 .letters button{width:44px;height:44px;border-radius:9px;border:1px solid var(--line);
   background:var(--ground);cursor:pointer;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:0;line-height:1;padding:0}
-.letters button:hover{border-color:var(--hydro)}
+@media (hover:hover){.letters button:hover{border-color:var(--hydro)}}
 .letters button[aria-pressed="true"]{background:var(--hydro);border-color:var(--hydro);color:var(--btn-ink)}
 .letters button i{font-family:Fraunces,Georgia,serif;font-style:normal;font-weight:600;font-size:16px}
 .letters button u{font-family:"IBM Plex Mono",monospace;font-size:9px;text-decoration:none;opacity:.65}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
 .chips button{border:1px solid var(--line);background:var(--ground);border-radius:8px;
   padding:6px 10px;font-size:13px;cursor:pointer;min-height:34px}
-.chips button:hover{border-color:var(--hydro)}
+@media (hover:hover){.chips button:hover{border-color:var(--hydro)}}
 
 /* progress */
 .bars{display:flex;gap:2px;height:8px;border-radius:5px;overflow:hidden;background:var(--sunk);margin-top:10px}
@@ -228,7 +228,7 @@ svg.map text.lab{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weigh
 .grp li button{flex:1;display:flex;align-items:center;gap:7px;background:transparent;border:0;
   padding:6px;border-radius:6px;cursor:pointer;text-align:left;font-size:12.5px;
   color:var(--ink-2);min-width:0;min-height:32px}
-.grp li button:hover{background:var(--ground);color:var(--ink)}
+@media (hover:hover){.grp li button:hover{background:var(--ground);color:var(--ink)}}
 .grp li button em{font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .grp li button.got{color:var(--ink)}
 .grp li button.miss em{color:var(--wrong)}
@@ -277,7 +277,7 @@ svg.map.solo .dc{display:none}
 .card{display:block;width:100%;margin-top:14px;background:var(--ground);border:1px solid var(--line);
   border-radius:14px;padding:26px 20px;cursor:pointer;text-align:left;min-height:210px;
   box-shadow:var(--shadow);transition:border-color .15s}
-.card:hover{border-color:var(--hydro)}
+@media (hover:hover){.card:hover{border-color:var(--hydro)}}
 .card-front{display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:12px;min-height:158px;text-align:center}
 .card-front b{font-family:Fraunces,Georgia,serif;font-optical-sizing:auto;font-weight:600;
@@ -310,7 +310,7 @@ svg.map.solo .dc{display:none}
 .hookgrp h3{margin:0 0 8px}
 .hook{display:block;width:100%;text-align:left;background:var(--ground);border:1px solid var(--line);
   border-radius:var(--r);padding:11px 13px;margin-bottom:7px;cursor:pointer}
-.hook:hover{border-color:var(--hydro)}
+@media (hover:hover){.hook:hover{border-color:var(--hydro)}}
 .hook.on{border-color:var(--hydro);background:color-mix(in srgb,var(--hydro) 10%,var(--surface))}
 .hook b{display:block;font-weight:600;font-size:14px;margin-bottom:3px}
 .hook span{display:block;font-size:13px;color:var(--ink-2);line-height:1.45}
@@ -324,7 +324,7 @@ svg.map.solo .dc{display:none}
 .accrow u{text-decoration:none;color:var(--ink-3);font-size:11px;text-align:right}
 .wk{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
 .wk tr{border-bottom:1px solid var(--line-soft);cursor:pointer}
-.wk tr:hover{background:var(--ground)}
+@media (hover:hover){.wk tr:hover{background:var(--ground)}}
 .wk td{padding:7px 6px;vertical-align:middle}
 .wk td:first-child{width:34px;padding-left:0}
 .wk td:last-child{text-align:right;padding-right:0;color:var(--wrong)}
@@ -1434,6 +1434,17 @@ function setDiff(k) {
   document.querySelectorAll('.mgroup').forEach(g =>
     g.addEventListener('scroll', updateFade, {passive: true}));
   addEventListener('resize', updateFade);
+
+  /* A new question swaps the option grid out from under a still cursor, so :hover lands
+     on whichever option now sits there. Arm the grid only once the pointer has really
+     moved - the browser re-fires pointermove at the old spot when the DOM shifts. */
+  let ptrX, ptrY;
+  addEventListener('pointermove', e => {
+    if (e.screenX === ptrX && e.screenY === ptrY) return;
+    ptrX = e.screenX; ptrY = e.screenY;
+    const g = ctrl.querySelector('.choices');
+    if (g) g.classList.add('live');
+  }, {passive: true});
   revealActiveTab();
 
   addEventListener('keydown', e => {
