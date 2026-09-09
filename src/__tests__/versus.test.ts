@@ -12,6 +12,7 @@ import {
 } from '../versus/room';
 import { cleanName, displayName } from '../versus/identity';
 import { accuracy, loadBoard, rankBoard, recordMatch, resetBoard } from '../versus/leaderboard';
+import { stateClass } from '../versus/marks';
 import type { MatchConfig } from '../versus/types';
 
 const cfg = (over: Partial<MatchConfig> = {}): MatchConfig =>
@@ -371,4 +372,55 @@ describe('leaderboard', () => {
 const base = () => ({
   name: '', wins: 0, losses: 0, draws: 0, matches: 0,
   points: 0, best: 0, correct: 0, asked: 0, last: 0,
+});
+
+describe('versus map marks', () => {
+  const CA = BY.CA;  // Pacific
+  const NV = BY.NV;  // Mountain
+  const OR = BY.OR;  // Pacific
+
+  it('shows your own tap while the round is still live', () => {
+    // The bug this guards: between tapping and the reveal the map said nothing,
+    // so on a phone you could not tell whether the tap had registered.
+    expect(stateClass(NV, { picked: 'NV', answer: 'CA' }).split(' ')).toContain('pick');
+  });
+
+  it('says nothing about whether the live pick was right', () => {
+    const wrong = stateClass(NV, { picked: 'NV', answer: 'CA' }).split(' ');
+    const right = stateClass(CA, { picked: 'CA', answer: 'CA' }).split(' ');
+    expect(wrong).not.toContain('bad');
+    expect(right).not.toContain('ok');
+    expect(right).toContain('pick');
+  });
+
+  it('grades both states once the round is revealed', () => {
+    const marks = { picked: 'NV' as const, answer: 'CA' as const, revealed: true };
+    expect(stateClass(CA, marks).split(' ')).toContain('ok');
+    expect(stateClass(NV, marks).split(' ')).toContain('bad');
+    expect(stateClass(NV, marks).split(' ')).not.toContain('pick');
+  });
+
+  it('does not mark a correct pick wrong at the reveal', () => {
+    const marks = { picked: 'CA' as const, answer: 'CA' as const, revealed: true };
+    expect(stateClass(CA, marks).split(' ')).toContain('ok');
+    expect(stateClass(CA, marks).split(' ')).not.toContain('bad');
+  });
+
+  it('keeps a pick outside the guided division legible', () => {
+    // Guided dims everything but the answer's division. A dimmed pick is as
+    // good as an invisible one, so the tap wins over the hint.
+    const marks = { picked: 'NV' as const, divisionHint: 'Pacific' };
+    expect(stateClass(NV, marks).split(' ')).not.toContain('mute');
+    expect(stateClass(NV, marks).split(' ')).toContain('pick');
+    expect(stateClass(OR, marks).split(' ')).not.toContain('mute');
+  });
+
+  it('still dims everything else outside the guided division', () => {
+    expect(stateClass(NV, { divisionHint: 'Pacific' }).split(' ')).toContain('mute');
+  });
+
+  it('leaves the silhouette alone', () => {
+    expect(stateClass(CA, { solo: 'CA', picked: 'NV' })).toBe('st solo');
+    expect(stateClass(NV, { solo: 'CA', picked: 'NV' })).toBe('st');
+  });
 });
