@@ -15,6 +15,14 @@
 </head>
 <body>
 <div id="root"></div>
+<script>
+/* Applied before first paint so a saved override does not flash the other
+   theme on load. Mirrors THEME_KEY in src/hooks/useTheme.ts. */
+try {
+  var t = localStorage.getItem('fiftyStatesDrill.theme');
+  if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+} catch (e) { /* blocked storage: follow the system */ }
+</script>
 <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

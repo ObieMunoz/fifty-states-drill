@@ -314,10 +314,16 @@ export function reducer(s: GameState, action: Action): GameState {
       return { ...s, zoom: action.box };
 
     case 'selectHook': {
+      const id = `h${action.group}-${action.item}`;
+      /* Tapping the open hook closes it. The card and the states it lights are
+         the same selection, so folding the text away clears the map too. */
+      if (s.sel === id) {
+        return { ...s, sel: null, hookSet: null, zoom: scopeBox(s.scope, s.progress) };
+      }
       const h = HOOKS[action.group].items[action.item];
       return {
         ...s,
-        sel: `h${action.group}-${action.item}`,
+        sel: id,
         hookSet: new Set(h.s),
         zoom: fitBox(h.s.map((a) => BY[a])),
       };

@@ -66,6 +66,7 @@ export function App() {
 
   useEffect(() => {
     document.body.dataset.nomap = MODES[mode].nomap ? '1' : '';
+    document.body.dataset.ref = MODES[mode].reference ? '1' : '';
   }, [mode]);
 
   useEffect(() => { document.body.dataset.lvl = dif; }, [dif]);
@@ -107,12 +108,20 @@ export function App() {
         <ModeBar />
         <div className="body">
           <MapStage />
-          <section className={`ctrl${DETAIL_KINDS.has(kind) ? ' detail' : ''}`}>
-            <Panel onReset={resetProgress} kind={kind} />
-          </section>
-          <section className="rosterwrap">
-            <Roster onReset={resetProgress} />
-          </section>
+          {/* `side` is the scrolling right-hand column on desktop. On phones it
+              is display:contents, so ctrl and roster fall back into the body
+              grid and keep their own areas. */}
+          <div className="side">
+            <section className={`ctrl${DETAIL_KINDS.has(kind) ? ' detail' : ''}`}>
+              <Panel onReset={resetProgress} kind={kind} />
+            </section>
+            {/* Reference modes hand the whole column to their panel. */}
+            {!MODES[mode].reference && (
+              <section className="rosterwrap">
+                <Roster />
+              </section>
+            )}
+          </div>
         </div>
       </div>
     </GameContext.Provider>

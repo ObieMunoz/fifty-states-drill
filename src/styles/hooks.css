@@ -3,10 +3,22 @@
 /* ---- hooks ---- */
 .hookgrp{margin-top:18px}
 .hookgrp h3{margin:0 0 8px}
-.hook{display:block;width:100%;text-align:left;background:var(--ground);border:1px solid var(--line);
-  border-radius:var(--r);padding:11px 13px;margin-bottom:7px;cursor:pointer}
+/* Collapsed, a hook is one row: title, the states it covers, and a caret.
+   The body text opens into a second row that spans the lot. Every item is
+   placed by hand: left to auto-placement the body would push the codes and the
+   caret down into a third row as it opened. */
+.hook{display:grid;grid-template-columns:minmax(0,1fr) auto auto;column-gap:8px;
+  align-items:baseline;width:100%;text-align:left;background:var(--ground);
+  border:1px solid var(--line);border-radius:var(--r);padding:9px 12px;margin-bottom:5px;
+  cursor:pointer}
 @media (hover:hover){.hook:hover{border-color:var(--hydro)}}
 .hook.on{border-color:var(--hydro);background:color-mix(in srgb,var(--hydro) 10%,var(--surface))}
-.hook b{display:block;font-weight:600;font-size:14px;margin-bottom:3px}
-.hook span{display:block;font-size:13px;color:var(--ink-2);line-height:1.45}
-.hook u{display:block;margin-top:6px;font-size:10.5px;color:var(--ink-3);text-decoration:none;letter-spacing:.06em}
+.hook b{grid-area:1/1;font-weight:600;font-size:14px;min-width:0}
+.hook u{grid-area:1/2;font-size:10.5px;color:var(--ink-3);text-decoration:none;letter-spacing:.06em;white-space:nowrap}
+.hook::after{content:'';grid-area:1/3;align-self:center;width:0;height:0;
+  border:4px solid transparent;border-top-color:var(--ink-3);margin-top:4px;
+  transition:transform .15s ease}
+.hook.on::after{transform:rotate(180deg);border-top-color:var(--hydro)}
+.hook span{grid-area:2/1/auto/-1;display:block;font-size:13px;color:var(--ink-2);
+  line-height:1.45;margin-top:5px}
+@media (prefers-reduced-motion:reduce){.hook::after{transition:none}}
