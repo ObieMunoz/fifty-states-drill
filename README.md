@@ -170,26 +170,35 @@ one under `iceServers`. Two ways to have one:
 
 **A Cloudflare Worker, included.** [Cloudflare TURN](https://developers.cloudflare.com/realtime/turn/)
 has a free allowance far beyond what a game of a few kilobytes a match will use, and
-`worker/` holds a Worker that mints its credentials while keeping the key server-side and
-answering only the site's own origin. To set it up:
+`worker/src/index.js` is a Worker that mints its credentials while keeping the key
+server-side and answering only the site's own origin. First, in the Cloudflare dashboard
+under **Realtime → TURN**, create a TURN key and note its *Token ID* and *API token*. Then
+deploy the Worker either way:
 
-1. In the Cloudflare dashboard, under **Realtime → TURN**, create a TURN key and note its
-   *Key ID* and *API token*.
-2. From the repository root, deploy and set the two secrets:
-   ```sh
-   npx wrangler deploy -c worker/wrangler.jsonc
-   npx wrangler secret put TURN_KEY_ID -c worker/wrangler.jsonc
-   npx wrangler secret put TURN_KEY_API_TOKEN -c worker/wrangler.jsonc
-   ```
-   Wrangler prints the Worker's URL. Check it answers, sending the site's origin as a
-   browser would:
-   ```sh
-   curl -H 'Origin: https://obiemunoz.github.io' https://<worker>.workers.dev/
-   ```
-3. In the repository's **Settings → Secrets and variables → Actions → Variables**, add
-   `TURN_URL` with that URL, then re-run the deploy workflow (or push).
+*From the dashboard, no terminal needed.* Under **Workers & Pages**, create a Worker from
+the "Hello World" starter, open **Edit code**, replace the whole file with the contents of
+`worker/src/index.js`, and deploy. Then in the Worker's **Settings → Variables and
+Secrets** add three entries: `TURN_KEY_ID` and `TURN_KEY_API_TOKEN` as *secrets*, with
+the two values from the TURN key, and `ALLOWED_ORIGINS` as a plain variable set to
+`https://obiemunoz.github.io,http://localhost:5173`.
 
-`worker/wrangler.jsonc` lists the origins allowed to ask; change it if the site moves.
+*With wrangler.* From the repository root:
+```sh
+npx wrangler deploy -c worker/wrangler.jsonc
+npx wrangler secret put TURN_KEY_ID -c worker/wrangler.jsonc
+npx wrangler secret put TURN_KEY_API_TOKEN -c worker/wrangler.jsonc
+```
+`worker/wrangler.jsonc` carries `ALLOWED_ORIGINS`; change it if the site moves.
+
+Either way the Worker gets a `*.workers.dev` URL. Check it answers, sending the site's
+origin as a browser would:
+```sh
+curl -H 'Origin: https://obiemunoz.github.io' https://<worker>.workers.dev/
+```
+Then tell the site about it: add `TURN_URL` with that URL under the repository's
+**Settings → Secrets and variables → Actions → Variables** and re-run the deploy workflow,
+or commit it as `VITE_TURN_URL` in a `.env.production` file, which the next deploy picks
+up on its own. The variable, if set, wins over the file.
 
 **A hosted service.** Any service whose credentials endpoint answers in the shape above
 works as `TURN_URL` directly, with no Worker — [Metered](https://www.metered.ca/) is one,

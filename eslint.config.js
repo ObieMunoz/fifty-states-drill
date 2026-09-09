@@ -19,4 +19,14 @@ export default tseslint.config(
       globals: globals.browser,
     },
   },
+  {
+    // The TURN Worker runs in Cloudflare's runtime, which has the service
+    // worker globals rather than the browser's.
+    files: ['worker/**/*.js'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: globals.serviceworker,
+    },
+  },
 );
