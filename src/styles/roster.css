@@ -1,0 +1,28 @@
+/* The state list down the side, grouped by census division or by letter. */
+
+/* roster */
+.roster{padding:2px 14px 22px}
+@media (min-width:1001px){.roster{overflow:auto;flex:1}}
+.grp{margin-top:10px}
+.grp h4{margin:0;font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--ink-3);font-weight:500;
+  display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  position:sticky;top:0;background:var(--surface);padding:7px 0 5px;z-index:1}
+.grp ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:2px}
+.grp li{display:flex;min-width:0}
+.grp li button{flex:1;display:flex;align-items:center;gap:7px;background:transparent;border:0;
+  padding:6px;border-radius:6px;cursor:pointer;text-align:left;font-size:12.5px;
+  color:var(--ink-2);min-width:0;min-height:32px}
+.grp li button:hover{background:var(--ground);color:var(--ink)}
+.grp li button em{font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grp li button.got{color:var(--ink)}
+.grp li button.miss em{color:var(--wrong)}
+.grp li.blank{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink-3);
+  padding:6px;opacity:.5;align-items:center;min-height:32px}
+.pip{text-decoration:none;width:9px;height:9px;border-radius:2px;flex:none;background:var(--land);border:1px solid var(--land-line)}
+.pip.m1{background:var(--m1);border-color:transparent}
+.pip.m2{background:var(--m2);border-color:transparent}
+.pip.m3{background:var(--m3);border-color:transparent}
+.pip.weak{background:var(--land);border-color:var(--wrong)}
+.pip.got{background:var(--right);border-color:transparent}
+.pip.miss{background:var(--wrong);border-color:transparent}

@@ -1,0 +1,18 @@
+/* Progress: accuracy bars and the weak-spot table. */
+
+/* ---- progress ---- */
+.acc{display:grid;gap:7px;margin-top:8px}
+.accrow{display:grid;grid-template-columns:96px 1fr 40px 52px;gap:10px;align-items:center;font-size:12.5px}
+.accbar{height:7px;border-radius:4px;background:var(--sunk);overflow:hidden}
+.accbar i{display:block;height:100%;background:var(--m3)}
+.accrow u{text-decoration:none;color:var(--ink-3);font-size:11px;text-align:right}
+.wk{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+.wk tr{border-bottom:1px solid var(--line-soft);cursor:pointer}
+.wk tr:hover{background:var(--ground)}
+.wk td{padding:7px 6px;vertical-align:middle}
+.wk td:first-child{width:34px;padding-left:0}
+.wk td:last-child{text-align:right;padding-right:0;color:var(--wrong)}
+.wk-shape{width:28px;height:28px;display:block}
+.wk-shape path{fill:var(--ink-3)}
+.wk b{display:block;font-weight:500}
+.wk span{display:block;font-size:10.5px;color:var(--ink-3)}

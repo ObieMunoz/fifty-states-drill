@@ -1,0 +1,23 @@
+/* Breakpoint overrides. These load last so they win on equal specificity. */
+
+/* ---- mode bar wraps once there are many modes ---- */
+@media (min-width:1001px){.modebar{flex-wrap:wrap;overflow:visible}}
+
+@media (max-width:680px){
+  .wordmark b{font-size:16.5px}
+  .lvl span{display:none}
+  .rail{gap:10px;padding:9px 12px}
+  .rail-right{gap:11px}
+  .stat b{font-size:14.5px}
+  .stat span{font-size:8.5px;letter-spacing:.08em}
+  .stat.solid{display:none}
+  .lvl select{padding:4px 6px;font-size:12px}
+}
+@media (max-width:560px){
+  .choices{grid-template-columns:1fr}
+  .grp ul{grid-template-columns:1fr}
+  .wordmark span{display:none}
+  .rail{padding:9px 12px;gap:10px}
+  .rail-right{gap:11px}
+  .modebar{padding:7px 12px}
+}

@@ -1,0 +1,41 @@
+/* The SVG map, its toolbar, and every state fill state. */
+
+/* ================= map ================= */
+.maptools{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:0 0 8px}
+.maptools button{background:var(--surface);
+  border:1px solid var(--line);border-radius:7px;padding:6px 10px;cursor:pointer;
+  font-size:11.5px;color:var(--ink-2);min-height:32px;
+  font-family:"IBM Plex Mono",monospace;letter-spacing:.03em}
+.maptools button:hover{color:var(--ink);border-color:var(--hydro)}
+.maptools button[aria-pressed="true"]{color:var(--ink);border-color:var(--hydro);background:var(--surface)}
+svg.map{width:100%;height:auto;display:block;touch-action:manipulation;
+  background:var(--water);border:1px solid var(--line-soft);border-radius:12px}
+@media (min-width:1001px){svg.map{max-height:calc(100dvh - 128px)}}
+svg.map text.water{font-family:Fraunces,Georgia,serif;font-style:italic;font-size:13px;
+  letter-spacing:.24em;fill:var(--ink-3);opacity:.5;pointer-events:none}
+svg.map text.note{font-family:"IBM Plex Mono",monospace;font-size:8.5px;letter-spacing:.05em;
+  fill:var(--ink-3);opacity:.65;pointer-events:none}
+svg.map text.lab{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:500;
+  fill:var(--ink-2);text-anchor:middle;dominant-baseline:central;pointer-events:none;
+  paint-order:stroke;stroke:var(--land);stroke-width:3.5px;stroke-linejoin:round}
+.st{fill:var(--land);stroke:var(--land-line);stroke-width:.6;stroke-linejoin:round;
+  transition:fill .3s ease,opacity .3s ease}
+.st.m1{fill:var(--m1)} .st.m2{fill:var(--m2)} .st.m3{fill:var(--m3)}
+.st.weak{stroke:var(--wrong);stroke-width:1.2;stroke-dasharray:2.5 2}
+.st.mute{opacity:.28}
+.st.hov{fill:var(--hydro-2)}
+.st.pick{fill:var(--hydro);stroke:var(--hydro);stroke-width:1.3;stroke-dasharray:none}
+.st.target{fill:var(--signal);stroke:var(--signal);stroke-width:1.3;stroke-dasharray:none}
+.st.ok{fill:var(--right);stroke:var(--right);stroke-width:1.3;stroke-dasharray:none}
+.st.bad{fill:var(--wrong);stroke:var(--wrong);stroke-width:1.3;stroke-dasharray:none}
+.dc{fill:var(--ink-3);stroke:none;opacity:.5}
+.hit use{fill:transparent;stroke:transparent;pointer-events:all}
+.hit.off{pointer-events:none}
+.hit.live use{cursor:pointer}
+@media (prefers-reduced-motion:reduce){.st{transition:none}}
+
+/* ---- silhouette ---- */
+.st.solo{fill:var(--ink-2);stroke:var(--ink-2);stroke-width:1;stroke-dasharray:none}
+svg.map.solo{background:transparent;border-color:transparent}
+svg.map.solo text{display:none}
+svg.map.solo .dc{display:none}

@@ -1,0 +1,80 @@
+/* App frame: header rail, mode bar, and the three-area body grid. */
+
+/* ================= shell ================= */
+.app{min-height:100dvh;display:flex;flex-direction:column}
+.rail{display:flex;align-items:center;gap:14px;padding:10px 16px;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);background:var(--surface)}
+.wordmark{display:flex;align-items:baseline;gap:8px;flex:0 0 auto}
+.wordmark b{font-family:Fraunces,Georgia,serif;font-optical-sizing:auto;font-weight:600;
+  font-size:19px;letter-spacing:-.015em;font-variation-settings:"WONK" 1;white-space:nowrap}
+.wordmark span{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-3);white-space:nowrap}
+.rail-right{margin-left:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.stat{display:flex;flex-direction:column;align-items:flex-end;line-height:1.1}
+.stat b{font-family:"IBM Plex Mono",monospace;font-size:16px;font-weight:500;font-variant-numeric:tabular-nums}
+.stat span{font-size:9px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);
+  font-family:"IBM Plex Mono",monospace}
+.stat.hot b{color:var(--signal)}
+
+/* mode bar */
+.modebar{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--surface);
+  border-bottom:1px solid var(--line);flex-wrap:wrap;max-width:100%;overflow-x:hidden}
+.mrow{display:flex;align-items:center;gap:8px;min-width:0;position:relative;max-width:100%}
+.glab{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--ink-3);flex:none;padding-right:2px}
+.mgroup{display:flex;gap:3px;background:var(--sunk);padding:3px;border-radius:9px;
+  border:1px solid var(--line-soft);flex:none}
+.mgroup button{border:0;background:transparent;padding:7px 11px;border-radius:7px;cursor:pointer;
+  font-size:13px;font-weight:500;color:var(--ink-2);white-space:nowrap;min-height:34px;
+  flex:none;transition:background .14s,color .14s}
+.mgroup button:hover{color:var(--ink)}
+.mgroup button[aria-pressed="true"]{background:var(--surface);color:var(--ink);
+  box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.mgroup.quiz button[aria-pressed="true"]{color:var(--signal)}
+.mgroup.diff button[aria-pressed="true"][data-d="guided"]{color:var(--hydro)}
+.mgroup.diff button[aria-pressed="true"][data-d="expert"]{color:var(--signal)}
+.sep{width:1px;align-self:stretch;background:var(--line);flex:none;margin:2px 3px}
+/* Phones: one row per group so Quiz is never wholly off-screen. Each group scrolls
+   on its own; the fade is an overlay on the row, not a mask on the scroller, since
+   masking a scroll container janks badly on iOS.
+   NB: this block must stay after the base .mgroup rules - a media query adds no
+   specificity, so an earlier copy loses to `.mgroup{flex:none}` below. */
+@media (max-width:680px){
+  .modebar{flex-direction:column;align-items:stretch;gap:6px;padding:7px 12px}
+  .sep{display:none}
+  .mgroup{flex:1 1 auto;min-width:0;max-width:100%;overflow-x:auto;
+    overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .mgroup::-webkit-scrollbar{display:none}
+  .mrow.more::after{content:'';position:absolute;right:1px;top:1px;bottom:1px;width:30px;
+    pointer-events:none;border-radius:0 8px 8px 0;
+    background:linear-gradient(to right,transparent,var(--sunk))}
+}
+
+/* ================= body ================= */
+.body{flex:1;display:grid;grid-template-columns:1fr;
+  grid-template-areas:"ctrl" "stage" "roster"}
+.stage{grid-area:stage;position:relative;padding:8px 10px 2px;min-width:0}
+.ctrl{grid-area:ctrl;background:var(--surface);border-bottom:1px solid var(--line);padding:14px 16px}
+.rosterwrap{grid-area:roster;background:var(--surface);border-top:1px solid var(--line);min-width:0}
+@media (min-width:1001px){
+  .body{grid-template-columns:minmax(0,1fr) 366px;grid-template-rows:auto minmax(0,1fr);
+    grid-template-areas:"stage ctrl" "stage roster"}
+  .stage{padding:12px 6px 6px 18px}
+  .ctrl{border-bottom:1px solid var(--line-soft);border-left:1px solid var(--line);padding:18px 20px}
+  .rosterwrap{border-top:0;border-left:1px solid var(--line);overflow:hidden;display:flex;flex-direction:column}
+}
+
+/* ---- level control in the rail ---- */
+.lvl{display:flex;align-items:center;gap:6px}
+.lvl select{background:var(--ground);border:1px solid var(--line);border-radius:8px;
+  padding:5px 7px;font-size:12.5px;cursor:pointer;color:var(--ink)}
+body[data-lvl="guided"] .lvl select{color:var(--hydro);border-color:color-mix(in srgb,var(--hydro) 45%,var(--line))}
+body[data-lvl="expert"] .lvl select{color:var(--signal);border-color:color-mix(in srgb,var(--signal) 45%,var(--line))}
+
+/* ---- map-free modes ---- */
+body[data-nomap="1"] .stage{display:none}
+@media (min-width:1001px){
+  body[data-nomap="1"] .body{grid-template-columns:minmax(0,1fr);grid-template-areas:"ctrl" "roster"}
+  body[data-nomap="1"] .ctrl{max-width:720px;margin:0 auto;width:100%;border-left:0}
+  body[data-nomap="1"] .rosterwrap{max-width:720px;margin:0 auto;width:100%;border-left:0}
+}
