@@ -64,12 +64,12 @@
    NB: bound to max-width rather than left unscoped - `body[data-ref] .body`
    outspecifies the plain `.body` in the desktop block below, and a media query
    adds no specificity of its own to break the tie. */
-@media (max-width:1000px){
+@media (max-width:899px){
   body[data-ref="1"] .body{grid-template-areas:"stage" "ctrl" "roster"}
   body[data-ref="1"] .ctrl{border-bottom:0;border-top:1px solid var(--line)}
 }
 
-@media (min-width:1001px){
+@media (min-width:900px){
   /* A definite height is what makes the panel and roster scroll inside their
      own column instead of stretching the page. Without it the grid's 1fr row
      has nothing to resolve against and every mode grows to fit its content. */
@@ -98,7 +98,7 @@ body[data-lvl="expert"] .lvl select{color:var(--signal);border-color:color-mix(i
 
 /* ---- map-free modes ---- */
 body[data-nomap="1"] .stage{display:none}
-@media (min-width:1001px){
+@media (min-width:900px){
   body[data-nomap="1"] .body{grid-template-columns:minmax(0,1fr);grid-template-areas:"side"}
   body[data-nomap="1"] .side{max-width:720px;margin:0 auto;width:100%;border-left:0}
 }

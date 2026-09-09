@@ -14,7 +14,7 @@ svg.map{width:100%;height:auto;display:block;touch-action:manipulation;
    room that is left rather than being guessed at with a viewport calculation.
    The SVG has no preserveAspectRatio of its own, so the default xMidYMid meet
    keeps the country centred and unstretched whatever shape the box ends up. */
-@media (min-width:1001px){svg.map{flex:1;min-height:0;height:auto}}
+@media (min-width:900px){svg.map{flex:1;min-height:0;height:auto}}
 svg.map text.water{font-family:Fraunces,Georgia,serif;font-style:italic;font-size:13px;
   letter-spacing:.24em;fill:var(--ink-3);opacity:.5;pointer-events:none}
 svg.map text.note{font-family:"IBM Plex Mono",monospace;font-size:8.5px;letter-spacing:.05em;
