@@ -5,7 +5,9 @@ import { buildAsk, expectedText } from '../game/question';
 import { near, norm } from '../lib/text';
 import { askRng } from './plan';
 import { roundLimitMs, scoreAnswer } from './scoring';
-import { currentRound, initialVersus, matchResults, reducer, totalOf } from './machine';
+import {
+  currentRound, initialVersus, matchResults, reducer, resolveHost, totalOf,
+} from './machine';
 import type { VersusState } from './machine';
 import { displayName, loadName, saveName } from './identity';
 import { loadBoard, rankBoard, recordMatch } from './leaderboard';
@@ -127,13 +129,17 @@ export function useVersus(): VersusApi {
   const handleMessage = useCallback((msg: Msg, id: string) => {
     const s = live.current;
     switch (msg.t) {
-      case 'hi':
+      case 'hi': {
+        // Which side hosts is settled here too, so this reads the reconciled
+        // answer rather than the claim the button press left in state.
+        const isHost = resolveHost(s.isHost, msg.host, s.me.id, id);
         dispatch({ type: 'peerHello', id, name: msg.name, dif: msg.dif, host: msg.host });
         // The host owns the settings, so it pushes them on introduction.
-        if (s.isHost) {
+        if (isHost) {
           send({ t: 'cfg', mode: s.draft.mode, rounds: s.draft.rounds, scope: s.draft.scope });
         }
         break;
+      }
       case 'cfg':
         if (!s.isHost) {
           dispatch({ type: 'setDraft', draft: { mode: msg.mode, rounds: msg.rounds, scope: msg.scope } });

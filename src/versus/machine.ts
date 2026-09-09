@@ -115,6 +115,25 @@ export const correctOf = (answers: (RoundAnswer | null)[]): number =>
 export const currentRound = (s: VersusState): PlannedRound | null =>
   s.plan[s.round] ?? null;
 
+/**
+ * Which side drives the match, settled the moment the two devices meet.
+ *
+ * Pressing Host or Join is only a claim, and it can be wrong: someone who
+ * hosted a room and then reloaded onto their own invite link joins it as a
+ * guest, and nobody is left claiming the room. Two people hosting the same
+ * code is the mirror image. Both sides run this over the same pair of claims
+ * and the same pair of peer ids, so they land on the same answer without
+ * another round trip.
+ */
+export function resolveHost(
+  mine: boolean, theirs: boolean, myId: string, theirId: string,
+): boolean {
+  // Exactly one side claiming the room is the ordinary case: take it as told.
+  if (mine !== theirs) return mine;
+  // Nobody claimed it, or both did. The lower peer id takes it, on both screens.
+  return myId < theirId;
+}
+
 export function reducer(s: VersusState, a: VersusAction): VersusState {
   switch (a.type) {
     case 'setLink':
@@ -144,6 +163,8 @@ export function reducer(s: VersusState, a: VersusAction): VersusState {
         ...s,
         phase: s.phase === 'connecting' ? 'lobby' : s.phase,
         link: 'linked',
+        // The claim each side pressed is only an opening bid; reconcile it now.
+        isHost: resolveHost(s.isHost, a.host, s.me.id, a.id),
         them: { id: a.id, name: a.name, dif: a.dif, ready: false, self: false },
         lastOpponent: a.name,
         error: null,

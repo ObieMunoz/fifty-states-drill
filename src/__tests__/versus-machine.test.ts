@@ -82,6 +82,72 @@ describe('lobby', () => {
   });
 });
 
+/** What one device pressed in the menu, and the peer id it ended up with. */
+interface Side { id: string; claim: boolean }
+
+const claimOf = (side: Side): VersusAction => (side.claim
+  ? { type: 'hostRoom', code: 'ACDE', id: side.id }
+  : { type: 'joinRoom', code: 'ACDE', id: side.id });
+
+/**
+ * Both devices' verdicts on who hosts, after they introduce themselves.
+ * Each side runs its own copy of the reducer over its own view of the pair.
+ */
+const settle = (a: Side, b: Side): boolean[] => {
+  const verdict = (me: Side, them: Side): boolean => run(
+    start(),
+    claimOf(me),
+    { type: 'peerHello', id: them.id, name: 'Sam', dif: 'guided', host: them.claim },
+  ).isHost;
+  return [verdict(a, b), verdict(b, a)];
+};
+
+describe('settling on a host', () => {
+  it('takes a single claim at its word', () => {
+    expect(settle({ id: 'aaa', claim: true }, { id: 'bbb', claim: false })).toEqual([true, false]);
+    // The claim wins whichever way the ids happen to sort.
+    expect(settle({ id: 'zzz', claim: true }, { id: 'aaa', claim: false })).toEqual([true, false]);
+  });
+
+  it('hands the room to one side when nobody claims it', () => {
+    // What a host reloading onto their own invite link leaves behind: two
+    // guests, and — before the ids were consulted — a lobby that never starts.
+    expect(settle({ id: 'aaa', claim: false }, { id: 'bbb', claim: false })).toEqual([true, false]);
+    expect(settle({ id: 'bbb', claim: false }, { id: 'aaa', claim: false })).toEqual([false, true]);
+  });
+
+  it('takes the room off one side when both claim it', () => {
+    // Two people hosting the same code, the mirror image of the reload.
+    expect(settle({ id: 'aaa', claim: true }, { id: 'bbb', claim: true })).toEqual([true, false]);
+    expect(settle({ id: 'bbb', claim: true }, { id: 'aaa', claim: true })).toEqual([false, true]);
+  });
+
+  it('leaves exactly one host whatever the two pressed', () => {
+    for (const mine of [true, false]) {
+      for (const theirs of [true, false]) {
+        const [a, b] = settle({ id: 'p-1', claim: mine }, { id: 'p-2', claim: theirs });
+        expect(a).not.toBe(b);
+      }
+    }
+  });
+
+  it('holds the settled answer when the peer drops and comes back', () => {
+    // The second introduction carries the settled flag, not the first claim.
+    const s = run(
+      start(),
+      { type: 'joinRoom', code: 'ACDE', id: 'aaa' },
+      { type: 'peerHello', id: 'bbb', name: 'Sam', dif: 'guided', host: false },
+    );
+    expect(s.isHost).toBe(true);
+    const again = run(
+      s,
+      { type: 'peerLeft' },
+      { type: 'peerHello', id: 'bbb', name: 'Sam', dif: 'guided', host: false },
+    );
+    expect(again.isHost).toBe(true);
+  });
+});
+
 describe('match flow', () => {
   it('plans the match and sizes both answer sheets', () => {
     const s = reducer(linked(), { type: 'startMatch', cfg, difs: {}, at: 1000 });
