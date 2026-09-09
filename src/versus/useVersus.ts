@@ -20,6 +20,7 @@ import {
 } from './room';
 import { connect, peerId } from './net';
 import type { Transport } from './net';
+import type { Path } from './path';
 import { PROTOCOL_VERSION } from './types';
 import type { MatchConfig, Msg, RoundAnswer } from './types';
 import type { Abbr, Ask, DiffKey, ModeKey, Scope } from '../types';
@@ -32,6 +33,13 @@ const REVEAL_MS = 2600;
 
 /** After this side has answered, how long to wait on a straggling opponent. */
 const GRACE_MS = 1500;
+
+/** How long after meeting to read the path again, once ICE has settled on it. */
+const PATH_RECHECK_MS = 4000;
+
+const BLOCKED_ERROR = 'Your phones found each other, but the connection between them was blocked. '
+  + 'Some mobile networks do this: put both phones on the same Wi-Fi, or keep this '
+  + 'open and it will keep trying.';
 
 export interface VersusApi {
   state: VersusState;
@@ -48,6 +56,12 @@ export interface VersusApi {
   answered: boolean;
   /** This device's standings, refreshed the moment a match is folded in. */
   board: LeaderRow[];
+  /** Relay sockets open right now; what the waiting screen has to go on. */
+  relays: number;
+  /** Whether TURN credentials were had for this search. */
+  turn: boolean;
+  /** How the link to the opponent runs, once known. */
+  path: Path | null;
   clearBoard: () => void;
   host: (name: string) => void;
   join: (code: string, name: string) => void;
@@ -99,6 +113,10 @@ export function useVersus(): VersusApi {
   const [board, setBoard] = useState<LeaderRow[]>(() => rankBoard(loadBoard()));
   /** The match already folded into the standings, so a re-render cannot double it. */
   const recorded = useRef('');
+  const [relays, setRelays] = useState(0);
+  const [turn, setTurn] = useState(false);
+  /** Keyed to the peer it was read from, so it lapses with them. */
+  const [pathOf, setPathOf] = useState<{ id: string; path: Path } | null>(null);
 
   const send = useCallback((msg: Msg) => {
     if (net.current) net.current.send(msg);
@@ -154,6 +172,13 @@ export function useVersus(): VersusApi {
         // answer rather than the claim the button press left in state.
         const isHost = resolveHost(s.isHost, msg.host, s.me.id, id);
         dispatch({ type: 'peerHello', id, name: msg.name, dif: msg.dif, host: msg.host });
+        // Read how the link runs now, and again once ICE has had time to
+        // settle on a better pair than the first one that worked.
+        const readPath = () => {
+          void net.current?.pathTo(id).then((path) => { if (path) setPathOf({ id, path }); });
+        };
+        readPath();
+        setTimeout(readPath, PATH_RECHECK_MS);
         // The host owns the settings, so it pushes them on introduction.
         if (isHost) {
           send({ t: 'cfg', mode: s.draft.mode, rounds: s.draft.rounds, scope: s.draft.scope });
@@ -255,26 +280,23 @@ export function useVersus(): VersusApi {
         onPeerLeave: () => dispatch({ type: 'peerLeft' }),
         onMessage: (msg, id) => onMsg.current(msg, id),
         onStatus: (s) => {
+          setRelays(s.relays);
+          setTurn(s.turn);
           if (live.current.them) return;
           // Blocked outranks the timeout: the other player is there, so the
           // code is not the problem and should not be blamed.
-          if (s.blocked) {
-            dispatch({ type: 'setLink', link: 'error' });
-            dispatch({
-              type: 'setError',
-              error: 'Your phones found each other, but the connection between them was blocked. '
-                + 'Some mobile networks do this: put both phones on the same Wi-Fi, or keep this '
-                + 'open and it will keep trying.',
-            });
-          } else if (s.gaveUp) {
-            dispatch({ type: 'setLink', link: 'error' });
-            dispatch({
-              type: 'setError',
-              error: asHost
+          const error = s.blocked
+            ? BLOCKED_ERROR
+            : s.gaveUp
+              ? asHost
                 ? 'No one has joined yet. Keep this open, or start over if the code went stale.'
                 : 'No host answered, so that room has expired or been closed. '
-                  + 'Check the code, or ask for a fresh one.',
-            });
+                  + 'Check the code, or ask for a fresh one.'
+              : null;
+          // Status arrives every second while searching; only a change matters.
+          if (error && error !== live.current.error) {
+            dispatch({ type: 'setLink', link: 'error' });
+            dispatch({ type: 'setError', error });
           }
         },
       });
@@ -516,6 +538,10 @@ export function useVersus(): VersusApi {
     theirTotal: totalOf(state.theirAnswers),
     answered: state.myAnswers[state.round] != null,
     board,
+    relays,
+    turn,
+    // The path belongs to a peer; there is none to describe once they are gone.
+    path: pathOf && pathOf.id === state.them?.id ? pathOf.path : null,
     clearBoard: () => setBoard([]),
     host, join, setName, setDif, setReady, setDraft,
     answerChoice, answerText, answerMap, rematch, leave,

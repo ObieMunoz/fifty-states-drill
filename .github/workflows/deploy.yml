@@ -30,7 +30,12 @@ jobs:
       - run: npm run lint
       - run: npm test
       # `npm run build` type-checks first, so a type error fails the deploy.
+      # TURN_URL is a repository variable (Settings → Secrets and variables →
+      # Actions → Variables): where Versus fetches relay credentials. See the
+      # README's Versus section. Unset, Versus runs on STUN alone.
       - run: npm run build
+        env:
+          VITE_TURN_URL: ${{ vars.TURN_URL }}
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist

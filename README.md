@@ -125,15 +125,26 @@ could otherwise lose in opposite directions.
 Finding each other is only half of it. The data channel still needs a route between the
 two phones, and two phones on cellular usually have none: each sits behind its carrier's
 NAT, which will not let the other in. WebRTC tries a direct path first — over the LAN when
-both share one — and when that fails the packets go through a TURN server instead
-(`versus/net.ts` names one, from a free public service). TURN carries only the encrypted
-channel, so it can no more read a question than the relays can. When even that fails, the
-waiting screen says the phones found each other but the link was blocked, rather than
-blaming the code.
+both share one — and when that fails the packets go through a TURN server instead. TURN
+carries only the encrypted channel, so it can no more read a question than the relays can.
+When even that fails, the waiting screen says the phones found each other but the link was
+blocked, rather than blaming the code.
+
+TURN is the one piece that needs a secret, and a static site has nowhere to keep one. So
+the site fetches short-lived credentials from an endpoint at the start of each search
+(`versus/turn.ts`), and that endpoint holds the secret. See [TURN](#turn) below for
+setting it up; without it Versus runs on STUN alone, and the waiting screen's fine print
+says *No TURN*.
 
 The waiting screen also holds a screen wake lock, where the browser offers one. A phone
 set down to wait would otherwise dim and lock, which freezes the page and drops its relay
 sockets — leaving the other player searching for a host who is there but asleep.
+
+Every Versus screen carries a line of fine print for when a match will not connect: the
+build the phone is running, how many relays it can currently reach, and — once in the
+lobby — whether the link runs over the local network, directly across the internet, or
+through the TURN relay. Two phones on different builds, or one that can reach no relay,
+is the first thing to rule out, and it used to be invisible.
 
 Fairness rests on both devices generating the identical question sequence rather than one
 sending questions to the other. The host picks a seed, both sides run the same seeded PRNG
@@ -150,6 +161,39 @@ clock skew between the two phones cannot affect it.
 
 Nobody is authoritative over scores, so a determined player could lie about theirs. For a
 game two people play sitting next to each other, that is not worth defending against.
+
+### TURN
+
+The endpoint is named by the `VITE_TURN_URL` build variable, and must answer a `GET` with
+either a JSON list of ICE servers (`{ urls, username, credential }` each) or an object with
+one under `iceServers`. Two ways to have one:
+
+**A Cloudflare Worker, included.** [Cloudflare TURN](https://developers.cloudflare.com/realtime/turn/)
+has a free allowance far beyond what a game of a few kilobytes a match will use, and
+`worker/` holds a Worker that mints its credentials while keeping the key server-side and
+answering only the site's own origin. To set it up:
+
+1. In the Cloudflare dashboard, under **Realtime → TURN**, create a TURN key and note its
+   *Key ID* and *API token*.
+2. From the repository root, deploy and set the two secrets:
+   ```sh
+   npx wrangler deploy -c worker/wrangler.jsonc
+   npx wrangler secret put TURN_KEY_ID -c worker/wrangler.jsonc
+   npx wrangler secret put TURN_KEY_API_TOKEN -c worker/wrangler.jsonc
+   ```
+   Wrangler prints the Worker's URL. Check it answers, sending the site's origin as a
+   browser would:
+   ```sh
+   curl -H 'Origin: https://obiemunoz.github.io' https://<worker>.workers.dev/
+   ```
+3. In the repository's **Settings → Secrets and variables → Actions → Variables**, add
+   `TURN_URL` with that URL, then re-run the deploy workflow (or push).
+
+`worker/wrangler.jsonc` lists the origins allowed to ask; change it if the site moves.
+
+**A hosted service.** Any service whose credentials endpoint answers in the shape above
+works as `TURN_URL` directly, with no Worker — [Metered](https://www.metered.ca/) is one,
+though its key then travels in the page, and its free allowance is small.
 
 ### Testing a match locally
 
@@ -183,6 +227,7 @@ npm run dev        # http://localhost:5173/fifty-states-drill/
 | `npm test` | Vitest suite over the data, game logic and versus rules. |
 | `npm run lint` | ESLint over `src/`. |
 | `npm run typecheck` | Types only, no build. |
+| `npx wrangler deploy -c worker/wrangler.jsonc` | Publishes the TURN credential Worker. See [TURN](#turn). |
 | `node scripts/make-icons.mjs` | Redraws the app icon and favicon into `public/`. Needs `rsvg-convert` and `magick`. |
 
 `vite.config.ts` sets `base` to `/fifty-states-drill/`, the repo name, because the site
@@ -199,8 +244,10 @@ only runs again when the mark changes.
 
 `vite.config.ts` configures `vite-plugin-pwa`, which writes `manifest.webmanifest`
 and a Workbox service worker into `dist/` at build time. The worker precaches the
-app shell and caches the Google Fonts files on first use. Updates install silently:
-a new deploy takes effect the next time the app is opened.
+app shell and caches the Google Fonts files on first use. A new deploy is picked up
+in the background and the page reloads into it at once — or, if Versus is open, the
+moment the player leaves it (`src/pwa.ts`). Without that, a phone that only ever
+brings the app back from the switcher could sit on an old build for days.
 
 ### Deployment
 
@@ -222,6 +269,7 @@ src/
   hooks/      the imperative edges: viewBox animation, reduced motion, the clock, the theme
   components/ the map, the chrome, and one panel per mode
   styles/     global CSS, split by concern and loaded in cascade order
+worker/       the Cloudflare Worker that mints TURN credentials for Versus
 ```
 
 `game/` and `versus/` hold every rule the app has and import nothing from React, so they
