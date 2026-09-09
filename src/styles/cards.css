@@ -4,7 +4,7 @@
 .card{display:block;width:100%;margin-top:14px;background:var(--ground);border:1px solid var(--line);
   border-radius:14px;padding:26px 20px;cursor:pointer;text-align:left;min-height:210px;
   box-shadow:var(--shadow);transition:border-color .15s}
-.card:hover{border-color:var(--hydro)}
+@media (hover:hover){.card:hover{border-color:var(--hydro)}}
 .card-front{display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:12px;min-height:158px;text-align:center}
 .card-front b{font-family:Fraunces,Georgia,serif;font-optical-sizing:auto;font-weight:600;
