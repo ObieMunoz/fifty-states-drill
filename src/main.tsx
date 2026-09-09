@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { installUpdates } from './pwa';
 
 // Load order is the cascade: tokens, then element defaults, then components,
 // then the breakpoint overrides that have to win on equal specificity.
@@ -16,6 +17,9 @@ import './styles/hooks.css';
 import './styles/progress.css';
 import './styles/versus.css';
 import './styles/responsive.css';
+
+// A Versus screen marks the body while it is up; see VersusScreen.
+installUpdates(() => document.body.dataset.versus === '1');
 
 const root = document.getElementById('root');
 if (!root) throw new Error('#root is missing from index.html');

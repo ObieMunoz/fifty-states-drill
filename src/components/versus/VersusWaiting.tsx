@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { BUILD } from '../../build';
 import { joinUrl } from '../../versus/room';
 import { QrCode } from './QrCode';
 import type { VersusApi } from '../../versus/useVersus';
@@ -75,6 +76,9 @@ export function VersusWaiting({ api }: { api: VersusApi }) {
       <p className="vs-fine">
         Both phones need to be online for a moment while they find each other. After that the
         game runs directly between them.
+        <span className="vs-diag">
+          {api.relays === 1 ? '1 relay reachable' : `${api.relays} relays reachable`} · Build {BUILD}
+        </span>
       </p>
     </div>
   );

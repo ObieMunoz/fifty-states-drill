@@ -17,6 +17,7 @@ import { QuizPanel } from './components/panels/QuizPanel';
 import { RecallPanel } from './components/panels/RecallPanel';
 import { RollPanel } from './components/panels/RollPanel';
 import { codeFromUrl } from './versus/room';
+import { applyPendingUpdate } from './pwa';
 
 /* Versus pulls in the peer-to-peer stack, which solo players never need. It is
    split out so the study modes stay as light as they were. */
@@ -113,7 +114,7 @@ export function App() {
     <GameContext.Provider value={api}>
       {versus && (
         <Suspense fallback={<div className="vs-root vs-boot">Loading versus…</div>}>
-          <VersusScreen onExit={() => setVersus(false)} />
+          <VersusScreen onExit={() => { setVersus(false); applyPendingUpdate(); }} />
         </Suspense>
       )}
       <div className="app">

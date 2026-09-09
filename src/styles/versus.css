@@ -43,6 +43,9 @@ body[data-versus="1"] .app{display:none}
 .vs-lead{margin:0;color:var(--ink-2);font-size:14.5px;text-align:center}
 .vs-fine{margin:auto 0 0;color:var(--ink-3);font-size:11.5px;line-height:1.55;
   padding-top:8px;border-top:1px solid var(--line-soft)}
+/* The diagnostics line under the fine print: build, relays, how the link runs. */
+.vs-diag{display:block;margin-top:6px;font-family:'IBM Plex Mono',ui-monospace,monospace;
+  font-size:10.5px;letter-spacing:.02em;color:var(--ink-3)}
 .vs-error{margin:0;color:var(--wrong);font-size:13.5px;line-height:1.45;
   background:color-mix(in srgb,var(--wrong) 10%,var(--surface));
   border:1px solid color-mix(in srgb,var(--wrong) 40%,transparent);

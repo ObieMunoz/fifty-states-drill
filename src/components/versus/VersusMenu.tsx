@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { BUILD } from '../../build';
 import { MAX_NAME, cleanName, clearName } from '../../versus/identity';
 import { CODE_LENGTH, isCompleteCode, normalizeCode } from '../../versus/room';
 import { Leaderboard } from './Leaderboard';
@@ -167,6 +168,7 @@ export function VersusMenu({ api, onExit }: { api: VersusApi; onExit: () => void
       <p className="vs-fine">
         Phones talk to each other directly. Nothing you play is sent to a server, and the
         standings above never leave this device.
+        <span className="vs-diag">Build {BUILD}</span>
       </p>
     </div>
   );

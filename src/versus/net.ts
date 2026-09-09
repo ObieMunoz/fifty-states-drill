@@ -1,3 +1,5 @@
+import { classifyPath } from './path';
+import type { Path } from './path';
 import { roomIdFor } from './room';
 import type { Msg } from './types';
 
@@ -81,6 +83,9 @@ const TURN_SERVERS = [
 /** Nothing has connected by now; say so rather than spin forever. */
 const GIVE_UP_MS = 30000;
 
+/** How often the relay count is re-read while the search is on. */
+const POLL_MS = 1000;
+
 /**
  * Two tabs on one machine are the one case WebRTC cannot handle unaided: their
  * only host candidate is an mDNS `.local` name neither tab can resolve, and
@@ -106,6 +111,8 @@ const isLocalhost = (): boolean =>
 export interface TransportStatus {
   searching: boolean;
   networks: number;
+  /** Relay sockets actually open, across every network: zero means no way in. */
+  relays: number;
   gaveUp: boolean;
   blocked: boolean;
 }
@@ -123,6 +130,8 @@ export interface TransportEvents {
 export interface Transport {
   send: (msg: Msg) => void;
   leave: () => void;
+  /** How the link to a connected peer runs, or null if it cannot be read. */
+  pathTo: (id: string) => Promise<Path | null>;
 }
 
 /**
@@ -170,10 +179,13 @@ interface Envelope {
   m: Msg;
 }
 
+/** A relay socket, as far as counting the open ones goes. */
+type RelaySockets = () => Record<string, { readyState: number }>;
+
 interface Network {
   name: string;
-  /* Only `joinRoom` is reached for; the rest of each module is its own business. */
-  load: () => Promise<{ joinRoom: unknown }>;
+  /* Only these two are reached for; the rest of each module is its own business. */
+  load: () => Promise<{ joinRoom: unknown; getRelaySockets?: unknown }>;
   config: Record<string, unknown>;
 }
 
@@ -206,13 +218,21 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
   let closed = false;
   let gaveUp = false;
   let blocked = false;
+  /** Each loaded network's view of its sockets, for the relay count. */
+  const sockets: RelaySockets[] = [];
   /* Held in an object so the handler defined below can clear a timer that is
      only scheduled further down, without tripping over the temporal dead zone. */
-  const timers: { giveUp?: ReturnType<typeof setTimeout> } = {};
+  const timers: { giveUp?: ReturnType<typeof setTimeout>; poll?: ReturnType<typeof setInterval> } = {};
+
+  const relaysOpen = (): number => sockets.reduce(
+    (n, get) => n + Object.values(get()).filter((s) => s.readyState === WebSocket.OPEN).length, 0,
+  );
 
   const status = () => {
     if (closed) return;
-    ev.onStatus({ searching: known.size === 0, networks: links.length, gaveUp, blocked });
+    ev.onStatus({
+      searching: known.size === 0, networks: links.length, relays: relaysOpen(), gaveUp, blocked,
+    });
   };
 
   async function addNetwork(index: number): Promise<void> {
@@ -221,6 +241,7 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
     try {
       const mod = await net.load();
       if (closed) return;
+      if (typeof mod.getRelaySockets === 'function') sockets.push(mod.getRelaySockets as RelaySockets);
 
       const room = (mod.joinRoom as unknown as JoinRoom)(
         {
@@ -297,6 +318,8 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
   await Promise.all(NETWORKS.map((_, i) => addNetwork(i)));
 
   timers.giveUp = setTimeout(() => { gaveUp = true; status(); }, GIVE_UP_MS);
+  // Relays come and go during a search; once a peer is found they stop mattering.
+  timers.poll = setInterval(() => { if (known.size === 0) status(); }, POLL_MS);
 
   return {
     send(msg: Msg) {
@@ -312,8 +335,22 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
       if (closed) return;
       closed = true;
       clearTimeout(timers.giveUp);
+      clearInterval(timers.poll);
       for (const link of links) void link.room.leave().catch(() => { /* already gone */ });
       links.length = 0;
+    },
+    async pathTo(id: string) {
+      for (const link of links) {
+        const pc = link.room.getPeers()[id];
+        if (!pc) continue;
+        try {
+          const path = classifyPath((await pc.getStats()).values());
+          if (path) return path;
+        } catch {
+          // Closed under us; the next link may still have them.
+        }
+      }
+      return null;
     },
   };
 }

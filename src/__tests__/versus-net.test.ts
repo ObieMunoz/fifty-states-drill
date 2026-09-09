@@ -6,14 +6,19 @@ import type { Msg } from '../versus/types';
 type PeerHandler = ((id: string) => void) | null;
 type Deliver = (data: unknown, ctx: { peerId: string }) => void;
 
+interface FakePeer {
+  getStats: () => Promise<Map<string, Record<string, unknown>>>;
+}
+
 interface FakeRoom {
   onPeerJoin: PeerHandler;
   onPeerLeave: PeerHandler;
   makeAction: (ns: string, cfg?: { onMessage?: Deliver }) => { send: (d: unknown) => Promise<void> };
   leave: () => Promise<void>;
-  getPeers: () => Record<string, never>;
+  getPeers: () => Record<string, FakePeer>;
   sent: unknown[];
   left: boolean;
+  peers: Record<string, FakePeer>;
   receive: Deliver;
 }
 
@@ -27,6 +32,7 @@ interface Join {
 const fakes = vi.hoisted(() => {
   const joins: Join[] = [];
   let failNext = false;
+  const sockets: Record<string, Record<string, { readyState: number }>> = { nostr: {}, torrent: {} };
   const fakeRoom = (): FakeRoom => {
     let deliver: Deliver | undefined;
     const room: FakeRoom = {
@@ -39,7 +45,8 @@ const fakes = vi.hoisted(() => {
         return { send: async (d) => { room.sent.push(d); } };
       },
       leave: async () => { room.left = true; },
-      getPeers: () => ({}),
+      peers: {},
+      getPeers: () => room.peers,
       receive: (d, ctx) => deliver?.(d, ctx),
     };
     return room;
@@ -53,11 +60,21 @@ const fakes = vi.hoisted(() => {
     joins.push({ config, roomId, callbacks, room });
     return room;
   };
-  return { joins, joinRoom, failNextJoin: () => { failNext = true; } };
+  return { joins, joinRoom, sockets, failNextJoin: () => { failNext = true; } };
 });
 
-vi.mock('@trystero-p2p/nostr', () => ({ joinRoom: fakes.joinRoom, selfId: 'self' }));
-vi.mock('@trystero-p2p/torrent', () => ({ joinRoom: fakes.joinRoom, selfId: 'self' }));
+vi.mock('@trystero-p2p/nostr', () => ({
+  joinRoom: fakes.joinRoom, selfId: 'self', getRelaySockets: () => fakes.sockets.nostr,
+}));
+vi.mock('@trystero-p2p/torrent', () => ({
+  joinRoom: fakes.joinRoom, selfId: 'self', getRelaySockets: () => fakes.sockets.torrent,
+}));
+
+const statsOf = (local: string, remote: string) => new Map<string, Record<string, unknown>>([
+  ['p', { id: 'p', type: 'candidate-pair', state: 'succeeded', nominated: true, localCandidateId: 'l', remoteCandidateId: 'r' }],
+  ['l', { id: 'l', type: 'local-candidate', candidateType: local }],
+  ['r', { id: 'r', type: 'remote-candidate', candidateType: remote }],
+]);
 
 function events() {
   const ev = {
@@ -76,6 +93,8 @@ describe('versus transport', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     fakes.joins.length = 0;
+    fakes.sockets.nostr = {};
+    fakes.sockets.torrent = {};
   });
 
   afterEach(() => {
@@ -108,7 +127,7 @@ describe('versus transport', () => {
   it('announces a peer once however many networks find them', async () => {
     const { ev, lastStatus } = events();
     await connect('ACDE', ev);
-    expect(lastStatus()).toEqual({ searching: true, networks: 2, gaveUp: false, blocked: false });
+    expect(lastStatus()).toEqual({ searching: true, networks: 2, relays: 0, gaveUp: false, blocked: false });
     fakes.joins[0].room.onPeerJoin?.('p1');
     fakes.joins[1].room.onPeerJoin?.('p1');
     expect(ev.onPeer).toHaveBeenCalledTimes(1);
@@ -133,10 +152,10 @@ describe('versus transport', () => {
     const { ev, lastStatus } = events();
     await connect('ACDE', ev);
     fakes.joins[0].callbacks?.onJoinError?.({ error: 'could not connect to peer p1 after exchanging SDP' });
-    expect(lastStatus()).toEqual({ searching: true, networks: 2, gaveUp: false, blocked: true });
+    expect(lastStatus()).toEqual({ searching: true, networks: 2, relays: 0, gaveUp: false, blocked: true });
     expect(ev.onPeer).not.toHaveBeenCalled();
     fakes.joins[1].room.onPeerJoin?.('p1');
-    expect(lastStatus()).toEqual({ searching: false, networks: 2, gaveUp: false, blocked: false });
+    expect(lastStatus()).toEqual({ searching: false, networks: 2, relays: 0, gaveUp: false, blocked: false });
   });
 
   it('gives up after thirty seconds without a peer, without forgetting a block', async () => {
@@ -145,14 +164,14 @@ describe('versus transport', () => {
     vi.advanceTimersByTime(29_999);
     expect(lastStatus()?.gaveUp).toBe(false);
     vi.advanceTimersByTime(1);
-    expect(lastStatus()).toEqual({ searching: true, networks: 2, gaveUp: true, blocked: false });
+    expect(lastStatus()).toEqual({ searching: true, networks: 2, relays: 0, gaveUp: true, blocked: false });
 
     fakes.joins.length = 0;
     const second = events();
     await connect('FGHJ', second.ev);
     fakes.joins[1].callbacks?.onJoinError?.({ error: 'could not connect to peer p2 after exchanging SDP' });
     vi.advanceTimersByTime(30_000);
-    expect(second.lastStatus()).toEqual({ searching: true, networks: 2, gaveUp: true, blocked: true });
+    expect(second.lastStatus()).toEqual({ searching: true, networks: 2, relays: 0, gaveUp: true, blocked: true });
   });
 
   it('does not give up once a peer has been found', async () => {
@@ -222,12 +241,47 @@ describe('versus transport', () => {
     expect(fakes.joins[0].room.sent).toHaveLength(0);
   });
 
+  it('counts the relays actually open, across both networks, while searching', async () => {
+    const { ev, lastStatus } = events();
+    fakes.sockets.nostr = { 'wss://a': { readyState: 1 }, 'wss://b': { readyState: 0 } };
+    fakes.sockets.torrent = { 'wss://t': { readyState: 1 } };
+    await connect('ACDE', ev);
+    expect(lastStatus()?.relays).toBe(2);
+    fakes.sockets.nostr['wss://b'].readyState = 1;
+    vi.advanceTimersByTime(1000);
+    expect(lastStatus()?.relays).toBe(3);
+    fakes.joins[0].room.onPeerJoin?.('p1');
+    const calls = ev.onStatus.mock.calls.length;
+    vi.advanceTimersByTime(5000);
+    expect(ev.onStatus.mock.calls).toHaveLength(calls);
+  });
+
+  it('tells which way the link to a peer runs, from whichever network has them', async () => {
+    const { ev } = events();
+    const link = await connect('ACDE', ev);
+    expect(await link.pathTo('p1')).toBeNull();
+    fakes.joins[1].room.peers.p1 = { getStats: async () => statsOf('relay', 'host') };
+    fakes.joins[1].room.onPeerJoin?.('p1');
+    expect(await link.pathTo('p1')).toBe('relay');
+    fakes.joins[0].room.peers.p1 = { getStats: async () => statsOf('host', 'host') };
+    fakes.joins[0].room.onPeerJoin?.('p1');
+    expect(await link.pathTo('p1')).toBe('lan');
+  });
+
+  it('shrugs off a peer whose stats cannot be read', async () => {
+    const { ev } = events();
+    const link = await connect('ACDE', ev);
+    fakes.joins[0].room.peers.p1 = { getStats: async () => { throw new Error('closed'); } };
+    fakes.joins[0].room.onPeerJoin?.('p1');
+    expect(await link.pathTo('p1')).toBeNull();
+  });
+
   it('carries on with one network when the other will not load', async () => {
     const { ev, lastStatus } = events();
     fakes.failNextJoin();
     await connect('ACDE', ev);
     expect(fakes.joins).toHaveLength(1);
-    expect(lastStatus()).toEqual({ searching: true, networks: 1, gaveUp: false, blocked: false });
+    expect(lastStatus()).toEqual({ searching: true, networks: 1, relays: 0, gaveUp: false, blocked: false });
     fakes.joins[0].room.onPeerJoin?.('p1');
     expect(ev.onPeer).toHaveBeenCalledWith('p1');
   });

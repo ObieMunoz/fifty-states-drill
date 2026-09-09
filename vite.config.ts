@@ -9,13 +9,18 @@ import { VitePWA } from 'vite-plugin-pwa';
 const base = '/fifty-states-drill/';
 
 export default defineConfig({
+  // Stamped onto the Versus screens, so two phones can be checked against
+  // each other. Actions sets GITHUB_SHA; a local build has no commit to name.
+  define: { __BUILD__: JSON.stringify(process.env.GITHUB_SHA?.slice(0, 7) ?? 'dev') },
   plugins: [
     react(),
     // Installable on iOS, Android and desktop, and usable offline: the map
     // geometry ships in the bundle, so once the shell is cached nothing but
     // Versus needs the network. Icons are drawn by scripts/make-icons.mjs.
     VitePWA({
-      registerType: 'autoUpdate',
+      // A new build waits until src/pwa.ts says it is safe to reload into it,
+      // rather than taking over a match in progress.
+      registerType: 'prompt',
       includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'logo.svg'],
       manifest: {
         id: base,

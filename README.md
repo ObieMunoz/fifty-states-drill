@@ -135,6 +135,12 @@ The waiting screen also holds a screen wake lock, where the browser offers one. 
 set down to wait would otherwise dim and lock, which freezes the page and drops its relay
 sockets — leaving the other player searching for a host who is there but asleep.
 
+Every Versus screen carries a line of fine print for when a match will not connect: the
+build the phone is running, how many relays it can currently reach, and — once in the
+lobby — whether the link runs over the local network, directly across the internet, or
+through the TURN relay. Two phones on different builds, or one that can reach no relay,
+is the first thing to rule out, and it used to be invisible.
+
 Fairness rests on both devices generating the identical question sequence rather than one
 sending questions to the other. The host picks a seed, both sides run the same seeded PRNG
 over it, and `versus/plan.ts` turns that into the match. This is why `lib/random.ts` takes
@@ -199,8 +205,10 @@ only runs again when the mark changes.
 
 `vite.config.ts` configures `vite-plugin-pwa`, which writes `manifest.webmanifest`
 and a Workbox service worker into `dist/` at build time. The worker precaches the
-app shell and caches the Google Fonts files on first use. Updates install silently:
-a new deploy takes effect the next time the app is opened.
+app shell and caches the Google Fonts files on first use. A new deploy is picked up
+in the background and the page reloads into it at once — or, if Versus is open, the
+moment the player leaves it (`src/pwa.ts`). Without that, a phone that only ever
+brings the app back from the switcher could sit on an old build for days.
 
 ### Deployment
 

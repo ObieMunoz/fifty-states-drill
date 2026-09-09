@@ -1,5 +1,7 @@
+import { BUILD } from '../../build';
 import { DIFFS, DIFF_KEYS, MODES } from '../../data/modes';
 import { REGS, ST } from '../../data/states';
+import { describePath } from '../../versus/path';
 import { ROUND_CHOICES, VERSUS_MODES } from '../../versus/types';
 import type { VersusApi } from '../../versus/useVersus';
 import type { DiffKey, ModeKey, Scope } from '../../types';
@@ -54,7 +56,12 @@ export function VersusLobby({ api }: { api: VersusApi }) {
           : <GuestRules draft={draft} host={them?.name} />}
       </section>
 
-      <p className="vs-fine">{DIFFS[me.dif].blurb}</p>
+      <p className="vs-fine">
+        {DIFFS[me.dif].blurb}
+        <span className="vs-diag">
+          {api.path ? `${describePath(api.path)} · ` : ''}Build {BUILD}
+        </span>
+      </p>
 
       <div className="vs-foot">
         <button
