@@ -51,7 +51,13 @@
 }
 
 /* ================= body ================= */
+/* Rows are content-sized, with the roster taking whatever is left over. The
+   default here would be `auto auto auto`, which stretches every row equally
+   once the body is taller than its content - on a tall phone that opens a gap
+   under the panel, another under the map and a third under the roster, worst
+   on the modes whose panel is short. */
 .body{flex:1;min-height:0;display:grid;grid-template-columns:1fr;
+  grid-template-rows:auto auto 1fr;
   grid-template-areas:"ctrl" "stage" "roster"}
 .stage{grid-area:stage;position:relative;padding:8px 10px 2px;min-width:0}
 .ctrl{grid-area:ctrl;background:var(--surface);border-bottom:1px solid var(--line);padding:14px 16px}
