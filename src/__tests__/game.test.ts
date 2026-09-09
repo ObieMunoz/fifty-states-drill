@@ -9,7 +9,7 @@ import {
 import { bestKey, inScope, poolFor, scopeLabel } from '../game/scope';
 import { initialState, nextQuestion, reducer, scopeBox } from '../game/state';
 import type { GameState } from '../game/state';
-import type { Progress } from '../types';
+import type { Abbr, ModeKey, Progress } from '../types';
 
 const start = (): GameState => initialState(emptyProgress());
 
@@ -233,12 +233,30 @@ describe('the reducer', () => {
     expect(s.ask!.won).toBe(false);
   });
 
+  /**
+   * Ask about one named state rather than drawing at random, so a test about
+   * answer matching does not depend on which state came up.
+   */
+  const askAbout = (abbr: Abbr, qm: ModeKey = 'capital'): GameState => {
+    const s = run(start(), { type: 'setMode', mode: qm });
+    const ask = buildAsk(BY[abbr], qm, DIFFS.standard);
+    return reducer(s, { type: 'setQuestion', qm, ask, zoom: s.zoom, scope: s.scope });
+  };
+
   it('accepts a forgiving spelling but not a different capital', () => {
-    let s = run(start(), { type: 'setMode', mode: 'capital' });
-    s = reducer(s, nextQuestion(s));
-    const cap = s.ask!.s.cap;
-    expect(reducer(s, { type: 'submitText', text: cap.slice(0, -1) }).ask!.won).toBe(true);
+    const s = askAbout('CA');
+    expect(reducer(s, { type: 'submitText', text: 'Sacrament' }).ask!.won).toBe(true);
+    expect(reducer(s, { type: 'submitText', text: 'Sacramento' }).ask!.won).toBe(true);
     expect(reducer(s, { type: 'submitText', text: 'Nowhere City' }).ask!.won).toBe(false);
+  });
+
+  it('holds short capitals to an exact spelling', () => {
+    // `near` only forgives an edit once the answer is five letters or more:
+    // below that, one edit is usually a different word rather than a slip.
+    // Dover, Boise and Salem are the three capitals this bites on.
+    const s = askAbout('DE');
+    expect(reducer(s, { type: 'submitText', text: 'Dover' }).ask!.won).toBe(true);
+    expect(reducer(s, { type: 'submitText', text: 'Dove' }).ask!.won).toBe(false);
   });
 
   it('does nothing when an empty answer is submitted', () => {

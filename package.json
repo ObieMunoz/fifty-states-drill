@@ -12,8 +12,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@trystero-p2p/torrent": "^0.25.4",
+    "qrcode-generator": "^2.0.4",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "trystero": "^0.25.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

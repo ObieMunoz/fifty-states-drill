@@ -35,6 +35,12 @@ in the bundle.
 | Borders | "Which one borders Ohio?" |
 | Mixed | All six question types shuffled together. Interleaving is harder in the moment and better for retention than drilling one type at a time. |
 
+**Versus**
+
+Two phones, the same questions, one clock. One player starts a room and reads out a
+four-character code — or lets the other scan the QR — and both race through the same
+sequence of questions. See [Versus](#versus) below.
+
 ## Difficulty
 
 A **Level** control sits beside the mode tabs and changes how much scaffolding you get.
@@ -79,6 +85,63 @@ Progress is stored in `localStorage`, so it is per-browser and never leaves the 
 The app follows your system light or dark setting by default. A **Theme** control in the
 header overrides it either way, and the choice is remembered.
 
+## Versus
+
+A head-to-head match for two people, usually in the same room, on their own phones.
+
+Both players get the **same question at the same moment** and score on speed: 100 points
+for a right answer plus up to 50 more, decaying to zero across the round's clock. Whoever
+banks more over 5, 10 or 15 rounds takes the match. It runs on the six scored quiz types
+plus Mixed; Roll Call and Name All 50 sit it out, being long-form solo sprints rather
+than one question at a time.
+
+**Each player picks their own level.** A parent on Expert typing capitals blind and a
+child on Guided picking from four options get the *same* state on the *same* round —
+only the scaffolding differs, and both clocks are the longer of the two so the round
+still ends together. That is what makes an uneven pairing a real race.
+
+Finished matches go into a standings table in `localStorage`, so a household builds up a
+running record of who beats whom. Names are remembered and pre-filled, and both the name
+and the table can be cleared from the UI. Nothing is uploaded and nobody signs in.
+
+### How it works without a server
+
+The site is static files on GitHub Pages, which cannot run any code of its own — so it
+does not try to. The two browsers find each other through a public relay, which carries
+only the WebRTC handshake, and then talk **directly** over a peer-to-peer data channel.
+No question, answer or score ever reaches a third party.
+
+Two relay networks are used rather than one, since public relays are volunteer-run and
+any single one can be down. If the first has not produced a peer within five seconds the
+second is added alongside it; both stay up, messages go out on every link that has the
+peer, and the receiver drops duplicates by sequence number. That removes any need for the
+two sides to agree on which link is "the" one — a race they could otherwise lose in
+opposite directions.
+
+Fairness rests on both devices generating the identical question sequence rather than one
+sending questions to the other. The host picks a seed, both sides run the same seeded PRNG
+over it, and `versus/plan.ts` turns that into the match. This is why `lib/random.ts` takes
+an optional generator: solo play still uses `Math.random`, while a match threads a seeded
+one through the same code. Two things had to be kept out of that path — player progress,
+which differs per device and would pull the two apart, and each player's own difficulty,
+which is drawn from a separate generator so one side's decoys cannot perturb the other's.
+
+The host is the only side that decides when a round ends, so the screens stay in step.
+Everything else — building the question, grading it, timing the answer, totalling the
+score — each device does for itself. Speed is measured from each player's own paint, so
+clock skew between the two phones cannot affect it.
+
+Nobody is authoritative over scores, so a determined player could lie about theirs. For a
+game two people play sitting next to each other, that is not worth defending against.
+
+### Testing a match locally
+
+Two tabs on one machine are the one case WebRTC cannot handle unaided: their only host
+candidate is an mDNS `.local` name neither tab can resolve, and the reflexive pair would
+have to hairpin back through the same NAT. `versus/net.ts` turns on Trystero's loopback
+fallback when the hostname is localhost, which makes a two-window match work in
+development. It is off everywhere else, where real LAN candidates make it unnecessary.
+
 ## Map data
 
 State geometry comes from [us-atlas](https://github.com/topojson/us-atlas)
@@ -100,7 +163,7 @@ npm run dev        # http://localhost:5173/fifty-states-drill/
 | `npm run dev` | Vite dev server with hot reload. |
 | `npm run build` | Type-checks, then builds to `dist/`. |
 | `npm run preview` | Serves `dist/` exactly as Pages will. |
-| `npm test` | Vitest suite over the data and game logic. |
+| `npm test` | Vitest suite over the data, game logic and versus rules. |
 | `npm run lint` | ESLint over `src/`. |
 | `npm run typecheck` | Types only, no build. |
 
@@ -124,13 +187,15 @@ src/
   data/       states.json and the tables that describe modes, difficulty and hooks
   lib/        pure helpers: text matching, map framing, randomness
   game/       state shape, reducer, question engine, scoring — no React
+  versus/     the two-player match: planning, scoring, state machine, transport
   hooks/      the imperative edges: viewBox animation, reduced motion, the clock, the theme
   components/ the map, the chrome, and one panel per mode
   styles/     global CSS, split by concern and loaded in cascade order
 ```
 
-`game/` holds every rule the app has and imports nothing from React, so it can be read
-and tested on its own — which is what `src/__tests__/game.test.ts` does. The reducer is
+`game/` and `versus/` hold every rule the app has and import nothing from React, so they
+can be read and tested on their own — which is what `src/__tests__/game.test.ts`,
+`versus.test.ts` and `versus-machine.test.ts` do. The reducer is
 pure: question draws happen in `nextQuestion`, outside it, so the same state and action
 always give the same result.
 

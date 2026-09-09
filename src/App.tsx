@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useState } from 'react';
 import { MODES } from './data/modes';
 import type { ModeKind } from './types';
 import { GameContext } from './game/context';
@@ -16,6 +16,12 @@ import { ProgressPanel } from './components/panels/ProgressPanel';
 import { QuizPanel } from './components/panels/QuizPanel';
 import { RecallPanel } from './components/panels/RecallPanel';
 import { RollPanel } from './components/panels/RollPanel';
+import { codeFromUrl } from './versus/room';
+
+/* Versus pulls in the peer-to-peer stack, which solo players never need. It is
+   split out so the study modes stay as light as they were. */
+const VersusScreen = lazy(() => import('./components/versus/VersusScreen')
+  .then((m) => ({ default: m.VersusScreen })));
 
 /** How long a correct answer stays on screen before the next question. */
 const ADVANCE_MS = 800;
@@ -28,6 +34,8 @@ const RETRY_FLASH_MS = 700;
 const DETAIL_KINDS = new Set<ModeKind>(['explore', 'letters', 'hooks', 'weak']);
 
 export function App() {
+  // An invite link opens straight into versus rather than the study map.
+  const [versus, setVersus] = useState(() => codeFromUrl() !== null);
   const [state, dispatch] = useReducer(reducer, undefined, () => initialState(loadProgress()));
   const api = useMemo(() => ({ state, dispatch }), [state]);
 
@@ -103,8 +111,13 @@ export function App() {
 
   return (
     <GameContext.Provider value={api}>
+      {versus && (
+        <Suspense fallback={<div className="vs-root vs-boot">Loading versus…</div>}>
+          <VersusScreen onExit={() => setVersus(false)} />
+        </Suspense>
+      )}
       <div className="app">
-        <Rail />
+        <Rail onVersus={() => setVersus(true)} />
         <ModeBar />
         <div className="body">
           <MapStage />
