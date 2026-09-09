@@ -8,8 +8,8 @@ import {
   BASE_POINTS, SPEED_POINTS, isTyped, outcomeOf, roundLimitMs, scoreAnswer,
 } from '../versus/scoring';
 import {
-  CODE_LENGTH, codeFromUrl, isClosedRoom, isCompleteCode, matchSeed, newRoomCode, normalizeCode,
-  rememberClosed, roomIdFor,
+  CODE_LENGTH, codeFromUrl, forgetHosted, isClosedRoom, isCompleteCode, isHostedHere, matchSeed,
+  newRoomCode, normalizeCode, rememberClosed, rememberHosted, roomIdFor,
 } from '../versus/room';
 import { cleanName, displayName } from '../versus/identity';
 import { accuracy, loadBoard, rankBoard, recordMatch, resetBoard } from '../versus/leaderboard';
@@ -307,6 +307,15 @@ describe('closed rooms', () => {
     expect(isClosedRoom('ACDE')).toBe(false);
     rememberClosed('ACDE');
     expect(isClosedRoom('ACDE')).toBe(true);
+  });
+
+  it('remembers the room this device hosts until it is left on purpose', () => {
+    expect(isHostedHere('ACDE')).toBe(false);
+    rememberHosted('acde');
+    expect(isHostedHere('ACDE')).toBe(true);
+    expect(isHostedHere('FGHJ')).toBe(false);
+    forgetHosted();
+    expect(isHostedHere('ACDE')).toBe(false);
   });
 });
 

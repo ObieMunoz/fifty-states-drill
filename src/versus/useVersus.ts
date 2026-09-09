@@ -15,7 +15,8 @@ import { cleanName, displayName, loadName, saveName } from './identity';
 import { loadBoard, rankBoard, recordMatch } from './leaderboard';
 import type { LeaderRow } from './leaderboard';
 import {
-  clearUrlCode, codeFromUrl, isClosedRoom, matchSeed, newRoomCode, normalizeCode, rememberClosed,
+  clearUrlCode, codeFromUrl, forgetHosted, isClosedRoom, isHostedHere, matchSeed, newRoomCode,
+  normalizeCode, rememberClosed, rememberHosted, setUrlCode,
 } from './room';
 import { connect, peerId } from './net';
 import type { Transport } from './net';
@@ -196,12 +197,13 @@ export function useVersus(): VersusApi {
         else dispatch({ type: 'rematch' });
         break;
       case 'bye':
-        // A guest leaving is just the peer going; the host keeps the room
-        // open. The host leaving closes it: nobody can take the code over, so
-        // the guest is sent home and told why, and this device notes the code
-        // so a second try at the same invite is refused without a search.
+        // A guest leaving on purpose hands the host back the waiting room:
+        // the code stays good for the next player. The host leaving closes
+        // the room: nobody can take the code over, so the guest is sent home
+        // and told why, and this device notes the code so a second try at
+        // the same invite is refused without a search.
         if (s.isHost) {
-          dispatch({ type: 'peerLeft' });
+          dispatch({ type: 'peerQuit' });
           break;
         }
         rememberClosed(s.code);
@@ -226,6 +228,10 @@ export function useVersus(): VersusApi {
     dispatch(asHost
       ? { type: 'hostRoom', code, id: '' }
       : { type: 'joinRoom', code, id: '' });
+    // A reload should come back to this room, not to the menu — and for the
+    // creator, come back as its host, whichever way they return to it.
+    setUrlCode(code);
+    if (asHost) rememberHosted(code);
     /* This device's own id is half of what settles which side hosts, so it has
        to be in hand before a peer can introduce itself. Asked for here rather
        than read off the transport afterwards: `connect` waits on this same
@@ -280,7 +286,7 @@ export function useVersus(): VersusApi {
       dispatch({ type: 'setError', error: 'That room has closed: its host left. Ask them for a fresh code.' });
       return;
     }
-    void open(clean, name, false);
+    void open(clean, name, isHostedHere(clean));
   }, [open]);
 
   /* An invite link or a scanned code lands straight in the room: nobody
@@ -466,38 +472,28 @@ export function useVersus(): VersusApi {
     if (live.current.isHost) dispatch({ type: 'rematch' });
   }, [send]);
 
+  /* Leaving on purpose is the one thing that closes a room. A reload, a
+     discarded tab or a dropped connection is deliberately not treated as one:
+     the peer sees a plain disconnect and waits, the URL still carries the
+     code, and whoever dropped comes back on it. Sending a farewell from the
+     unload events instead would tell the guest the room had closed and note
+     it as closed here, while the guest's screen — if the farewell never got
+     through — kept waiting for a host their own device now refuses to let
+     back in. Those two screens must never disagree, so unload sends nothing. */
   const leave = useCallback(() => {
     const s = live.current;
     // The host's leaving closes the room for good; note it on this side too,
     // so opening the old invite here is refused rather than searched.
-    if (s.isHost && s.phase !== 'menu') rememberClosed(s.code);
+    if (s.isHost && s.phase !== 'menu') {
+      rememberClosed(s.code);
+      forgetHosted();
+    }
     dropLink(true);
     clearUrlCode();
     dispatch({ type: 'leave' });
   }, [dropLink]);
 
   useEffect(() => () => { dropLink(true); }, [dropLink]);
-
-  /* Closing the tab is leaving too. Registered at mount, before any room is
-     joined: trystero hooks `beforeunload` itself when it joins, and sends a
-     leave the peer acts on by discarding whatever follows — so the farewell
-     has to be registered first to travel first. `pagehide` covers iOS Safari,
-     which never fires `beforeunload`; on browsers that fire both, the second
-     farewell reaches a link the peer has already closed, harmlessly. */
-  useEffect(() => {
-    const farewell = () => {
-      const s = live.current;
-      if (!net.current) return;
-      net.current.send({ t: 'bye' });
-      if (s.isHost && s.phase !== 'menu') rememberClosed(s.code);
-    };
-    window.addEventListener('beforeunload', farewell);
-    window.addEventListener('pagehide', farewell);
-    return () => {
-      window.removeEventListener('beforeunload', farewell);
-      window.removeEventListener('pagehide', farewell);
-    };
-  }, []);
 
   return {
     state,

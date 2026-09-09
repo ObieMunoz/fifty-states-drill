@@ -61,7 +61,17 @@ export function codeFromUrl(hash = window.location.hash): string | null {
   return code.length === CODE_LENGTH ? code : null;
 }
 
-/** Drop the invite fragment once it has been consumed, so a reload is clean. */
+/**
+ * Put the room in the URL, so a reload lands back in it rather than on the
+ * menu. A guest who arrived by invite already has it; this gives the host,
+ * and a guest who typed the code, the same way back after a dropped tab.
+ */
+export function setUrlCode(code: string): void {
+  const { pathname, search } = window.location;
+  history.replaceState(null, '', `${pathname}${search}#versus=${normalizeCode(code)}`);
+}
+
+/** Drop the room from the URL on the way out, so a reload does not rejoin it. */
 export function clearUrlCode(): void {
   if (!window.location.hash) return;
   const clean = window.location.hash.replace(/[#&]versus=[A-Za-z0-9]*/g, '');
@@ -79,6 +89,11 @@ export function clearUrlCode(): void {
  * again from either device is then refused on the spot, rather than after a
  * thirty-second search for a host who is not coming. A device with no such
  * note gets the search, and then the same explanation.
+ *
+ * Only leaving on purpose counts. A reload, a discarded tab or a dropped
+ * connection is not the host giving the room up: the guest waits for them,
+ * and they come back on the same code — as a guest by claim, with the host
+ * role settled again on meeting — so nothing is noted then.
  *
  * Notes expire after a day. Codes are dealt at random and one will come round
  * again eventually; a day is long past when anyone would still be holding it.
@@ -116,6 +131,43 @@ export function rememberClosed(code: string, now = Date.now()): void {
 export function isClosedRoom(code: string, now = Date.now()): boolean {
   try {
     return normalizeCode(code) in readClosed(now);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The room this device is hosting, so coming back to it claims the host role.
+ *
+ * Which side hosts is settled when the two devices meet, from what each one
+ * claims. A creator who reloads, or opens a fresh tab and types their own
+ * code, would otherwise come back claiming nothing, and the role would fall
+ * to whichever peer id sorts lower — sometimes the guest. Then the creator's
+ * Leave would read as a guest's, and the guest would be left waiting for a
+ * host who had just closed the room on purpose. Noted here so the creator
+ * claims the room again on return; cleared when they leave it on purpose.
+ */
+const HOSTED_KEY = 'fiftyStatesDrill.versus.hosted';
+
+export function rememberHosted(code: string): void {
+  try {
+    localStorage.setItem(HOSTED_KEY, normalizeCode(code));
+  } catch {
+    // Storage is unavailable; the role falls back to the tie-break on return.
+  }
+}
+
+export function forgetHosted(): void {
+  try {
+    localStorage.removeItem(HOSTED_KEY);
+  } catch {
+    // Ignored, as above.
+  }
+}
+
+export function isHostedHere(code: string): boolean {
+  try {
+    return localStorage.getItem(HOSTED_KEY) === normalizeCode(code);
   } catch {
     return false;
   }
