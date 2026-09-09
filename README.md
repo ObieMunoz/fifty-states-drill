@@ -117,11 +117,23 @@ only the WebRTC handshake, and then talk **directly** over a peer-to-peer data c
 No question, answer or score ever reaches a third party.
 
 Two relay networks are used rather than one, since public relays are volunteer-run and
-any single one can be down. If the first has not produced a peer within five seconds the
-second is added alongside it; both stay up, messages go out on every link that has the
-peer, and the receiver drops duplicates by sequence number. That removes any need for the
-two sides to agree on which link is "the" one — a race they could otherwise lose in
-opposite directions.
+any single one can be down. Both are joined from the start and both stay up: messages go
+out on every link that has the peer, and the receiver drops duplicates by sequence number.
+That removes any need for the two sides to agree on which link is "the" one — a race they
+could otherwise lose in opposite directions.
+
+Finding each other is only half of it. The data channel still needs a route between the
+two phones, and two phones on cellular usually have none: each sits behind its carrier's
+NAT, which will not let the other in. WebRTC tries a direct path first — over the LAN when
+both share one — and when that fails the packets go through a TURN server instead
+(`versus/net.ts` names one, from a free public service). TURN carries only the encrypted
+channel, so it can no more read a question than the relays can. When even that fails, the
+waiting screen says the phones found each other but the link was blocked, rather than
+blaming the code.
+
+The waiting screen also holds a screen wake lock, where the browser offers one. A phone
+set down to wait would otherwise dim and lock, which freezes the page and drops its relay
+sockets — leaving the other player searching for a host who is there but asleep.
 
 Fairness rests on both devices generating the identical question sequence rather than one
 sending questions to the other. The host picks a seed, both sides run the same seeded PRNG

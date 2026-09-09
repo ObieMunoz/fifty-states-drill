@@ -255,7 +255,18 @@ export function useVersus(): VersusApi {
         onPeerLeave: () => dispatch({ type: 'peerLeft' }),
         onMessage: (msg, id) => onMsg.current(msg, id),
         onStatus: (s) => {
-          if (s.gaveUp && !live.current.them) {
+          if (live.current.them) return;
+          // Blocked outranks the timeout: the other player is there, so the
+          // code is not the problem and should not be blamed.
+          if (s.blocked) {
+            dispatch({ type: 'setLink', link: 'error' });
+            dispatch({
+              type: 'setError',
+              error: 'Your phones found each other, but the connection between them was blocked. '
+                + 'Some mobile networks do this: put both phones on the same Wi-Fi, or keep this '
+                + 'open and it will keep trying.',
+            });
+          } else if (s.gaveUp) {
             dispatch({ type: 'setLink', link: 'error' });
             dispatch({
               type: 'setError',

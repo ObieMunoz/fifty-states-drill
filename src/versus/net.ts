@@ -10,12 +10,17 @@ import type { Msg } from './types';
  * whole thing ship as static files on GitHub Pages.
  *
  * Two relay networks are used, not one. Public relays are run by volunteers
- * and any single one can be down, so if the first has not produced a peer
- * within a few seconds the second is added alongside it. Both stay up: a
- * message goes out on every link that has the peer, and the receiver drops the
- * duplicates by sequence number. That removes any need for the two sides to
- * agree on which link is "the" one, which is a race they could otherwise lose
- * in opposite directions.
+ * and any single one can be down, so both are joined from the start and both
+ * stay up: a message goes out on every link that has the peer, and the
+ * receiver drops the duplicates by sequence number. That removes any need for
+ * the two sides to agree on which link is "the" one, which is a race they
+ * could otherwise lose in opposite directions.
+ *
+ * Finding each other is only half of it. The data channel still needs a route
+ * between the two phones, and two phones on cellular usually have none: each
+ * sits behind its carrier's NAT, which will not let the other in. For that
+ * case a TURN server relays the packets. It carries only the encrypted
+ * channel, so it can no more read a question than the relays can.
  */
 
 /** Namespaces the relay traffic so it cannot collide with another app. */
@@ -50,8 +55,28 @@ const NOSTR_RELAYS = [
   'wss://relay-can.zombi.cloudrodion.com',
 ];
 
-/** How long the first network gets on its own before the second is added. */
-const ESCALATE_MS = 5000;
+/**
+ * Where the data channel goes when the two phones cannot reach each other.
+ *
+ * WebRTC tries a direct path first — over the LAN when both phones share one,
+ * else through whatever hole STUN can find in each side's NAT — and only falls
+ * back to these when that fails. Both on cellular is the common failure: the
+ * carriers' NATs are the closed kind, and without a relay the handshake
+ * completes and then nothing connects: the room just waits, then times out.
+ *
+ * Metered's Open Relay Project is a free TURN service with credentials meant
+ * to be published, which is what a static site needs: there is nowhere to
+ * keep a secret. The three entries are the same server on the ports and
+ * transports most likely to be let out of a restrictive network. A match is a
+ * few kilobytes, so the free allowance is not a concern. Like the relays
+ * above, this is somebody else's server and may need replacing one day; the
+ * symptom would be the "found each other but blocked" message coming back.
+ */
+const TURN_SERVERS = [
+  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+];
 
 /** Nothing has connected by now; say so rather than spin forever. */
 const GIVE_UP_MS = 30000;
@@ -65,7 +90,25 @@ const GIVE_UP_MS = 30000;
  * real pair of phones — where genuine LAN candidates make it unnecessary.
  */
 const isLocalhost = (): boolean =>
-  /^(localhost|127\.0\.0\.1|\[::1\]|.*\.local)$/.test(location.hostname);
+  typeof location !== 'undefined'
+  && /^(localhost|127\.0\.0\.1|\[::1\]|.*\.local)$/.test(location.hostname);
+
+/**
+ * What the search looks like from outside, for the waiting screen.
+ *
+ * `blocked` is the case the relays cannot help with: a peer was found and the
+ * handshake exchanged, but no route opened between the two phones. It is worth
+ * telling apart from nobody having turned up, since the fix is different —
+ * the same Wi-Fi, or another go — and "no host answered" would send the
+ * player off chasing a fresh code that will do no better. Cleared the moment a
+ * peer does connect.
+ */
+export interface TransportStatus {
+  searching: boolean;
+  networks: number;
+  gaveUp: boolean;
+  blocked: boolean;
+}
 
 export interface TransportEvents {
   /** A peer is reachable. Fires once per peer, whichever network found it. */
@@ -74,7 +117,7 @@ export interface TransportEvents {
   onPeerLeave: (id: string) => void;
   onMessage: (msg: Msg, peerId: string) => void;
   /** Progress worth showing: which networks are up, and whether we gave up. */
-  onStatus: (status: { searching: boolean; networks: number; gaveUp: boolean }) => void;
+  onStatus: (status: TransportStatus) => void;
 }
 
 export interface Transport {
@@ -113,6 +156,13 @@ interface TrysteroRoom {
   leave: () => Promise<void>;
   getPeers: () => Record<string, RTCPeerConnection>;
 }
+
+/** What trystero reports when a peer was reached but never connected. */
+interface JoinCallbacks {
+  onJoinError: (details: { error: string }) => void;
+}
+
+type JoinRoom = (c: Record<string, unknown>, r: string, cb: JoinCallbacks) => TrysteroRoom;
 
 interface Envelope {
   /** Per-sender sequence number, so a message sent twice is handled once. */
@@ -154,13 +204,15 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
   const seen = new Map<string, number>();
   let seq = 0;
   let closed = false;
-  /* Held in one object so the handlers defined below can clear timers that are
+  let gaveUp = false;
+  let blocked = false;
+  /* Held in an object so the handler defined below can clear a timer that is
      only scheduled further down, without tripping over the temporal dead zone. */
-  const timers: { escalate?: ReturnType<typeof setTimeout>; giveUp?: ReturnType<typeof setTimeout> } = {};
+  const timers: { giveUp?: ReturnType<typeof setTimeout> } = {};
 
-  const status = (gaveUp = false) => {
+  const status = () => {
     if (closed) return;
-    ev.onStatus({ searching: known.size === 0, networks: links.length, gaveUp });
+    ev.onStatus({ searching: known.size === 0, networks: links.length, gaveUp, blocked });
   };
 
   async function addNetwork(index: number): Promise<void> {
@@ -170,11 +222,23 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
       const mod = await net.load();
       if (closed) return;
 
-      const room = (mod.joinRoom as unknown as (
-        c: Record<string, unknown>, r: string,
-      ) => TrysteroRoom)(
-        { appId: APP_ID, ...net.config, _test_only_mdnsHostFallbackToLoopback: isLocalhost() },
+      const room = (mod.joinRoom as unknown as JoinRoom)(
+        {
+          appId: APP_ID,
+          ...net.config,
+          turnConfig: TURN_SERVERS,
+          _test_only_mdnsHostFallbackToLoopback: isLocalhost(),
+        },
         roomId,
+        {
+          onJoinError: () => {
+            // Reported once per peer per network, and only before they
+            // connect; the search itself carries on underneath.
+            if (closed || known.size) return;
+            blocked = true;
+            status();
+          },
+        },
       );
 
       const action = room.makeAction('v', {
@@ -201,8 +265,9 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
         link.peers.add(id);
         if (known.has(id)) return;
         known.add(id);
-        clearTimeout(timers.escalate);
         clearTimeout(timers.giveUp);
+        gaveUp = false;
+        blocked = false;
         status();
         ev.onPeer(id);
       };
@@ -229,11 +294,9 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
     }
   }
 
-  await addNetwork(0);
+  await Promise.all(NETWORKS.map((_, i) => addNetwork(i)));
 
-  // Give the first network a head start, then widen the search.
-  timers.escalate = setTimeout(() => { void addNetwork(1); }, ESCALATE_MS);
-  timers.giveUp = setTimeout(() => { status(true); }, GIVE_UP_MS);
+  timers.giveUp = setTimeout(() => { gaveUp = true; status(); }, GIVE_UP_MS);
 
   return {
     send(msg: Msg) {
@@ -248,7 +311,6 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
       // travels the same ordered channel and holds the peer open a beat.
       if (closed) return;
       closed = true;
-      clearTimeout(timers.escalate);
       clearTimeout(timers.giveUp);
       for (const link of links) void link.room.leave().catch(() => { /* already gone */ });
       links.length = 0;
