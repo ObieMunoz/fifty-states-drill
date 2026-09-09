@@ -9,6 +9,11 @@ A React + TypeScript single-page app, built with Vite and published to GitHub Pa
 No network calls at runtime beyond a Google Fonts stylesheet — the map geometry ships
 in the bundle.
 
+It installs as an app. On iPhone or iPad open the link in Safari and choose
+**Share → Add to Home Screen**; on Android, Chrome offers **Install app** from its
+menu; on desktop Chrome and Edge, use the install icon in the address bar. Once
+installed, every mode except Versus works offline.
+
 ## Modes
 
 **Learn**
@@ -166,10 +171,24 @@ npm run dev        # http://localhost:5173/fifty-states-drill/
 | `npm test` | Vitest suite over the data, game logic and versus rules. |
 | `npm run lint` | ESLint over `src/`. |
 | `npm run typecheck` | Types only, no build. |
+| `node scripts/make-icons.mjs` | Redraws the app icon and favicon into `public/`. Needs `rsvg-convert` and `magick`. |
 
 `vite.config.ts` sets `base` to `/fifty-states-drill/`, the repo name, because the site
 is a Pages *project* page rather than a user page. Rename the repo and that has to
 change with it.
+
+### Icon and PWA
+
+The icon is the mainland outline from `src/data/states.json`, unioned into one
+shape by `scripts/make-icons.mjs`, with Missouri lit in the answer colour. The script
+writes the SVG favicon, a legacy `.ico`, the Apple touch icon and the 192/512 px
+Android icons (plain and maskable) into `public/`; the outputs are committed, so it
+only runs again when the mark changes.
+
+`vite.config.ts` configures `vite-plugin-pwa`, which writes `manifest.webmanifest`
+and a Workbox service worker into `dist/` at build time. The worker precaches the
+app shell and caches the Google Fonts files on first use. Updates install silently:
+a new deploy takes effect the next time the app is opened.
 
 ### Deployment
 
