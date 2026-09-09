@@ -137,10 +137,37 @@ body[data-versus="1"] .app{display:none}
 .vs-chips button[aria-pressed="true"]{background:var(--hydro);border-color:var(--hydro);
   color:var(--btn-ink)}
 .vs-chips button[aria-pressed="true"] i{color:color-mix(in srgb,var(--btn-ink) 70%,transparent)}
-.vs-chips button:disabled{opacity:.75;cursor:default}
-.vs-chips button:disabled[aria-pressed="true"]{opacity:1}
+
+/* A guest never sees the chips above; they get the settled values instead, in
+   a form with no button affordance at all — no fill, no border, no target
+   height — so the only thing that still looks pressable on this screen is
+   their own level. */
+.vs-locked-by{display:flex;align-items:center;gap:5px}
+.vs-lock{width:10px;height:10px;flex:none;opacity:.85}
+.vs-readout{margin:0;display:flex;flex-direction:column;gap:1px;
+  background:var(--sunk);border:1px solid var(--line-soft);border-radius:12px;
+  padding:11px 13px}
+.vs-readout>div{display:flex;align-items:baseline;justify-content:space-between;
+  gap:14px;padding:5px 0}
+.vs-readout>div+div{border-top:1px solid var(--line-soft)}
+.vs-readout dt{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-3);flex:none}
+.vs-readout dd{margin:0;font-size:15px;font-weight:500;color:var(--ink);
+  text-align:right;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  animation:vs-settle .5s ease-out}
+/* Replayed whenever the host changes a value, which is how the guest sees the
+   rules move without a control to move them with. */
+@keyframes vs-settle{
+  0%{color:var(--hydro);transform:translateY(-2px)}
+  100%{color:var(--ink);transform:none}}
+.vs-readout-note{margin:0;font-size:11.5px;color:var(--ink-3)}
 
 /* The primary action sits at the bottom, where a thumb already is. */
+/* In the lobby the blurb above already claims the slack with an auto margin
+   of its own; leaving one here too would split the free space between them
+   and strand the blurb mid-screen, which is most visible on the guest's
+   shorter readout. */
+.vs-lobby .vs-foot{margin-top:0}
 .vs-foot{margin-top:auto;display:flex;flex-direction:column;gap:6px;flex:none;
   position:sticky;bottom:0;background:var(--ground);padding-top:10px}
 .vs-foot-note{margin:0;text-align:center;font-size:12px;color:var(--ink-3);min-height:1.2em}
@@ -342,7 +369,7 @@ svg.vs-map.solo{background:transparent;border-color:transparent;max-height:38dvh
 }
 
 @media (prefers-reduced-motion:reduce){
-  .vs-count-n,.vs-reveal{animation:none}
+  .vs-count-n,.vs-reveal,.vs-readout dd{animation:none}
   .vs-pulse i{animation:none;opacity:.6}
   .vs-big:active:not(:disabled),.vs-choices button:active{transform:none}
   .vs-clock i,.vs-count-ring .fill{transition:none}
