@@ -121,6 +121,9 @@ function Question({ api, ask, qm, revealing, answered, mine, theirs }: QuestionP
 
   const head = prompt(ask, qm);
   const twoLetter = qm === 'code' && !ask.rev;
+  // Only Find It answers *on* the map. Everywhere else the map is the prompt,
+  // so lighting up a pick made on a button would mark the wrong state.
+  const myPick = qm === 'find' ? ((mine?.pick ?? null) as Abbr | null) : null;
 
   return (
     <>
@@ -136,7 +139,7 @@ function Question({ api, ask, qm, revealing, answered, mine, theirs }: QuestionP
             solo={qm === 'shape' ? s.a : null}
             highlight={qm === 'find' ? null : ask.show}
             divisionHint={qm === 'find' && DIFFS[state.me.dif].regionHint ? s.div : null}
-            picked={(mine?.pick ?? null) as Abbr | null}
+            picked={myPick}
             answer={qm === 'find' ? s.a : null}
             revealed={revealing && qm === 'find'}
             onPick={qm === 'find' ? api.answerMap : undefined}

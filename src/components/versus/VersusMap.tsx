@@ -2,6 +2,8 @@ import { useMemo, useRef } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { DC_PATH, ST } from '../../data/states';
 import { useViewBox } from '../../hooks/useViewBox';
+import { stateClass } from '../../versus/marks';
+import type { MapMarks } from '../../versus/marks';
 import type { Abbr, Box, State } from '../../types';
 
 /**
@@ -56,24 +58,12 @@ export function VersusMap({
     ))
   ), []);
 
-  function classOf(s: State): string {
-    if (solo) return s.a === solo ? 'st solo' : 'st';
-    const c = ['st'];
-    if (revealed) {
-      if (s.a === answer) c.push('ok');
-      else if (s.a === picked && picked !== answer) c.push('bad');
-    } else if (s.a === highlight) {
-      c.push('target');
-    }
-    // Guided dims everything outside the target's division while live.
-    if (!revealed && divisionHint && s.div !== divisionHint) c.push('mute');
-    return c.join(' ');
-  }
-
   const abbrAt = (e: ReactMouseEvent): Abbr | null =>
     ((e.target as SVGElement).dataset.a as Abbr | undefined) ?? null;
 
   const live = !disabled && !!onPick && !revealed;
+  // One object for the whole map rather than one per state.
+  const marks: MapMarks = { solo, highlight, divisionHint, picked, answer, revealed };
 
   return (
     <svg
@@ -88,7 +78,7 @@ export function VersusMap({
           <use
             key={s.a}
             href={`#vp-${s.a}`}
-            className={classOf(s)}
+            className={stateClass(s, marks)}
             style={solo && s.a !== solo ? { display: 'none' } : undefined}
           />
         ))}
