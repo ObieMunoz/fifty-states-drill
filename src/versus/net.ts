@@ -49,10 +49,21 @@ export interface TransportEvents {
 }
 
 export interface Transport {
-  selfId: string;
   send: (msg: Msg) => void;
   leave: () => void;
 }
+
+/**
+ * This browser's peer id, resolvable before any room is joined.
+ *
+ * The same on every network: each strategy re-exports it from one shared core
+ * module, so the same browser is the same id throughout. Offered on its own
+ * because a session needs its own id — half of what settles which side hosts
+ * — in hand before a peer can turn up, and `connect` waits on this very
+ * module load before it joins anything.
+ */
+export const peerId = async (): Promise<string> =>
+  (await import('@trystero-p2p/nostr')).selfId;
 
 /** One joined relay network. */
 interface Link {
@@ -103,10 +114,6 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
     if (closed) return;
     ev.onStatus({ searching: known.size === 0, networks: links.length, gaveUp });
   };
-
-  // The peer id is the same across networks: every strategy re-exports it from
-  // one shared core module, so the same browser is the same id on both.
-  const { selfId } = await import('@trystero-p2p/nostr');
 
   async function addNetwork(index: number): Promise<void> {
     if (closed || index >= NETWORKS.length) return;
@@ -175,7 +182,6 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
   timers.giveUp = setTimeout(() => { status(true); }, GIVE_UP_MS);
 
   return {
-    selfId,
     send(msg: Msg) {
       if (closed) return;
       const env: Envelope = { n: seq++, m: msg };
