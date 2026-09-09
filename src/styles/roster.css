@@ -19,6 +19,16 @@
 .grp li button.miss em{color:var(--wrong)}
 .grp li.blank{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink-3);
   padding:6px;opacity:.5;align-items:center;min-height:32px}
+/* ---- answer sheets (Roll Call, Name All 50) ----
+   These hold four-character blanks next to full state names, so a fixed column
+   count wastes most of a phone's width on a row holding one `····`. Letting
+   them flow packs several blanks to a row and still gives a found name the
+   width it needs. */
+.sheet .grp ul{display:flex;flex-wrap:wrap;gap:3px}
+.sheet .grp li{flex:0 0 auto}
+.sheet .grp li button{flex:0 0 auto}
+.sheet .grp li.blank{padding:6px 8px}
+
 .pip{text-decoration:none;width:9px;height:9px;border-radius:2px;flex:none;background:var(--land);border:1px solid var(--land-line)}
 .pip.m1{background:var(--m1);border-color:transparent}
 .pip.m2{background:var(--m2);border-color:transparent}

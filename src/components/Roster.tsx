@@ -49,7 +49,7 @@ export function Roster() {
   /* ---- Roll Call: the answer sheet, letter by letter ---- */
   if (mode === 'roll' && roll) {
     return (
-      <div className="roster">
+      <div className="roster sheet">
         {LETTERS.map((L) => {
           const g = ST.filter((s) => s.n[0] === L && inScope(s, scope, progress));
           if (!g.length) return null;
@@ -76,7 +76,7 @@ export function Roster() {
       ? ST.filter((s) => inScope(s, scope, progress) && !recall.got.has(s.a))
       : [];
     return (
-      <div className="roster">
+      <div className="roster sheet">
         <Group title="Found" count={`${got.length}/${recall.total}`}>
           {got.length
             ? got.map((s) => <Entry key={s.a} s={s} cls="got" />)
@@ -95,7 +95,7 @@ export function Roster() {
   if (recall) {
     const lengths = DIFFS[state.dif].lengths;
     return (
-      <div className="roster">
+      <div className="roster sheet">
         {LETTERS.map((L) => {
           const g = ST.filter((s) => s.n[0] === L && inScope(s, scope, progress));
           if (!g.length) return null;
