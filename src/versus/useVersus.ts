@@ -13,7 +13,7 @@ import { displayName, loadName, saveName } from './identity';
 import { loadBoard, rankBoard, recordMatch } from './leaderboard';
 import type { LeaderRow } from './leaderboard';
 import { clearUrlCode, codeFromUrl, matchSeed, newRoomCode, normalizeCode } from './room';
-import { connect } from './net';
+import { connect, peerId } from './net';
 import type { Transport } from './net';
 import { PROTOCOL_VERSION } from './types';
 import type { MatchConfig, Msg, RoundAnswer } from './types';
@@ -193,6 +193,14 @@ export function useVersus(): VersusApi {
     dispatch(asHost
       ? { type: 'hostRoom', code, id: '' }
       : { type: 'joinRoom', code, id: '' });
+    /* This device's own id is half of what settles which side hosts, so it has
+       to be in hand before a peer can introduce itself. Asked for here rather
+       than read off the transport afterwards: `connect` waits on this same
+       module load before it joins a network, so this lands first — while there
+       is still nothing to have met. */
+    void peerId()
+      .then((id) => dispatch({ type: 'setSelfId', id }))
+      .catch(() => { /* the same load failing inside `connect` is what reports it */ });
 
     try {
       const transport = await connect(code, {
@@ -224,9 +232,6 @@ export function useVersus(): VersusApi {
       const queued = outbox.current;
       outbox.current = [];
       for (const m of queued) transport.send(m);
-      dispatch(asHost
-        ? { type: 'hostRoom', code, id: transport.selfId }
-        : { type: 'joinRoom', code, id: transport.selfId });
     } catch {
       dispatch({ type: 'setLink', link: 'error' });
       dispatch({ type: 'setError', error: 'Could not reach the network. Check your connection and try again.' });

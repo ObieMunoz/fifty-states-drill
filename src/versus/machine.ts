@@ -55,6 +55,7 @@ export type VersusAction =
   | { type: 'setError'; error: string | null }
   | { type: 'hostRoom'; code: string; id: string }
   | { type: 'joinRoom'; code: string; id: string }
+  | { type: 'setSelfId'; id: string }
   | { type: 'peerHello'; id: string; name: string; dif: DiffKey; host: boolean }
   | { type: 'peerLeft' }
   | { type: 'setName'; name: string }
@@ -157,6 +158,11 @@ export function reducer(s: VersusState, a: VersusAction): VersusState {
         phase: 'connecting', link: 'searching', code: a.code, isHost: false,
         me: { ...s.me, id: a.id, ready: false }, them: null, error: null,
       };
+
+    case 'setSelfId':
+      // Lands on its own rather than by re-running `hostRoom`, which would
+      // throw away a peer that had already introduced itself.
+      return { ...s, me: { ...s.me, id: a.id } };
 
     case 'peerHello':
       return {

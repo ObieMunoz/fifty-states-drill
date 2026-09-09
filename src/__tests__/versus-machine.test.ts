@@ -51,6 +51,21 @@ describe('lobby', () => {
     expect(s.phase).toBe('connecting');
   });
 
+  it('takes its own id without disturbing a peer already met', () => {
+    // The id arrives separately from the claim, so an introduction that beat
+    // it there is not thrown away when it lands.
+    const s = run(
+      start(),
+      { type: 'joinRoom', code: 'ACDE', id: '' },
+      { type: 'peerHello', id: 'bbb', name: 'Sam', dif: 'guided', host: true },
+      { type: 'setSelfId', id: 'aaa' },
+    );
+    expect(s.me.id).toBe('aaa');
+    expect(s.them?.name).toBe('Sam');
+    expect(s.phase).toBe('lobby');
+    expect(s.isHost).toBe(false);
+  });
+
   it('an introduction opens the lobby', () => {
     const s = linked();
     expect(s.phase).toBe('lobby');
