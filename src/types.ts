@@ -66,7 +66,17 @@ export interface Mode {
   kind: ModeKind;
   /** Modes that hide the map entirely and centre the control card. */
   nomap?: boolean;
+  /**
+   * Reference modes: the panel is a list that drives the map rather than a
+   * question. They give the roster's column over to the panel, and on phones
+   * the map moves above the panel so tapping an entry has something visible
+   * to light up.
+   */
+  reference?: boolean;
 }
+
+/** Colour scheme: `system` defers to prefers-color-scheme. */
+export type Theme = 'system' | 'light' | 'dark';
 
 export type DiffKey = 'guided' | 'standard' | 'expert';
 

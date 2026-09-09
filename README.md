@@ -18,7 +18,7 @@ in the bundle.
 | Map | Tap any state for its capital, postal code, admission date and order, census division, and the states it borders. |
 | Letters | The 19 first-letter groups, lit up on the map. Eight states start with **M** and eight with **N** — nearly a third of the map in two groups. |
 | Cards | Self-paced flashcards. Name on the front; capital, code, admission, nickname, region, borders and the state's silhouette on the back. **Need work** flags a state so the quizzes ask about it more often. |
-| Hooks | Memory aids for the parts people actually get wrong — telling Vermont from New Hampshire, the Dakotas, the Carolinas, Missouri from Mississippi. Tap one to light the states it talks about. |
+| Hooks | Memory aids for the parts people actually get wrong — telling Vermont from New Hampshire, the Dakotas, the Carolinas, Missouri from Mississippi. All eighteen list by title; tap one to read it and light the states it talks about. |
 | Progress | Weak spots, weakest first, with accuracy per quiz type and a **Drill these** button that narrows every quiz to just those states. |
 
 **Quiz**
@@ -76,6 +76,9 @@ no border and meet only at the Four Corners point, that Maine has exactly one ne
 
 Progress is stored in `localStorage`, so it is per-browser and never leaves the device.
 
+The app follows your system light or dark setting by default. A **Theme** control in the
+header overrides it either way, and the choice is remembered.
+
 ## Map data
 
 State geometry comes from [us-atlas](https://github.com/topojson/us-atlas)
@@ -121,7 +124,7 @@ src/
   data/       states.json and the tables that describe modes, difficulty and hooks
   lib/        pure helpers: text matching, map framing, randomness
   game/       state shape, reducer, question engine, scoring — no React
-  hooks/      the imperative edges: viewBox animation, reduced motion, the clock
+  hooks/      the imperative edges: viewBox animation, reduced motion, the clock, the theme
   components/ the map, the chrome, and one panel per mode
   styles/     global CSS, split by concern and loaded in cascade order
 ```
@@ -142,4 +145,6 @@ Two things are deliberately *not* declarative, and both are commented where they
   rewrite the box mid-word, which drops keystrokes from a fast typist.
 
 Progress lives in `localStorage` under `fiftyStatesDrill.v1`, in the same shape the
-pre-React version wrote, so existing progress carries over untouched.
+pre-React version wrote, so existing progress carries over untouched. The theme choice
+is kept apart from it, under `fiftyStatesDrill.theme`, so a display preference never
+touches the shape that older key promises.

@@ -2,7 +2,7 @@
 
 /* roster */
 .roster{padding:2px 14px 22px}
-@media (min-width:1001px){.roster{overflow:auto;flex:1}}
+@media (min-width:900px){.roster{overflow:auto;flex:1}}
 .grp{margin-top:10px}
 .grp h4{margin:0;font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.13em;
   text-transform:uppercase;color:var(--ink-3);font-weight:500;

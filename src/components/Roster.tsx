@@ -32,7 +32,7 @@ function Group({ title, count, children }: { title: ReactNode; count: ReactNode;
  * play: mastery by census division most of the time, and the answer sheet
  * during Roll Call and Name All 50.
  */
-export function Roster({ onReset }: { onReset: () => void }) {
+export function Roster() {
   const { state, dispatch } = useGame();
   const { mode, scope, progress, recall, roll } = state;
   const track = trackOrNull(mode);
@@ -125,17 +125,7 @@ export function Roster({ onReset }: { onReset: () => void }) {
   return (
     <div className="roster">
       <div className="grp">
-        <h4>
-          <span>{`Progress · ${track ? MODES[mode].label : 'overall'}`}</span>
-          <button
-            className="btn ghost sm"
-            type="button"
-            style={{ minHeight: 0, padding: '2px 8px', fontSize: 10 }}
-            onClick={onReset}
-          >
-            Reset
-          </button>
-        </h4>
+        <h4><span>{`Progress · ${track ? MODES[mode].label : 'overall'}`}</span></h4>
         <div className="bars">
           {[1, 2, 3].map((i) => (
             <i key={i} style={{ width: `${counts[i] / 50 * 100}%`, background: `var(--m${i})` }} />

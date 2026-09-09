@@ -5,9 +5,9 @@ export const TRACKS: Track[] = ['find', 'name', 'shape', 'capital', 'code', 'bor
 
 export const MODES: Record<ModeKey, Mode> = {
   map:     { g: 'learn', label: 'Map',        kind: 'explore' },
-  letter:  { g: 'learn', label: 'Letters',    kind: 'letters' },
+  letter:  { g: 'learn', label: 'Letters',    kind: 'letters', reference: true },
   cards:   { g: 'learn', label: 'Cards',      kind: 'cards', nomap: true },
-  hooks:   { g: 'learn', label: 'Hooks',      kind: 'hooks' },
+  hooks:   { g: 'learn', label: 'Hooks',      kind: 'hooks', reference: true },
   weak:    { g: 'learn', label: 'Progress',   kind: 'weak' },
   find:    { g: 'quiz',  label: 'Find It',    kind: 'click' },
   name:    { g: 'quiz',  label: 'Name It',    kind: 'choice' },

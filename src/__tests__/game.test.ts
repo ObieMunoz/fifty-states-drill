@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BY, ST } from '../data/states';
+import { HOOKS } from '../data/hooks';
 import { DIFFS } from '../data/modes';
 import { buildAsk, choicesFor, expectedText } from '../game/question';
 import {
@@ -316,6 +317,35 @@ describe('the reducer', () => {
     for (let i = 6; i < seen.length; i++) {
       expect(seen.slice(i - 6, i)).not.toContain(seen[i]);
     }
+  });
+});
+
+describe('hooks', () => {
+  it('lights exactly the states a hook names', () => {
+    const s = run(start(),
+      { type: 'setMode', mode: 'hooks' },
+      { type: 'selectHook', group: 0, item: 0 });
+    expect(s.sel).toBe('h0-0');
+    expect([...s.hookSet!].sort()).toEqual([...HOOKS[0].items[0].s].sort());
+  });
+
+  it('closes the open hook when it is tapped again', () => {
+    const open = run(start(),
+      { type: 'setMode', mode: 'hooks' },
+      { type: 'selectHook', group: 0, item: 0 });
+    const closed = reducer(open, { type: 'selectHook', group: 0, item: 0 });
+    expect(closed.sel).toBeNull();
+    expect(closed.hookSet).toBeNull();
+    expect(closed.zoom).toEqual(scopeBox(closed.scope, closed.progress));
+  });
+
+  it('moves the selection when a different hook is tapped', () => {
+    const s = run(start(),
+      { type: 'setMode', mode: 'hooks' },
+      { type: 'selectHook', group: 0, item: 0 },
+      { type: 'selectHook', group: 0, item: 1 });
+    expect(s.sel).toBe('h0-1');
+    expect([...s.hookSet!].sort()).toEqual([...HOOKS[0].items[1].s].sort());
   });
 });
 
