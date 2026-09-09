@@ -1,13 +1,65 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 
 // The site is a GitHub Pages *project* page, served from
 // https://obiemunoz.github.io/fifty-states-drill/, so every asset URL needs
 // that prefix. `vite dev` and `vite preview` honour it too, which keeps local
 // runs on the same paths as production.
+const base = '/fifty-states-drill/';
+
 export default defineConfig({
-  plugins: [react()],
-  base: '/fifty-states-drill/',
+  plugins: [
+    react(),
+    // Installable on iOS, Android and desktop, and usable offline: the map
+    // geometry ships in the bundle, so once the shell is cached nothing but
+    // Versus needs the network. Icons are drawn by scripts/make-icons.mjs.
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'logo.svg'],
+      manifest: {
+        id: base,
+        name: 'Fifty States Drill',
+        short_name: '50 States',
+        description:
+          'Learn all 50 US states on a real map: study modes for location and letter groups, plus quizzes on shapes, capitals, postal codes and borders.',
+        lang: 'en',
+        display: 'standalone',
+        background_color: '#E7EAE4',
+        theme_color: '#E7EAE4',
+        categories: ['education', 'games'],
+        icons: [
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        runtimeCaching: [
+          {
+            // The Google Fonts stylesheet changes with browser support, so
+            // serve the cached copy and refresh it in the background.
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'google-fonts-stylesheets' },
+          },
+          {
+            // The font files are content-addressed and effectively immutable.
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-webfonts',
+              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
+      },
+    }),
+  ],
+  base,
   build: {
     outDir: 'dist',
     // The state geometry is ~96 kB of path data in one module and will always
