@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useWakeLock } from '../../hooks/useWakeLock';
 import { useVersus } from '../../versus/useVersus';
 import { VersusMenu } from './VersusMenu';
 import { VersusWaiting } from './VersusWaiting';
@@ -23,6 +24,9 @@ export function VersusScreen({ onExit }: { onExit: () => void }) {
     document.body.dataset.versus = '1';
     return () => { delete document.body.dataset.versus; };
   }, []);
+
+  // A phone set down to wait, or mid-match, must not lock and freeze the room.
+  useWakeLock(phase !== 'menu' && phase !== 'final');
 
   // Leaving from anywhere tears the connection down before the solo app returns.
   const exit = () => { api.leave(); onExit(); };
