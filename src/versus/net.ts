@@ -21,6 +21,35 @@ import type { Msg } from './types';
 /** Namespaces the relay traffic so it cannot collide with another app. */
 const APP_ID = 'fifty-states-drill-versus';
 
+/**
+ * The nostr relays used for the handshake, named rather than left to default.
+ *
+ * Left alone, trystero picks five of its defaults by shuffling them with a
+ * seed derived from `APP_ID` — so this app draws the same five on every load,
+ * forever, and a relay that dies is never rotated out. That is what went
+ * wrong: of the five it drew, `relay.agorist.space` refuses the socket
+ * outright — the error in the console — and `relay.artio.inf.unibe.ch` hangs
+ * until it times out, which says nothing at all. That left two dependable
+ * relays and one flaky one to introduce every pair of players.
+ *
+ * These were each checked from the deployed origin, and for whether they
+ * actually carry an ephemeral event between two sockets — a relay can accept
+ * the connection and the publish and still relay nothing, which fails
+ * silently. Two of the old five that still work are kept, so a player on a
+ * cached bundle and one on a fresh bundle still share relays. Expect to prune
+ * this list from time to time: these are volunteer-run, and they come and go.
+ */
+const NOSTR_RELAYS = [
+  'wss://nos.lol',
+  'wss://relay.mostr.pub',
+  'wss://purplerelay.com',
+  'wss://nostr.data.haus',
+  'wss://relay.sigit.io',
+  'wss://nostr-01.yakihonne.com',
+  'wss://nostr.sathoarder.com',
+  'wss://relay-can.zombi.cloudrodion.com',
+];
+
 /** How long the first network gets on its own before the second is added. */
 const ESCALATE_MS = 5000;
 
@@ -91,10 +120,29 @@ interface Envelope {
   m: Msg;
 }
 
-/** Loaders kept separate so Vite splits each network into its own chunk. */
-const NETWORKS = [
-  { name: 'nostr', load: () => import('@trystero-p2p/nostr') },
-  { name: 'torrent', load: () => import('@trystero-p2p/torrent') },
+interface Network {
+  name: string;
+  /* Only `joinRoom` is reached for; the rest of each module is its own business. */
+  load: () => Promise<{ joinRoom: unknown }>;
+  config: Record<string, unknown>;
+}
+
+/**
+ * Loaders kept separate so Vite splits each network into its own chunk.
+ *
+ * The config is per network, not shared: `relayConfig.urls` means relays to
+ * nostr and trackers to torrent, so one object across both would hand the
+ * fallback a list of nostr relays to announce on. Torrent takes its own
+ * defaults in list order rather than shuffling them, and the three it uses
+ * are healthy, so it is left to them.
+ */
+const NETWORKS: Network[] = [
+  {
+    name: 'nostr',
+    load: () => import('@trystero-p2p/nostr'),
+    config: { relayConfig: { urls: NOSTR_RELAYS } },
+  },
+  { name: 'torrent', load: () => import('@trystero-p2p/torrent'), config: {} },
 ];
 
 export async function connect(code: string, ev: TransportEvents): Promise<Transport> {
@@ -125,7 +173,7 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
       const room = (mod.joinRoom as unknown as (
         c: Record<string, unknown>, r: string,
       ) => TrysteroRoom)(
-        { appId: APP_ID, _test_only_mdnsHostFallbackToLoopback: isLocalhost() },
+        { appId: APP_ID, ...net.config, _test_only_mdnsHostFallbackToLoopback: isLocalhost() },
         roomId,
       );
 
