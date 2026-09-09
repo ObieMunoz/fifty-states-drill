@@ -14,6 +14,7 @@ import './styles/cards.css';
 import './styles/roll.css';
 import './styles/hooks.css';
 import './styles/progress.css';
+import './styles/versus.css';
 import './styles/responsive.css';
 
 const root = document.getElementById('root');

@@ -7,7 +7,7 @@ import { THEMES, THEME_LABELS, useTheme } from '../hooks/useTheme';
 import { fmtTime } from '../lib/text';
 import type { DiffKey, Theme } from '../types';
 
-export function Rail() {
+export function Rail({ onVersus }: { onVersus: () => void }) {
   const { state, dispatch } = useGame();
   const { recall, run, qm, progress, dif } = state;
   const [theme, setTheme] = useTheme();
@@ -28,6 +28,9 @@ export function Rail() {
     <header className="rail">
       <div className="wordmark"><b>Fifty States</b><span>Drill</span></div>
       <div className="rail-right">
+        <button type="button" className="vs-open" onClick={onVersus}>
+          Versus
+        </button>
         <label className="railsel lvl">
           <span className="eyebrow">Level</span>
           <select
