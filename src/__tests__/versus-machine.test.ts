@@ -298,6 +298,32 @@ describe('interruptions', () => {
     expect(s.phase).toBe('final');
   });
 
+  it('sends a guest home, with the reason, when the host closes the room', () => {
+    const s = reducer(playing(), { type: 'roomClosed', error: 'The host closed the room.' });
+    expect(s.phase).toBe('menu');
+    expect(s.link).toBe('idle');
+    expect(s.code).toBe('');
+    expect(s.them).toBeNull();
+    expect(s.error).toBe('The host closed the room.');
+    // The name is this device's, not the room's.
+    expect(s.me.name).toBe('Obie');
+  });
+
+  it('keeps a finished match on screen when the host closes the room', () => {
+    const s = run(playing(), { type: 'finish' }, { type: 'roomClosed', error: 'gone' });
+    expect(s.phase).toBe('final');
+    expect(s.them).toBeNull();
+    expect(s.lastOpponent).toBe('Sam');
+  });
+
+  it('ignores the departure that follows a closed room', () => {
+    // The host's farewell is followed by the host actually leaving; the
+    // second event must not drag the menu back into an empty lobby.
+    const s = run(playing(), { type: 'roomClosed', error: 'gone' }, { type: 'peerLeft' });
+    expect(s.phase).toBe('menu');
+    expect(s.error).toBe('gone');
+  });
+
   it('surfaces an error without losing the room', () => {
     const s = run(
       reducer(start(), { type: 'hostRoom', code: 'ACDE', id: 'me' }),

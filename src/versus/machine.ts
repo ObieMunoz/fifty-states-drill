@@ -58,6 +58,7 @@ export type VersusAction =
   | { type: 'setSelfId'; id: string }
   | { type: 'peerHello'; id: string; name: string; dif: DiffKey; host: boolean }
   | { type: 'peerLeft' }
+  | { type: 'roomClosed'; error: string }
   | { type: 'setName'; name: string }
   | { type: 'setDif'; dif: DiffKey }
   | { type: 'setPeerDif'; dif: DiffKey }
@@ -177,6 +178,9 @@ export function reducer(s: VersusState, a: VersusAction): VersusState {
       };
 
     case 'peerLeft':
+      // Nothing to lose once back at the front door; this is the peer's own
+      // departure arriving after the room has already been closed under us.
+      if (s.phase === 'menu') return s;
       return {
         ...s,
         link: 'lost',
@@ -185,6 +189,13 @@ export function reducer(s: VersusState, a: VersusAction): VersusState {
         phase: s.phase === 'final' ? 'final' : 'lobby',
         me: { ...s.me, ready: false },
       };
+
+    case 'roomClosed':
+      // The host has gone for good — hosting again draws a fresh code — so
+      // there is nobody to wait for. A finished match keeps its result on
+      // screen; anything earlier goes back to the front door, with the reason.
+      if (s.phase === 'final') return reducer(s, { type: 'peerLeft' });
+      return { ...initialVersus(s.me.name, s.me.dif), error: a.error };
 
     case 'setName':
       return { ...s, me: { ...s.me, name: a.name } };

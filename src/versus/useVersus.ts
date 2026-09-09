@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import {
+  useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState,
+} from 'react';
 import { BY } from '../data/states';
 import { DIFFS } from '../data/modes';
 import { buildAsk, expectedText } from '../game/question';
@@ -9,10 +11,12 @@ import {
   currentRound, initialVersus, matchResults, reducer, resolveHost, totalOf,
 } from './machine';
 import type { VersusState } from './machine';
-import { displayName, loadName, saveName } from './identity';
+import { cleanName, displayName, loadName, saveName } from './identity';
 import { loadBoard, rankBoard, recordMatch } from './leaderboard';
 import type { LeaderRow } from './leaderboard';
-import { clearUrlCode, codeFromUrl, matchSeed, newRoomCode, normalizeCode } from './room';
+import {
+  clearUrlCode, codeFromUrl, isClosedRoom, matchSeed, newRoomCode, normalizeCode, rememberClosed,
+} from './room';
 import { connect, peerId } from './net';
 import type { Transport } from './net';
 import { PROTOCOL_VERSION } from './types';
@@ -101,6 +105,21 @@ export function useVersus(): VersusApi {
   }, []);
 
   /**
+   * Tear the connection down. With `farewell`, the peer is told first, so a
+   * departure on purpose is not mistaken for a dropped connection: a guest
+   * hearing it from the host learns the room is closed, not merely quiet.
+   */
+  const dropLink = useCallback((farewell: boolean) => {
+    const link = net.current;
+    if (link) {
+      if (farewell) link.send({ t: 'bye' });
+      link.leave();
+    }
+    net.current = null;
+    outbox.current = [];
+  }, []);
+
+  /**
    * End the match: fold the result into this device's standings, then show it.
    *
    * Done here rather than in an effect on the results screen so the write
@@ -176,8 +195,22 @@ export function useVersus(): VersusApi {
         if (s.isHost) dispatch({ type: 'peerWantsAgain' });
         else dispatch({ type: 'rematch' });
         break;
+      case 'bye':
+        // A guest leaving is just the peer going; the host keeps the room
+        // open. The host leaving closes it: nobody can take the code over, so
+        // the guest is sent home and told why, and this device notes the code
+        // so a second try at the same invite is refused without a search.
+        if (s.isHost) {
+          dispatch({ type: 'peerLeft' });
+          break;
+        }
+        rememberClosed(s.code);
+        dropLink(false);
+        clearUrlCode();
+        dispatch({ type: 'roomClosed', error: 'The host closed the room.' });
+        break;
     }
-  }, [send, finishMatch]);
+  }, [send, finishMatch, dropLink]);
 
   /** Kept in a ref so `connect`'s callbacks always reach the current handler. */
   const onMsg = useRef(handleMessage);
@@ -222,7 +255,8 @@ export function useVersus(): VersusApi {
               type: 'setError',
               error: asHost
                 ? 'No one has joined yet. Keep this open, or start over if the code went stale.'
-                : 'Could not find that room. Check the code matches, then try again.',
+                : 'No host answered, so that room has expired or been closed. '
+                  + 'Check the code, or ask for a fresh one.',
             });
           }
         },
@@ -240,8 +274,28 @@ export function useVersus(): VersusApi {
 
   const host = useCallback((name: string) => { void open(newRoomCode(), name, true); }, [open]);
   const join = useCallback((code: string, name: string) => {
-    void open(normalizeCode(code), name, false);
+    const clean = normalizeCode(code);
+    // A room this device has seen close has no host to find; say so now.
+    if (isClosedRoom(clean)) {
+      dispatch({ type: 'setError', error: 'That room has closed: its host left. Ask them for a fresh code.' });
+      return;
+    }
+    void open(clean, name, false);
   }, [open]);
+
+  /* An invite link or a scanned code lands straight in the room: nobody
+     should have to press Join on a code they never typed. It takes a name in
+     hand, and with none saved the menu asks first and joins on the answer. A
+     layout effect rather than a plain one, so a saved name goes from the
+     loading screen into the room without a flash of the menu between. */
+  const autoJoined = useRef(false);
+  useLayoutEffect(() => {
+    // Once only: development's double-mount would otherwise open two links.
+    if (autoJoined.current) return;
+    autoJoined.current = true;
+    const s = live.current;
+    if (s.phase === 'menu' && s.code && cleanName(s.me.name)) join(s.code, s.me.name);
+  }, [join]);
 
   /* ---------------- the question this player sees ---------------- */
 
@@ -413,14 +467,37 @@ export function useVersus(): VersusApi {
   }, [send]);
 
   const leave = useCallback(() => {
-    net.current?.leave();
-    net.current = null;
-    outbox.current = [];
+    const s = live.current;
+    // The host's leaving closes the room for good; note it on this side too,
+    // so opening the old invite here is refused rather than searched.
+    if (s.isHost && s.phase !== 'menu') rememberClosed(s.code);
+    dropLink(true);
     clearUrlCode();
     dispatch({ type: 'leave' });
-  }, []);
+  }, [dropLink]);
 
-  useEffect(() => () => { net.current?.leave(); }, []);
+  useEffect(() => () => { dropLink(true); }, [dropLink]);
+
+  /* Closing the tab is leaving too. Registered at mount, before any room is
+     joined: trystero hooks `beforeunload` itself when it joins, and sends a
+     leave the peer acts on by discarding whatever follows — so the farewell
+     has to be registered first to travel first. `pagehide` covers iOS Safari,
+     which never fires `beforeunload`; on browsers that fire both, the second
+     farewell reaches a link the peer has already closed, harmlessly. */
+  useEffect(() => {
+    const farewell = () => {
+      const s = live.current;
+      if (!net.current) return;
+      net.current.send({ t: 'bye' });
+      if (s.isHost && s.phase !== 'menu') rememberClosed(s.code);
+    };
+    window.addEventListener('beforeunload', farewell);
+    window.addEventListener('pagehide', farewell);
+    return () => {
+      window.removeEventListener('beforeunload', farewell);
+      window.removeEventListener('pagehide', farewell);
+    };
+  }, []);
 
   return {
     state,

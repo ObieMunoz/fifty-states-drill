@@ -8,7 +8,8 @@ import {
   BASE_POINTS, SPEED_POINTS, isTyped, outcomeOf, roundLimitMs, scoreAnswer,
 } from '../versus/scoring';
 import {
-  CODE_LENGTH, codeFromUrl, isCompleteCode, matchSeed, newRoomCode, normalizeCode, roomIdFor,
+  CODE_LENGTH, codeFromUrl, isClosedRoom, isCompleteCode, matchSeed, newRoomCode, normalizeCode,
+  rememberClosed, roomIdFor,
 } from '../versus/room';
 import { cleanName, displayName } from '../versus/identity';
 import { accuracy, loadBoard, rankBoard, recordMatch, resetBoard } from '../versus/leaderboard';
@@ -255,6 +256,57 @@ describe('room codes', () => {
     expect(matchSeed('ACDE', 1)).not.toBe(matchSeed('ACDE', 2));
     expect(planMatch(cfg({ seed: matchSeed('ACDE', 1) })))
       .not.toEqual(planMatch(cfg({ seed: matchSeed('ACDE', 2) })));
+  });
+});
+
+describe('closed rooms', () => {
+  beforeEach(() => {
+    const store = new Map<string, string>();
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => { store.set(k, v); },
+      removeItem: (k: string) => { store.delete(k); },
+      clear: () => store.clear(),
+      key: (i: number) => [...store.keys()][i] ?? null,
+      get length() { return store.size; },
+    } as Storage;
+  });
+
+  it('knows nothing until told', () => {
+    expect(isClosedRoom('ACDE')).toBe(false);
+  });
+
+  it('remembers a room that closed, however the code is written', () => {
+    rememberClosed('ACDE');
+    expect(isClosedRoom('ACDE')).toBe(true);
+    expect(isClosedRoom('a-c-d-e')).toBe(true);
+    expect(isClosedRoom('ACDF')).toBe(false);
+  });
+
+  it('keeps every room it has seen close', () => {
+    rememberClosed('ACDE');
+    rememberClosed('FGHJ');
+    expect(isClosedRoom('ACDE')).toBe(true);
+    expect(isClosedRoom('FGHJ')).toBe(true);
+  });
+
+  it('forgets a room after a day', () => {
+    const t = 1_000_000_000_000;
+    rememberClosed('ACDE', t);
+    expect(isClosedRoom('ACDE', t + 23 * 60 * 60 * 1000)).toBe(true);
+    expect(isClosedRoom('ACDE', t + 25 * 60 * 60 * 1000)).toBe(false);
+  });
+
+  it('ignores an incomplete code', () => {
+    rememberClosed('AC');
+    expect(localStorage.getItem('fiftyStatesDrill.versus.closed.v1')).toBeNull();
+  });
+
+  it('survives a corrupt store', () => {
+    localStorage.setItem('fiftyStatesDrill.versus.closed.v1', '{ not json');
+    expect(isClosedRoom('ACDE')).toBe(false);
+    rememberClosed('ACDE');
+    expect(isClosedRoom('ACDE')).toBe(true);
   });
 });
 
