@@ -58,6 +58,8 @@ export interface VersusApi {
   board: LeaderRow[];
   /** Relay sockets open right now; what the waiting screen has to go on. */
   relays: number;
+  /** Whether TURN credentials were had for this search. */
+  turn: boolean;
   /** How the link to the opponent runs, once known. */
   path: Path | null;
   clearBoard: () => void;
@@ -112,6 +114,7 @@ export function useVersus(): VersusApi {
   /** The match already folded into the standings, so a re-render cannot double it. */
   const recorded = useRef('');
   const [relays, setRelays] = useState(0);
+  const [turn, setTurn] = useState(false);
   /** Keyed to the peer it was read from, so it lapses with them. */
   const [pathOf, setPathOf] = useState<{ id: string; path: Path } | null>(null);
 
@@ -278,6 +281,7 @@ export function useVersus(): VersusApi {
         onMessage: (msg, id) => onMsg.current(msg, id),
         onStatus: (s) => {
           setRelays(s.relays);
+          setTurn(s.turn);
           if (live.current.them) return;
           // Blocked outranks the timeout: the other player is there, so the
           // code is not the problem and should not be blamed.
@@ -535,6 +539,7 @@ export function useVersus(): VersusApi {
     answered: state.myAnswers[state.round] != null,
     board,
     relays,
+    turn,
     // The path belongs to a peer; there is none to describe once they are gone.
     path: pathOf && pathOf.id === state.them?.id ? pathOf.path : null,
     clearBoard: () => setBoard([]),

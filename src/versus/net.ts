@@ -1,6 +1,7 @@
 import { classifyPath } from './path';
 import type { Path } from './path';
 import { roomIdFor } from './room';
+import { fetchTurnServers } from './turn';
 import type { Msg } from './types';
 
 /**
@@ -62,23 +63,13 @@ const NOSTR_RELAYS = [
  *
  * WebRTC tries a direct path first — over the LAN when both phones share one,
  * else through whatever hole STUN can find in each side's NAT — and only falls
- * back to these when that fails. Both on cellular is the common failure: the
- * carriers' NATs are the closed kind, and without a relay the handshake
- * completes and then nothing connects: the room just waits, then times out.
- *
- * Metered's Open Relay Project is a free TURN service with credentials meant
- * to be published, which is what a static site needs: there is nowhere to
- * keep a secret. The three entries are the same server on the ports and
- * transports most likely to be let out of a restrictive network. A match is a
- * few kilobytes, so the free allowance is not a concern. Like the relays
- * above, this is somebody else's server and may need replacing one day; the
- * symptom would be the "found each other but blocked" message coming back.
+ * back to a TURN relay when that fails. Both on cellular is the common
+ * failure: the carriers' NATs are the closed kind, and without a relay the
+ * handshake completes and then nothing connects: the room just waits, then
+ * times out. The credentials are minted per search by the endpoint named
+ * here; see `turn.ts` for why they cannot simply be written down.
  */
-const TURN_SERVERS = [
-  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-];
+const TURN_URL: string | undefined = import.meta.env.VITE_TURN_URL;
 
 /** Nothing has connected by now; say so rather than spin forever. */
 const GIVE_UP_MS = 30000;
@@ -113,6 +104,8 @@ export interface TransportStatus {
   networks: number;
   /** Relay sockets actually open, across every network: zero means no way in. */
   relays: number;
+  /** Whether a TURN relay is on hand for phones that cannot reach each other. */
+  turn: boolean;
   gaveUp: boolean;
   blocked: boolean;
 }
@@ -228,10 +221,19 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
     (n, get) => n + Object.values(get()).filter((s) => s.readyState === WebSocket.OPEN).length, 0,
   );
 
+  /* Fetched before any network is joined: the peer connections are made at
+     join time, and a relay learned of later would not reach them. */
+  const turnServers = await fetchTurnServers(TURN_URL);
+
   const status = () => {
     if (closed) return;
     ev.onStatus({
-      searching: known.size === 0, networks: links.length, relays: relaysOpen(), gaveUp, blocked,
+      searching: known.size === 0,
+      networks: links.length,
+      relays: relaysOpen(),
+      turn: turnServers.length > 0,
+      gaveUp,
+      blocked,
     });
   };
 
@@ -247,7 +249,7 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
         {
           appId: APP_ID,
           ...net.config,
-          turnConfig: TURN_SERVERS,
+          turnConfig: turnServers,
           _test_only_mdnsHostFallbackToLoopback: isLocalhost(),
         },
         roomId,

@@ -63,6 +63,13 @@ const fakes = vi.hoisted(() => {
   return { joins, joinRoom, sockets, failNextJoin: () => { failNext = true; } };
 });
 
+const turn = vi.hoisted(() => ({
+  servers: [] as { urls: string; username: string; credential: string }[],
+  fetch: vi.fn(async () => turn.servers),
+}));
+
+vi.mock('../versus/turn', () => ({ fetchTurnServers: turn.fetch }));
+
 vi.mock('@trystero-p2p/nostr', () => ({
   joinRoom: fakes.joinRoom, selfId: 'self', getRelaySockets: () => fakes.sockets.nostr,
 }));
@@ -95,6 +102,8 @@ describe('versus transport', () => {
     fakes.joins.length = 0;
     fakes.sockets.nostr = {};
     fakes.sockets.torrent = {};
+    turn.servers = [{ urls: 'turn:turn.example.com:3478', username: 'u', credential: 'c' }];
+    turn.fetch.mockClear();
   });
 
   afterEach(() => {
@@ -110,24 +119,31 @@ describe('versus transport', () => {
     expect(fakes.joins[1].config.relayConfig).toBeUndefined();
   });
 
-  it('hands every network a TURN server for phones that cannot reach each other', async () => {
-    const { ev } = events();
+  it('hands every network the TURN credentials it fetched, and says the relay is ready', async () => {
+    const { ev, lastStatus } = events();
     await connect('ACDE', ev);
+    expect(turn.fetch).toHaveBeenCalledTimes(1);
     for (const { config } of fakes.joins) {
-      const turn = config.turnConfig as { urls: string; username: string; credential: string }[];
-      expect(turn.length).toBeGreaterThan(0);
-      for (const server of turn) {
-        expect(server.urls).toMatch(/^turns?:/);
-        expect(server.username).toBeTruthy();
-        expect(server.credential).toBeTruthy();
-      }
+      expect(config.turnConfig).toEqual(turn.servers);
     }
+    expect(lastStatus()?.turn).toBe(true);
+  });
+
+  it('searches without a relay when no credentials come back, and says so', async () => {
+    const { ev, lastStatus } = events();
+    turn.servers = [];
+    await connect('ACDE', ev);
+    expect(fakes.joins).toHaveLength(2);
+    for (const { config } of fakes.joins) {
+      expect(config.turnConfig).toEqual([]);
+    }
+    expect(lastStatus()?.turn).toBe(false);
   });
 
   it('announces a peer once however many networks find them', async () => {
     const { ev, lastStatus } = events();
     await connect('ACDE', ev);
-    expect(lastStatus()).toEqual({ searching: true, networks: 2, relays: 0, gaveUp: false, blocked: false });
+    expect(lastStatus()).toEqual({ searching: true, networks: 2, relays: 0, turn: true, gaveUp: false, blocked: false });
     fakes.joins[0].room.onPeerJoin?.('p1');
     fakes.joins[1].room.onPeerJoin?.('p1');
     expect(ev.onPeer).toHaveBeenCalledTimes(1);
@@ -152,10 +168,10 @@ describe('versus transport', () => {
     const { ev, lastStatus } = events();
     await connect('ACDE', ev);
     fakes.joins[0].callbacks?.onJoinError?.({ error: 'could not connect to peer p1 after exchanging SDP' });
-    expect(lastStatus()).toEqual({ searching: true, networks: 2, relays: 0, gaveUp: false, blocked: true });
+    expect(lastStatus()).toEqual({ searching: true, networks: 2, relays: 0, turn: true, gaveUp: false, blocked: true });
     expect(ev.onPeer).not.toHaveBeenCalled();
     fakes.joins[1].room.onPeerJoin?.('p1');
-    expect(lastStatus()).toEqual({ searching: false, networks: 2, relays: 0, gaveUp: false, blocked: false });
+    expect(lastStatus()).toEqual({ searching: false, networks: 2, relays: 0, turn: true, gaveUp: false, blocked: false });
   });
 
   it('gives up after thirty seconds without a peer, without forgetting a block', async () => {
@@ -164,14 +180,14 @@ describe('versus transport', () => {
     vi.advanceTimersByTime(29_999);
     expect(lastStatus()?.gaveUp).toBe(false);
     vi.advanceTimersByTime(1);
-    expect(lastStatus()).toEqual({ searching: true, networks: 2, relays: 0, gaveUp: true, blocked: false });
+    expect(lastStatus()).toEqual({ searching: true, networks: 2, relays: 0, turn: true, gaveUp: true, blocked: false });
 
     fakes.joins.length = 0;
     const second = events();
     await connect('FGHJ', second.ev);
     fakes.joins[1].callbacks?.onJoinError?.({ error: 'could not connect to peer p2 after exchanging SDP' });
     vi.advanceTimersByTime(30_000);
-    expect(second.lastStatus()).toEqual({ searching: true, networks: 2, relays: 0, gaveUp: true, blocked: true });
+    expect(second.lastStatus()).toEqual({ searching: true, networks: 2, relays: 0, turn: true, gaveUp: true, blocked: true });
   });
 
   it('does not give up once a peer has been found', async () => {
@@ -281,7 +297,7 @@ describe('versus transport', () => {
     fakes.failNextJoin();
     await connect('ACDE', ev);
     expect(fakes.joins).toHaveLength(1);
-    expect(lastStatus()).toEqual({ searching: true, networks: 1, relays: 0, gaveUp: false, blocked: false });
+    expect(lastStatus()).toEqual({ searching: true, networks: 1, relays: 0, turn: true, gaveUp: false, blocked: false });
     fakes.joins[0].room.onPeerJoin?.('p1');
     expect(ev.onPeer).toHaveBeenCalledWith('p1');
   });

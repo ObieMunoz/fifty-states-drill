@@ -1,0 +1,16 @@
+{
+  // Deploy from the repository root:
+  //   npx wrangler deploy -c worker/wrangler.jsonc
+  // Then set the two secrets, from a TURN key made under Realtime → TURN:
+  //   npx wrangler secret put TURN_KEY_ID -c worker/wrangler.jsonc
+  //   npx wrangler secret put TURN_KEY_API_TOKEN -c worker/wrangler.jsonc
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fifty-states-drill-turn",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-09-01",
+  "vars": {
+    // Origins allowed to ask for credentials, comma separated. The site, and
+    // a dev server for testing a match locally.
+    "ALLOWED_ORIGINS": "https://obiemunoz.github.io,http://localhost:5173"
+  }
+}
