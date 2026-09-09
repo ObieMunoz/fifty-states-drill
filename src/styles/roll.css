@@ -1,0 +1,12 @@
+/* Roll Call. */
+
+/* ---- roll call ---- */
+.rl{color:var(--signal)}
+.slots{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.slot{border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:13.5px;
+  background:var(--ground);color:var(--ink-3);font-family:"IBM Plex Mono",monospace;letter-spacing:.05em}
+.slot.got{background:color-mix(in srgb,var(--right) 15%,var(--surface));border-color:var(--right);
+  color:var(--ink);font-family:inherit;letter-spacing:0}
+.slot.miss{background:color-mix(in srgb,var(--wrong) 12%,var(--surface));border-color:var(--wrong);
+  color:var(--ink);font-family:inherit;letter-spacing:0}
+.letters button.done{border-color:var(--m3);color:var(--m3)}

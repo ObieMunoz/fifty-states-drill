@@ -1,0 +1,22 @@
+/* Flashcards. */
+
+/* ---- flashcards ---- */
+.card{display:block;width:100%;margin-top:14px;background:var(--ground);border:1px solid var(--line);
+  border-radius:14px;padding:26px 20px;cursor:pointer;text-align:left;min-height:210px;
+  box-shadow:var(--shadow);transition:border-color .15s}
+.card:hover{border-color:var(--hydro)}
+.card-front{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;min-height:158px;text-align:center}
+.card-front b{font-family:Fraunces,Georgia,serif;font-optical-sizing:auto;font-weight:600;
+  font-size:clamp(28px,6vw,40px);letter-spacing:-.02em;line-height:1.05;font-variation-settings:"WONK" 1}
+.card-front span{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-3)}
+.card-back{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.card-shape{width:104px;height:104px;flex:none}
+.card-shape path{fill:var(--ink-2)}
+.card-facts{flex:1;min-width:190px;display:grid;gap:7px}
+.cf{display:flex;justify-content:space-between;gap:14px;align-items:baseline;
+  border-bottom:1px solid var(--line-soft);padding-bottom:5px}
+.cf span{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-3);flex:none}
+.cf b{font-weight:500;font-size:13.5px;text-align:right}

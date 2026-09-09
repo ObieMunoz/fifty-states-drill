@@ -1,0 +1,44 @@
+/* Colour and shape tokens. The dark palette is defined twice on purpose:
+   once under prefers-color-scheme for the system default, and once under an
+   explicit [data-theme] so a manual override can win in either direction. */
+
+:root{
+  --ground:#E7EAE4; --surface:#F5F7F1; --sunk:#DCE0D7;
+  --ink:#141917; --ink-2:#4B5650; --ink-3:#78847D;
+  --line:#C6CCC1; --line-soft:#D7DCD1;
+  --land:#F1F3EB; --land-line:#A7B1AA; --water:#D5E1DD;
+  --hydro:#1C5A56; --hydro-2:#3E8A83;
+  --m1:#B4C7BF; --m2:#75A39B; --m3:#2F736D;
+  --signal:#C24E28; --signal-ink:#fff;
+  --right:#2C6F52; --wrong:#A32A2A;
+  --btn-ink:#fff;
+  --shadow:0 1px 2px rgba(20,25,23,.05),0 10px 26px -14px rgba(20,25,23,.28);
+  --r:10px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#0F1412; --surface:#171D1A; --sunk:#101614;
+  --ink:#E7ECE5; --ink-2:#9FABA4; --ink-3:#6F7C75;
+  --line:#2B3430; --line-soft:#222A27;
+  --land:#2E3833; --land-line:#47524C; --water:#15201E;
+  --hydro:#5FB3AA; --hydro-2:#84CDC4;
+  --m1:#2F4E49; --m2:#3F7C74; --m3:#63B8AE;
+  --signal:#EE7749; --signal-ink:#1A0E08;
+  --right:#5AB183; --wrong:#EF6060;
+  --btn-ink:#08100F;
+  --shadow:0 1px 2px rgba(0,0,0,.45),0 12px 32px -16px rgba(0,0,0,.8);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --ground:#0F1412; --surface:#171D1A; --sunk:#101614;
+  --ink:#E7ECE5; --ink-2:#9FABA4; --ink-3:#6F7C75;
+  --line:#2B3430; --line-soft:#222A27;
+  --land:#2E3833; --land-line:#47524C; --water:#15201E;
+  --hydro:#5FB3AA; --hydro-2:#84CDC4;
+  --m1:#2F4E49; --m2:#3F7C74; --m3:#63B8AE;
+  --signal:#EE7749; --signal-ink:#1A0E08;
+  --right:#5AB183; --wrong:#EF6060;
+  --btn-ink:#08100F;
+  --shadow:0 1px 2px rgba(0,0,0,.45),0 12px 32px -16px rgba(0,0,0,.8);
+  color-scheme:dark;
+}

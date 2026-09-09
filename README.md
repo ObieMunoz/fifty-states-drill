@@ -5,8 +5,9 @@ shape they are, their capitals, postal codes and who they border.
 
 **Live:** https://obiemunoz.github.io/fifty-states-drill/
 
-No build tooling, no dependencies, no network calls at runtime beyond a Google Fonts
-stylesheet. The whole app — map geometry included — is one HTML file.
+A React + TypeScript single-page app, built with Vite and published to GitHub Pages.
+No network calls at runtime beyond a Google Fonts stylesheet — the map geometry ships
+in the bundle.
 
 ## Modes
 
@@ -84,15 +85,61 @@ per-*arc* rather than per-ring, so borders shared between two states stay identi
 no gaps open up between neighbours. Decoding the arcs also yields true state adjacency,
 which drives both the Borders quiz and the neighbour-based distractors.
 
-## Editing
-
-`artifact.html` is the source of truth. It is the body-only form (no `doctype`, `head`
-or `body` of its own) that Claude Artifacts requires. `build.sh` wraps it into the
-standalone `index.html` that GitHub Pages serves:
+## Development
 
 ```sh
-./build.sh
+npm install
+npm run dev        # http://localhost:5173/fifty-states-drill/
 ```
 
-Both files are committed — Pages serves `index.html` directly, so it must stay in sync.
-Edit `artifact.html`, run `build.sh`, commit both.
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Vite dev server with hot reload. |
+| `npm run build` | Type-checks, then builds to `dist/`. |
+| `npm run preview` | Serves `dist/` exactly as Pages will. |
+| `npm test` | Vitest suite over the data and game logic. |
+| `npm run lint` | ESLint over `src/`. |
+| `npm run typecheck` | Types only, no build. |
+
+`vite.config.ts` sets `base` to `/fifty-states-drill/`, the repo name, because the site
+is a Pages *project* page rather than a user page. Rename the repo and that has to
+change with it.
+
+### Deployment
+
+Pushing to `main` runs [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml),
+which lints, tests, builds and publishes `dist/` via `actions/deploy-pages`. Nothing
+built is committed. This needs **Settings → Pages → Source** set to **GitHub Actions**.
+
+Pull requests and other branches run the same checks without deploying, via
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+## Layout
+
+```
+src/
+  data/       states.json and the tables that describe modes, difficulty and hooks
+  lib/        pure helpers: text matching, map framing, randomness
+  game/       state shape, reducer, question engine, scoring — no React
+  hooks/      the imperative edges: viewBox animation, reduced motion, the clock
+  components/ the map, the chrome, and one panel per mode
+  styles/     global CSS, split by concern and loaded in cascade order
+```
+
+`game/` holds every rule the app has and imports nothing from React, so it can be read
+and tested on its own — which is what `src/__tests__/game.test.ts` does. The reducer is
+pure: question draws happen in `nextQuestion`, outside it, so the same state and action
+always give the same result.
+
+Two things are deliberately *not* declarative, and both are commented where they live:
+
+- **The map's `viewBox`** is animated by writing the attribute directly
+  ([`hooks/useViewBox.ts`](src/hooks/useViewBox.ts)). Re-rendering fifty paths sixty
+  times a second would be wasted work, and React would fight the animation.
+- **The Roll Call and Name All 50 inputs** are uncontrolled
+  ([`RecallPanel`](src/components/panels/RecallPanel.tsx),
+  [`RollPanel`](src/components/panels/RollPanel.tsx)). Accepting an answer must never
+  rewrite the box mid-word, which drops keystrokes from a fast typist.
+
+Progress lives in `localStorage` under `fiftyStatesDrill.v1`, in the same shape the
+pre-React version wrote, so existing progress carries over untouched.
