@@ -10,6 +10,36 @@ import type { Ask, ModeKey } from '../../types';
 /** Longer prompts drop to the smaller display size so they still fit two lines. */
 const LONG_HEAD = 22;
 
+/**
+ * Whether the pointer has genuinely moved since this question appeared.
+ *
+ * A new question puts a fresh option grid under a cursor that never moved, and
+ * the browser then applies `:hover` to whichever option now sits there — which
+ * on a four-way guess reads as a hint, pointing at an arbitrary option. The
+ * grid's hover rule is gated on `.live`, which this arms only once the pointer
+ * has actually changed position: the browser re-fires `pointermove` at the old
+ * spot when the DOM shifts, and taking that at face value would re-arm hover
+ * instantly.
+ */
+function usePointerMoved(ask: Ask | null): boolean {
+  const [movedFor, setMovedFor] = useState<Ask | null>(null);
+  const last = useRef({ x: NaN, y: NaN });
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      if (e.screenX === last.current.x && e.screenY === last.current.y) return;
+      last.current = { x: e.screenX, y: e.screenY };
+      setMovedFor(ask);
+    };
+    window.addEventListener('pointermove', onMove, { passive: true });
+    return () => window.removeEventListener('pointermove', onMove);
+  }, [ask]);
+
+  // Derived, not reset in an effect: a new question un-arms the grid in the same
+  // render it appears, so there is no frame where the stale hover shows.
+  return movedFor !== null && movedFor === ask;
+}
+
 export function QuizPanel() {
   const { state, dispatch } = useGame();
   const { ask, qm, mode, locked, tries, run, dif, scope, progress } = state;
@@ -19,6 +49,7 @@ export function QuizPanel() {
   // box the instant a new question arrives, with no flash of the last answer.
   const [entry, setEntry] = useState<{ for: Ask | null; text: string }>({ for: null, text: '' });
   const inputRef = useRef<HTMLInputElement>(null);
+  const live = usePointerMoved(ask);
 
   useEffect(() => {
     if (!locked) inputRef.current?.focus({ preventScroll: true });
@@ -55,7 +86,7 @@ export function QuizPanel() {
       {body}
 
       {ask.choices ? (
-        <div className="choices">
+        <div className={`choices${live ? ' live' : ''}`}>
           {ask.choices.map((a, i) => (
             <button
               key={a}

@@ -5,7 +5,7 @@
 .hookgrp h3{margin:0 0 8px}
 .hook{display:block;width:100%;text-align:left;background:var(--ground);border:1px solid var(--line);
   border-radius:var(--r);padding:11px 13px;margin-bottom:7px;cursor:pointer}
-.hook:hover{border-color:var(--hydro)}
+@media (hover:hover){.hook:hover{border-color:var(--hydro)}}
 .hook.on{border-color:var(--hydro);background:color-mix(in srgb,var(--hydro) 10%,var(--surface))}
 .hook b{display:block;font-weight:600;font-size:14px;margin-bottom:3px}
 .hook span{display:block;font-size:13px;color:var(--ink-2);line-height:1.45}
