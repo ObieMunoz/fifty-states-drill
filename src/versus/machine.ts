@@ -58,6 +58,7 @@ export type VersusAction =
   | { type: 'setSelfId'; id: string }
   | { type: 'peerHello'; id: string; name: string; dif: DiffKey; host: boolean }
   | { type: 'peerLeft' }
+  | { type: 'peerQuit' }
   | { type: 'roomClosed'; error: string }
   | { type: 'setName'; name: string }
   | { type: 'setDif'; dif: DiffKey }
@@ -178,15 +179,31 @@ export function reducer(s: VersusState, a: VersusAction): VersusState {
       };
 
     case 'peerLeft':
-      // Nothing to lose once back at the front door; this is the peer's own
-      // departure arriving after the room has already been closed under us.
-      if (s.phase === 'menu') return s;
+      // Nothing to lose at the front door or the waiting room: this is the
+      // peer's own departure arriving after they have already been seen off.
+      if (s.phase === 'menu' || s.phase === 'connecting') return s;
       return {
         ...s,
         link: 'lost',
         them: null,
         // A match cannot continue one-sided; hold at the result if it finished.
         phase: s.phase === 'final' ? 'final' : 'lobby',
+        me: { ...s.me, ready: false },
+      };
+
+    case 'peerQuit':
+      // Gone on purpose, so not coming back — but the room is still this
+      // side's to keep. Back to the waiting room with the code up for the next
+      // player, rather than a lobby waiting on a reconnect that will not come.
+      // A finished match keeps its result on screen.
+      if (s.phase === 'final') return reducer(s, { type: 'peerLeft' });
+      return {
+        ...s,
+        phase: 'connecting',
+        link: 'searching',
+        them: null,
+        lastOpponent: s.them?.name ?? s.lastOpponent,
+        theyWantAgain: false,
         me: { ...s.me, ready: false },
       };
 

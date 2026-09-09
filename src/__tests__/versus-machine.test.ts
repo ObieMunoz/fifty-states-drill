@@ -298,6 +298,30 @@ describe('interruptions', () => {
     expect(s.phase).toBe('final');
   });
 
+  it('hands the host the waiting room when the guest leaves on purpose', () => {
+    const s = reducer(playing(), { type: 'peerQuit' });
+    expect(s.phase).toBe('connecting');
+    expect(s.link).toBe('searching');
+    expect(s.them).toBeNull();
+    expect(s.code).toBe('ACDE');
+    // The waiting room says who left, and the seat is not held for them.
+    expect(s.lastOpponent).toBe('Sam');
+    expect(s.me.ready).toBe(false);
+  });
+
+  it('keeps a finished match on screen when the guest leaves on purpose', () => {
+    const s = run(playing(), { type: 'finish' }, { type: 'peerQuit' });
+    expect(s.phase).toBe('final');
+    expect(s.them).toBeNull();
+  });
+
+  it('ignores the disconnect that follows a guest leaving on purpose', () => {
+    // The farewell is followed by the guest actually going; the waiting room
+    // must not turn into an empty lobby waiting on a reconnect.
+    const s = run(playing(), { type: 'peerQuit' }, { type: 'peerLeft' });
+    expect(s.phase).toBe('connecting');
+  });
+
   it('sends a guest home, with the reason, when the host closes the room', () => {
     const s = reducer(playing(), { type: 'roomClosed', error: 'The host closed the room.' });
     expect(s.phase).toBe('menu');

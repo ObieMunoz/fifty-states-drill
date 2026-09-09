@@ -67,7 +67,9 @@ export function VersusWaiting({ api }: { api: VersusApi }) {
         <span className="vs-pulse" aria-hidden="true"><i /><i /><i /></span>
         {state.error
           ? <span className="vs-error">{state.error}</span>
-          : <span>Waiting for the other player…</span>}
+          : state.lastOpponent
+            ? <span>{state.lastOpponent} left. Waiting for the next player…</span>
+            : <span>Waiting for the other player…</span>}
       </div>
 
       <p className="vs-fine">
