@@ -70,6 +70,58 @@ export function clearUrlCode(): void {
 }
 
 /**
+ * Rooms this device has seen close, so a stale invite can be refused at once.
+ *
+ * There is no server to ask whether a room is still open. What is known is
+ * that a room does not outlive its host: hosting again draws a fresh code, and
+ * nobody else can take the old one over. So the host notes the code when it
+ * leaves, and a guest notes it when told the host has gone. Joining that code
+ * again from either device is then refused on the spot, rather than after a
+ * thirty-second search for a host who is not coming. A device with no such
+ * note gets the search, and then the same explanation.
+ *
+ * Notes expire after a day. Codes are dealt at random and one will come round
+ * again eventually; a day is long past when anyone would still be holding it.
+ */
+const CLOSED_KEY = 'fiftyStatesDrill.versus.closed.v1';
+
+const CLOSED_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** The codes still worth remembering, keyed to when each closed. */
+function readClosed(now: number): Record<string, number> {
+  let stored: unknown;
+  try {
+    stored = JSON.parse(localStorage.getItem(CLOSED_KEY) ?? '{}');
+  } catch {
+    return {};
+  }
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return {};
+  const live: Record<string, number> = {};
+  for (const [code, at] of Object.entries(stored as Record<string, unknown>)) {
+    if (typeof at === 'number' && now - at < CLOSED_TTL_MS) live[code] = at;
+  }
+  return live;
+}
+
+export function rememberClosed(code: string, now = Date.now()): void {
+  const clean = normalizeCode(code);
+  if (clean.length !== CODE_LENGTH) return;
+  try {
+    localStorage.setItem(CLOSED_KEY, JSON.stringify({ ...readClosed(now), [clean]: now }));
+  } catch {
+    // Storage is unavailable; a rejoin will search and time out instead.
+  }
+}
+
+export function isClosedRoom(code: string, now = Date.now()): boolean {
+  try {
+    return normalizeCode(code) in readClosed(now);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * The seed for one match in a room.
  *
  * The room code alone would make every match in a room identical, so the

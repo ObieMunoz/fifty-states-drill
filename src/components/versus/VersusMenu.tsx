@@ -8,21 +8,31 @@ import type { VersusApi } from '../../versus/useVersus';
  * The front door: who you are, and whether you are starting a room or joining
  * one. The name is remembered between sessions and pre-filled here, which is
  * the only thing this app stores about a person.
+ *
+ * Arriving on an invite link is the one case that skips the door: the room is
+ * known, and a saved name has already put the player in it before this
+ * renders. What is left here is the player with no name yet — they are asked
+ * for one and nothing else, and go in the moment they give it.
  */
 export function VersusMenu({ api, onExit }: { api: VersusApi; onExit: () => void }) {
   const { state } = api;
   const [name, setName] = useState(state.me.name);
-  const [mode, setMode] = useState<'idle' | 'join'>(
-    // Arriving from an invite link goes straight to the code entry.
-    state.code ? 'join' : 'idle',
+  const [mode, setMode] = useState<'idle' | 'join' | 'invited'>(
+    state.code ? 'invited' : 'idle',
   );
   const [code, setCode] = useState(state.code);
+  const nameRef = useRef<HTMLInputElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { if (mode === 'join') codeRef.current?.focus(); }, [mode]);
+  useEffect(() => {
+    if (mode === 'join') codeRef.current?.focus();
+    if (mode === 'invited') nameRef.current?.focus();
+  }, [mode]);
 
   const named = cleanName(name).length > 0;
   const ready = named && isCompleteCode(code);
+  const invited = mode === 'invited';
+  const accept = () => { if (named) api.join(state.code, name); };
 
   return (
     <div className="vs-sheet">
@@ -34,18 +44,29 @@ export function VersusMenu({ api, onExit }: { api: VersusApi; onExit: () => void
       </header>
 
       <div className="vs-hero">
-        <h1>Head to head</h1>
-        <p>
-          Two phones, the same questions, one clock. Fastest right answer takes the round.
-        </p>
+        {invited ? (
+          <>
+            <h1>You’re invited</h1>
+            <p>Someone sent you room {state.code}. Add your name and you’re in.</p>
+          </>
+        ) : (
+          <>
+            <h1>Head to head</h1>
+            <p>
+              Two phones, the same questions, one clock. Fastest right answer takes the round.
+            </p>
+          </>
+        )}
       </div>
 
       <label className="vs-field">
         <span className="eyebrow">Your name</span>
         <div className="vs-nameRow">
           <input
+            ref={nameRef}
             value={name}
             onChange={(e) => setName(e.target.value.slice(0, MAX_NAME))}
+            onKeyDown={(e) => { if (e.key === 'Enter' && invited) accept(); }}
             placeholder="Who's playing?"
             maxLength={MAX_NAME}
             autoComplete="given-name"
@@ -68,7 +89,22 @@ export function VersusMenu({ api, onExit }: { api: VersusApi; onExit: () => void
 
       {state.error && <p className="vs-error" role="alert">{state.error}</p>}
 
-      {mode === 'idle' ? (
+      {invited ? (
+        <div className="vs-actions">
+          <button
+            type="button"
+            className="vs-big primary"
+            disabled={!named}
+            onClick={accept}
+          >
+            Join room {state.code}
+            <small>{named ? `Playing as ${cleanName(name)}` : 'Add your name first'}</small>
+          </button>
+          <button type="button" className="vs-big ghost" onClick={() => setMode('idle')}>
+            Not this room
+          </button>
+        </div>
+      ) : mode === 'idle' ? (
         <div className="vs-actions">
           <button
             type="button"

@@ -72,7 +72,13 @@ export type Msg =
   | { t: 'ans'; round: number; correct: boolean; ms: number; points: number; pick: string | null; timeout: boolean }
   | { t: 'nxt'; round: number }
   | { t: 'end' }
-  | { t: 'again' };
+  | { t: 'again' }
+  /**
+   * Leaving on purpose, as opposed to dropping off. From the host this closes
+   * the room: hosting again draws a fresh code, so a guest left behind would
+   * be waiting for nobody. From a guest it is just the peer going away.
+   */
+  | { t: 'bye' };
 
 /** Bumped when the wire format changes in a way old clients cannot read. */
 export const PROTOCOL_VERSION = 1;

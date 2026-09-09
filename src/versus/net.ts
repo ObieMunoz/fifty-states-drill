@@ -179,6 +179,7 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
 
       const action = room.makeAction('v', {
         onMessage: (data: unknown, ctx: { peerId: string }) => {
+          if (closed) return;
           const env = data as Envelope | null;
           if (!env || typeof env.n !== 'number' || !env.m) return;
           // The same message arrives once per network the peer is on.
@@ -196,6 +197,7 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
       };
 
       room.onPeerJoin = (id) => {
+        if (closed) return;
         link.peers.add(id);
         if (known.has(id)) return;
         known.add(id);
@@ -206,6 +208,10 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
       };
 
       room.onPeerLeave = (id) => {
+        // A peer's own leave can land just after this side closed the link —
+        // the host's farewell is followed by exactly that — and must not
+        // disturb whatever screen the session has moved on to.
+        if (closed) return;
         link.peers.delete(id);
         // Only really gone once no network can still reach them.
         if (links.some((l) => l.peers.has(id))) return;
@@ -238,6 +244,8 @@ export async function connect(code: string, ev: TransportEvents): Promise<Transp
       }
     },
     leave() {
+      // Anything sent just before this still goes: trystero's own leave
+      // travels the same ordered channel and holds the peer open a beat.
       if (closed) return;
       closed = true;
       clearTimeout(timers.escalate);
