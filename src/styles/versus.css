@@ -399,6 +399,6 @@ svg.vs-map .st.pick{fill:var(--pc);stroke:var(--pc)}
   border-radius:8px;padding:0 11px;font-size:12.5px;font-weight:500;cursor:pointer;
   align-self:stretch;letter-spacing:.01em;white-space:nowrap;
   display:inline-flex;align-items:center;text-decoration:none}
-@media (max-width:680px){.vs-open{padding:0 9px;font-size:12px}}
+@media (max-width:680px){.vs-open{font-size:12px}}
 @media (hover:hover){.vs-open:hover{filter:brightness(1.06)}}
 .vs-boot{display:flex;align-items:center;justify-content:center;color:var(--ink-3);font-size:14px}
