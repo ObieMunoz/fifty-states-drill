@@ -223,6 +223,7 @@ npm run dev        # http://localhost:5173/
 | `npm run lint` | ESLint over the app, the API and the tests. |
 | `npm run typecheck` | Types only, no build. |
 | `node scripts/make-icons.mjs` | Redraws the app icon and favicon into `public/`. Needs `rsvg-convert` and `magick`. |
+| `node scripts/make-og.mjs` | Redraws the link-preview card into `public/og.png`. Needs `rsvg-convert`, and the network once for the fonts. |
 
 ### Icon and PWA
 
@@ -230,7 +231,12 @@ The icon is the mainland outline from `src/data/states.json`, unioned into one
 shape by `scripts/make-icons.mjs`, with Missouri lit in the answer colour. The script
 writes the SVG favicon, a legacy `.ico`, the Apple touch icon and the 192/512 px
 Android icons (plain and maskable) into `public/`; the outputs are committed, so it
-only runs again when the mark changes.
+only runs again when the mark changes. `scripts/make-og.mjs` draws the same mark
+onto the 1200 × 630 card that iMessage, Slack and X show under a link
+(`public/og.png`); `index.html` points the Open Graph and Twitter tags at it with
+absolute addresses, since the preview is fetched by their servers, not the browser.
+An invite link, `/versus/CODE`, gets the same image with the room named in its title;
+see [Addresses](#addresses).
 
 `vite.config.ts` configures `vite-plugin-pwa`, which writes `manifest.webmanifest`
 and a Workbox service worker into `dist/` at build time. The worker precaches the
@@ -247,6 +253,24 @@ via [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) still publishes to GitHub
 Pages, but only [`redirect/`](redirect/); see [The old address](#the-old-address).
 
+## Addresses
+
+Every mode has a path of its own, so a link opens that mode and the back button walks
+through the modes visited. The map is `/`; the other Learn modes sit under `/learn/`
+(`letters`, `cards`, `hooks`, `progress`) and the quizzes under `/quiz/` (`find-it`,
+`name-it`, `silhouette`, `roll-call`, `all-50`, `capitals`, `postal-codes`, `borders`,
+`mixed`). Versus is `/versus`, and a room is `/versus/CODE`. The table lives in
+[`src/router.ts`](src/router.ts); an unknown path opens the map and is corrected in
+the address bar. `vercel.json` sends every path that is not `/api/` to `index.html`,
+and the service worker does the same offline.
+
+`/versus/CODE` is the one path with a server behind it. `api/invite.ts` serves the
+built `index.html` with the title and preview tags rewritten to name the room, so
+the card iMessage or Slack draws under an invite says *Join room ACDE* rather than
+describing the app. The page is otherwise identical, and the app reads the code out
+of the path as it would have anyway. Links from before rooms had a path,
+`/#versus=CODE`, still open the room.
+
 ## Layout
 
 ```
@@ -258,8 +282,9 @@ src/
   hooks/      the imperative edges: viewBox animation, reduced motion, the clock, the theme
   components/ the map, the chrome, and one panel per mode
   styles/     global CSS, split by concern and loaded in cascade order
-api/          the Vercel functions: the room API and the daily sweep
-server/       the room's rules, and the Supabase adapter they run against
+  router.ts   the path each mode and room lives at, and the address bar
+api/          the Vercel functions: the room API, the invite page and the daily sweep
+server/       the room's rules, the invite page, and the Supabase adapter they run against
 supabase/     the database migration
 redirect/     what the old GitHub Pages address serves now
 ```

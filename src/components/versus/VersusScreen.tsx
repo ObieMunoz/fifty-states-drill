@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useWakeLock } from '../../hooks/useWakeLock';
 import { useVersus } from '../../versus/useVersus';
 import { VersusMenu } from './VersusMenu';
@@ -29,7 +29,18 @@ export function VersusScreen({ onExit }: { onExit: () => void }) {
   useWakeLock(phase !== 'menu' && phase !== 'final');
 
   // Leaving from anywhere tears the connection down before the solo app returns.
-  const exit = () => { api.leave(); onExit(); };
+  const left = useRef(false);
+  const exit = () => { left.current = true; api.leave(); onExit(); };
+
+  // The back button unmounts this screen without passing through Leave; the
+  // room still has to be told. Refs, so the cleanup sees the latest without
+  // re-arming on every render; the phase check keeps development's rehearsal
+  // unmount from leaving a room that has only just been asked for.
+  const latest = useRef({ leave: api.leave, phase });
+  useEffect(() => { latest.current = { leave: api.leave, phase }; }, [api.leave, phase]);
+  useEffect(() => () => {
+    if (!left.current && latest.current.phase !== 'menu') latest.current.leave();
+  }, []);
 
   return <div className="vs-root">{screen()}</div>;
 

@@ -59,6 +59,12 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        // The link-preview card is fetched by messaging apps' servers, never
+        // by the page, so it has no place in the offline shell.
+        globIgnores: ['**/node_modules/**/*', 'og.png'],
+        // Every path is the app (/learn/…, /quiz/…, /versus/…), so an
+        // offline navigation to any of them gets the shell. The API is not.
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
             // The Google Fonts stylesheet changes with browser support, so

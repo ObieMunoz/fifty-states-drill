@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MODES, MODE_KEYS } from '../data/modes';
 import { useGame } from '../game/context';
+import { MODE_PATHS } from '../router';
 import type { ModeKey } from '../types';
 
 const LEARN = MODE_KEYS.filter((k) => MODES[k].g === 'learn');
@@ -38,7 +39,7 @@ function ModeGroup({ keys, label, group, mode, onPick }: GroupProps) {
   useEffect(() => {
     const g = ref.current;
     if (!g) return;
-    const on = g.querySelector<HTMLElement>('[aria-pressed="true"]');
+    const on = g.querySelector<HTMLElement>('[aria-current="page"]');
     if (on) {
       const gr = g.getBoundingClientRect();
       const br = on.getBoundingClientRect();
@@ -52,15 +53,21 @@ function ModeGroup({ keys, label, group, mode, onPick }: GroupProps) {
     <div className={`mrow${more ? ' more' : ''}`}>
       <span className="glab">{label}</span>
       <div ref={ref} className={`mgroup ${group}`} onScroll={updateFade}>
+        {/* Real links, so a mode can be opened in a new tab or copied; a
+            plain click stays in the app. */}
         {keys.map((k) => (
-          <button
+          <a
             key={k}
-            type="button"
-            aria-pressed={k === mode}
-            onClick={() => onPick(k)}
+            href={MODE_PATHS[k]}
+            aria-current={k === mode ? 'page' : undefined}
+            onClick={(e) => {
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+              e.preventDefault();
+              onPick(k);
+            }}
           >
             {MODES[k].label}
-          </button>
+          </a>
         ))}
       </div>
     </div>
