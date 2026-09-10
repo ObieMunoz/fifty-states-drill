@@ -5,6 +5,7 @@
 declare const __BUILD__: string;
 
 interface ImportMetaEnv {
-  /** Where TURN credentials are minted; see src/versus/turn.ts and worker/. */
-  readonly VITE_TURN_URL?: string;
+  /** The Supabase project the phones listen to; see src/versus/supabase.ts. */
+  readonly VITE_SUPABASE_URL?: string;
+  readonly VITE_SUPABASE_PUBLISHABLE_KEY?: string;
 }

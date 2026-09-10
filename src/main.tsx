@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { clearHandoff, importHandoff } from './migrate';
 import { installUpdates } from './pwa';
 
 // Load order is the cascade: tokens, then element defaults, then components,
@@ -17,6 +18,11 @@ import './styles/hooks.css';
 import './styles/progress.css';
 import './styles/versus.css';
 import './styles/responsive.css';
+
+// Before anything reads storage: a device arriving from the old address
+// brings its progress in the URL, and the app must start from it.
+importHandoff(window.location.hash);
+clearHandoff();
 
 // A Versus screen marks the body while it is up; see VersusScreen.
 installUpdates(() => document.body.dataset.versus === '1');

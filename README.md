@@ -3,11 +3,12 @@
 A single-page app for actually memorising the 50 US states — where they are, what
 shape they are, their capitals, postal codes and who they border.
 
-**Live:** https://obiemunoz.github.io/fifty-states-drill/
+**Live:** https://fifty-states-drill.vercel.app/
 
-A React + TypeScript single-page app, built with Vite and published to GitHub Pages.
-No network calls at runtime beyond a Google Fonts stylesheet — the map geometry ships
-in the bundle.
+A React + TypeScript single-page app, built with Vite and hosted on Vercel. The study
+modes make no network calls at runtime beyond a Google Fonts stylesheet — the map
+geometry ships in the bundle. Versus, the two-player mode, talks to a small server; see
+[Versus](#versus).
 
 It installs as an app. On iPhone or iPad open the link in Safari and choose
 **Share → Add to Home Screen**; on Android, Chrome offers **Install app** from its
@@ -107,101 +108,92 @@ still ends together. That is what makes an uneven pairing a real race.
 
 Finished matches go into a standings table in `localStorage`, so a household builds up a
 running record of who beats whom. Names are remembered and pre-filled, and both the name
-and the table can be cleared from the UI. Nothing is uploaded and nobody signs in.
+and the table can be cleared from the UI. Nobody signs in.
 
-### How it works without a server
+### How it works
 
-The site is static files on GitHub Pages, which cannot run any code of its own — so it
-does not try to. The two browsers find each other through a public relay, which carries
-only the WebRTC handshake, and then talk **directly** over a peer-to-peer data channel.
-No question, answer or score ever reaches a third party.
+A room lives on the server: one row for the room, one per player, one per answer, in a
+[Supabase](https://supabase.com/) Postgres database. Every change a phone makes goes
+through one API function on Vercel, `POST /api/versus` (`api/versus.ts`), which checks
+the request against where the room is — only the host sets the rules, an answer counts
+only for the round on screen, a match kicks off only when both are ready — and answers
+with the whole room. Between calls the database pushes each row that changes to both
+phones over a Realtime subscription (`versus/live.ts`), and Presence on the same channel
+tells each phone whether the other is still there.
 
-Two relay networks are used rather than one, since public relays are volunteer-run and
-any single one can be down. Both are joined from the start and both stay up: messages go
-out on every link that has the peer, and the receiver drops duplicates by sequence number.
-That removes any need for the two sides to agree on which link is "the" one — a race they
-could otherwise lose in opposite directions.
+Both phones only ever connect *out*, to the server, which is why this works on any
+network: two phones on cellular, on different Wi-Fi, or one of each. There is no
+peer-to-peer link to negotiate.
 
-Finding each other is only half of it. The data channel still needs a route between the
-two phones, and two phones on cellular usually have none: each sits behind its carrier's
-NAT, which will not let the other in. WebRTC tries a direct path first — over the LAN when
-both share one — and when that fails the packets go through a TURN server instead. TURN
-carries only the encrypted channel, so it can no more read a question than the relays can.
-When even that fails, the waiting screen says the phones found each other but the link was
-blocked, rather than blaming the code.
+Fairness rests on both devices generating the identical question sequence rather than
+one sending questions to the other. At kick-off the server picks a seed, both phones run
+the same seeded PRNG over it, and `versus/plan.ts` turns that into the match. The server
+runs it too: it rebuilds each player's question from the seed and grades the answer
+itself (`versus/grade.ts`), so the points that count are the server's, not each phone's.
+Player progress and each player's own level are kept out of that path — the first differs
+per device and would pull the two apart, the second is drawn from a separate generator so
+one side's decoys cannot perturb the other's.
 
-TURN is the one piece that needs a secret, and a static site has nowhere to keep one. So
-the site fetches short-lived credentials from an endpoint at the start of each search
-(`versus/turn.ts`), and that endpoint holds the secret. See [TURN](#turn) below for
-setting it up; without it Versus runs on STUN alone, and the waiting screen's fine print
-says *No TURN*.
+Clocks are local on purpose. A question's timer starts when it is painted on each phone,
+not when the server wrote the row, so a slow link costs a player nothing; speed is
+self-reported and capped at the round's clock. The server's time is consulted only to
+place the clock when a phone comes back to a match in progress, and the host is the only
+side that moves the match on, so the two screens stay in step.
 
-The waiting screen also holds a screen wake lock, where the browser offers one. A phone
-set down to wait would otherwise dim and lock, which freezes the page and drops its relay
-sockets — leaving the other player searching for a host who is there but asleep.
+A reload, a locked phone or a dropped connection is not leaving. The room is still on
+the server, the URL still carries the code, and the phone comes straight back to its
+seat — mid-round if need be. Only pressing **Leave** gives a seat up: the host's leaving
+closes the room, a guest's hands the host the waiting room with the code still good.
+Rooms nobody has touched for a day are swept away by a daily cron (`api/keepalive.ts`).
 
-Every Versus screen carries a line of fine print for when a match will not connect: the
-build the phone is running, how many relays it can currently reach, and — once in the
-lobby — whether the link runs over the local network, directly across the internet, or
-through the TURN relay. Two phones on different builds, or one that can reach no relay,
-is the first thing to rule out, and it used to be invisible.
+Every Versus screen shows the build it is running in the fine print, so two phones on
+different builds — the first thing to rule out when something looks wrong — is visible at
+a glance. The app reloads into a new deploy on its own, at once or the moment a match
+ends (`src/pwa.ts`).
 
-Fairness rests on both devices generating the identical question sequence rather than one
-sending questions to the other. The host picks a seed, both sides run the same seeded PRNG
-over it, and `versus/plan.ts` turns that into the match. This is why `lib/random.ts` takes
-an optional generator: solo play still uses `Math.random`, while a match threads a seeded
-one through the same code. Two things had to be kept out of that path — player progress,
-which differs per device and would pull the two apart, and each player's own difficulty,
-which is drawn from a separate generator so one side's decoys cannot perturb the other's.
+### Setting up the server
 
-The host is the only side that decides when a round ends, so the screens stay in step.
-Everything else — building the question, grading it, timing the answer, totalling the
-score — each device does for itself. Speed is measured from each player's own paint, so
-clock skew between the two phones cannot affect it.
+Two accounts, both on free tiers that this game will never come near the limits of.
 
-Nobody is authoritative over scores, so a determined player could lie about theirs. For a
-game two people play sitting next to each other, that is not worth defending against.
+**Supabase.** Create a project, then run the migration in
+[`supabase/migrations/`](supabase/migrations/) against it — paste it into the SQL editor
+in the dashboard, or `supabase db push` with the CLI. It creates the three tables, lets
+the publishable key read them, and adds them to the Realtime publication. Note the
+project URL and, under **Project Settings → API**, the *publishable* key and the *secret*
+key.
 
-### TURN
+**Vercel.** Import the repository as a project; the defaults are right for Vite. Add the
+environment variables listed in [`.env.example`](.env.example): the two `VITE_` ones are
+built into the page and are public, the rest are read only by the API functions, and the
+secret key must never get a `VITE_` prefix. `vercel.json` schedules the daily sweep; set
+`CRON_SECRET` too and the function refuses anyone else. Every push to `main` deploys.
 
-The endpoint is named by the `VITE_TURN_URL` build variable, and must answer a `GET` with
-either a JSON list of ICE servers (`{ urls, username, credential }` each) or an object with
-one under `iceServers`. Two ways to have one:
+A free Supabase project pauses after a week without traffic. The daily cron is a query
+against the database every day, which is what keeps it awake through a quiet fortnight.
 
-**A Cloudflare Worker, included.** [Cloudflare TURN](https://developers.cloudflare.com/realtime/turn/)
-has a free allowance far beyond what a game of a few kilobytes a match will use, and
-`worker/` holds a Worker that mints its credentials while keeping the key server-side and
-answering only the site's own origin. To set it up:
+### Running it locally
 
-1. In the Cloudflare dashboard, under **Realtime → TURN**, create a TURN key and note its
-   *Key ID* and *API token*.
-2. From the repository root, deploy and set the two secrets:
-   ```sh
-   npx wrangler deploy -c worker/wrangler.jsonc
-   npx wrangler secret put TURN_KEY_ID -c worker/wrangler.jsonc
-   npx wrangler secret put TURN_KEY_API_TOKEN -c worker/wrangler.jsonc
-   ```
-   Wrangler prints the Worker's URL. Check it answers, sending the site's origin as a
-   browser would:
-   ```sh
-   curl -H 'Origin: https://obiemunoz.github.io' https://<worker>.workers.dev/
-   ```
-3. In the repository's **Settings → Secrets and variables → Actions → Variables**, add
-   `TURN_URL` with that URL, then re-run the deploy workflow (or push).
+`npm run dev` serves the app alone: Versus will report that it cannot reach the server.
+For a full local run, pull the project's environment once and start Vercel's dev server,
+which serves the app and the API functions together:
 
-`worker/wrangler.jsonc` lists the origins allowed to ask; change it if the site moves.
+```sh
+npx vercel link
+npx vercel env pull   # writes .env.local
+npx vercel dev        # http://localhost:3000/
+```
 
-**A hosted service.** Any service whose credentials endpoint answers in the shape above
-works as `TURN_URL` directly, with no Worker — [Metered](https://www.metered.ca/) is one,
-though its key then travels in the page, and its free allowance is small.
+Two tabs on one machine make a perfectly good match: each holds its own player id.
 
-### Testing a match locally
+### The old address
 
-Two tabs on one machine are the one case WebRTC cannot handle unaided: their only host
-candidate is an mDNS `.local` name neither tab can resolve, and the reflexive pair would
-have to hairpin back through the same NAT. `versus/net.ts` turns on Trystero's loopback
-fallback when the hostname is localhost, which makes a two-window match work in
-development. It is off everywhere else, where real LAN candidates make it unnecessary.
+The app used to live on GitHub Pages. That address now serves only [`redirect/`](redirect/),
+which sends a device on to the new site with everything it had saved — progress, theme,
+name, standings — in the URL fragment, where `src/migrate.ts` imports it once. Nothing
+already stored on the new site is overwritten, and the fragment never reaches a server.
+Its `sw.js` is a self-destroying service worker: the old one checks for a new version on
+every visit, finds it, and stands down, so the redirect is what loads rather than the
+cached app shell.
 
 ## Map data
 
@@ -216,23 +208,19 @@ which drives both the Borders quiz and the neighbour-based distractors.
 
 ```sh
 npm install
-npm run dev        # http://localhost:5173/fifty-states-drill/
+npm run dev        # http://localhost:5173/
 ```
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | Vite dev server with hot reload. |
+| `npm run dev` | Vite dev server with hot reload. The study modes only; see [Running it locally](#running-it-locally) for Versus. |
+| `npx vercel dev` | The app and the API functions together, as deployed. |
 | `npm run build` | Type-checks, then builds to `dist/`. |
-| `npm run preview` | Serves `dist/` exactly as Pages will. |
-| `npm test` | Vitest suite over the data, game logic and versus rules. |
-| `npm run lint` | ESLint over `src/`. |
+| `npm run preview` | Serves `dist/`. |
+| `npm test` | Vitest suite over the data, game logic, versus rules and the room API. |
+| `npm run lint` | ESLint over the app, the API and the tests. |
 | `npm run typecheck` | Types only, no build. |
-| `npx wrangler deploy -c worker/wrangler.jsonc` | Publishes the TURN credential Worker. See [TURN](#turn). |
 | `node scripts/make-icons.mjs` | Redraws the app icon and favicon into `public/`. Needs `rsvg-convert` and `magick`. |
-
-`vite.config.ts` sets `base` to `/fifty-states-drill/`, the repo name, because the site
-is a Pages *project* page rather than a user page. Rename the repo and that has to
-change with it.
 
 ### Icon and PWA
 
@@ -251,12 +239,11 @@ brings the app back from the switcher could sit on an old build for days.
 
 ### Deployment
 
-Pushing to `main` runs [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml),
-which lints, tests, builds and publishes `dist/` via `actions/deploy-pages`. Nothing
-built is committed. This needs **Settings → Pages → Source** set to **GitHub Actions**.
-
-Pull requests and other branches run the same checks without deploying, via
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+Vercel builds and deploys every push to `main`, and gives every pull request a preview
+of its own. Pull requests and other branches also run lint, tests and a build on GitHub,
+via [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) still publishes to GitHub
+Pages, but only [`redirect/`](redirect/); see [The old address](#the-old-address).
 
 ## Layout
 
@@ -265,18 +252,23 @@ src/
   data/       states.json and the tables that describe modes, difficulty and hooks
   lib/        pure helpers: text matching, map framing, randomness
   game/       state shape, reducer, question engine, scoring — no React
-  versus/     the two-player match: planning, scoring, state machine, transport
+  versus/     the two-player match: planning, grading, scoring, the room on this phone
   hooks/      the imperative edges: viewBox animation, reduced motion, the clock, the theme
   components/ the map, the chrome, and one panel per mode
   styles/     global CSS, split by concern and loaded in cascade order
-worker/       the Cloudflare Worker that mints TURN credentials for Versus
+api/          the Vercel functions: the room API and the daily sweep
+server/       the room's rules, and the Supabase adapter they run against
+supabase/     the database migration
+redirect/     what the old GitHub Pages address serves now
 ```
 
-`game/` and `versus/` hold every rule the app has and import nothing from React, so they
-can be read and tested on their own — which is what `src/__tests__/game.test.ts`,
-`versus.test.ts` and `versus-machine.test.ts` do. The reducer is
-pure: question draws happen in `nextQuestion`, outside it, so the same state and action
-always give the same result.
+`game/`, `versus/` and `server/` hold every rule the app has and import nothing from
+React, so they can be read and tested on their own — which is what
+`src/__tests__/game.test.ts`, `versus.test.ts`, `versus-machine.test.ts` and
+`server-rooms.test.ts` do. `server/rooms.ts` takes the database as an argument, so the
+whole room lifecycle is tested against a few Maps. The reducers are pure: question draws
+happen in `nextQuestion`, outside the solo one, and the versus one only applies snapshots
+and local timing, so the same state and action always give the same result.
 
 Two things are deliberately *not* declarative, and both are commented where they live:
 

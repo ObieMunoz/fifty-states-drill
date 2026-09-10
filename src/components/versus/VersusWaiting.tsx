@@ -55,7 +55,7 @@ export function VersusWaiting({ api }: { api: VersusApi }) {
         </>
       ) : (
         <>
-          <p className="vs-lead">Looking for room</p>
+          <p className="vs-lead">Joining room</p>
           <div className="vs-code">
             {state.code.split('').map((ch, i) => (
               <b key={i} className="mono">{ch}</b>
@@ -68,18 +68,19 @@ export function VersusWaiting({ api }: { api: VersusApi }) {
         <span className="vs-pulse" aria-hidden="true"><i /><i /><i /></span>
         {state.error
           ? <span className="vs-error">{state.error}</span>
-          : state.lastOpponent
-            ? <span>{state.lastOpponent} left. Waiting for the next player…</span>
-            : <span>Waiting for the other player…</span>}
+          : state.link === 'lost'
+            ? <span>Reconnecting…</span>
+            : state.lastOpponent
+              ? <span>{state.lastOpponent} left. Waiting for the next player…</span>
+              : state.isHost
+                ? <span>Waiting for the other player…</span>
+                : <span>Taking a seat…</span>}
       </div>
 
       <p className="vs-fine">
-        Both phones need to be online for a moment while they find each other. After that the
-        game runs directly between them.
-        <span className="vs-diag">
-          {api.relays === 1 ? '1 relay reachable' : `${api.relays} relays reachable`}
-          {' · '}{api.turn ? 'TURN ready' : 'No TURN'} · Build {BUILD}
-        </span>
+        Both phones need to be online to play. The room lives on the server, so a dropped
+        connection or a reload comes straight back to it.
+        <span className="vs-diag">Build {BUILD}</span>
       </p>
     </div>
   );
