@@ -17,8 +17,13 @@ const tmp = join(root, 'node_modules', '.og');
 const fontDir = join(tmp, 'fonts');
 mkdirSync(fontDir, { recursive: true });
 
-// 1200 × 630 is the size every preview renderer agrees on.
+// The card is drawn on the 1200 × 630 canvas every preview renderer agrees
+// on, and written at twice that. Messages on iOS draws a link's image
+// full-width only when it is large enough — about 2400 pixels across — and
+// shows a small thumbnail beside the title otherwise; the other renderers
+// simply scale it down, and phones get a sharper card into the bargain.
 const W = 1200, H = 630;
+const SCALE = 2;
 
 /**
  * Google Fonts serves a different format per browser, and a bare, unknown
@@ -39,11 +44,16 @@ async function fetchFonts() {
   writeFileSync(join(fontDir, 'ready'), '');
 }
 
-// The map, sized to the right-hand two fifths of the card and centred there.
+// Messages crops the card towards square on a phone, so the wordmark and the
+// map keep clear of both edges: nothing that matters lives in the outer
+// tenth on either side.
+const M = 120;
+
+// The map, sized to the right-hand third of the card and centred there.
 const { x0, y0, w: bw, h: bh } = bounds;
-const mapW = 560;
+const mapW = 460;
 const k = mapW / bw;
-const mapX = W - mapW - 64;
+const mapX = W - mapW - M;
 const mapY = (H - bh * k) / 2;
 const { land, ask } = shapes(0.5);
 
@@ -57,14 +67,14 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" wid
 <path d="${ask}" fill="${SIGNAL}" stroke="${TILE_DEEP}" stroke-width="5" paint-order="stroke"/>
 </g>
 <g font-family="Fraunces" font-weight="700" fill="${LAND}">
-<text x="72" y="262" font-size="84">Fifty States</text>
-<text x="72" y="352" font-size="84">Drill</text>
+<text x="${M}" y="262" font-size="80">Fifty States</text>
+<text x="${M}" y="348" font-size="80">Drill</text>
 </g>
 <g font-family="IBM Plex Sans" font-weight="400" fill="#B4C7BF" font-size="30">
-<text x="72" y="420">Learn all 50 states on a real map,</text>
-<text x="72" y="462">then race a friend in Versus.</text>
+<text x="${M}" y="418">Learn all 50 states on a real map,</text>
+<text x="${M}" y="460">then race a friend in Versus.</text>
 </g>
-<text x="72" y="556" font-family="IBM Plex Sans" font-weight="500" font-size="22" fill="#75A39B" letter-spacing="1">fifty-states-drill.vercel.app</text>
+<text x="${M}" y="556" font-family="IBM Plex Sans" font-weight="500" font-size="22" fill="#75A39B" letter-spacing="1">fifty-states-drill.vercel.app</text>
 </svg>
 `;
 
@@ -79,8 +89,8 @@ writeFileSync(conf, `<?xml version="1.0"?>
 `);
 const src = join(tmp, 'og.svg');
 writeFileSync(src, svg);
-execFileSync('rsvg-convert', ['-w', String(W), '-h', String(H), '-o', out, src], {
+execFileSync('rsvg-convert', ['-w', String(W * SCALE), '-h', String(H * SCALE), '-o', out, src], {
   env: { ...process.env, FONTCONFIG_FILE: conf, PANGOCAIRO_BACKEND: 'fontconfig' },
 });
 rmSync(join(tmp, 'fc-cache'), { recursive: true, force: true });
-console.log('card written to public/og.png');
+console.log(`card written to public/og.png at ${W * SCALE} × ${H * SCALE}`);
