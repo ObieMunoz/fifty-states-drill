@@ -232,9 +232,12 @@ shape by `scripts/make-icons.mjs`, with Missouri lit in the answer colour. The s
 writes the SVG favicon, a legacy `.ico`, the Apple touch icon and the 192/512 px
 Android icons (plain and maskable) into `public/`; the outputs are committed, so it
 only runs again when the mark changes. `scripts/make-og.mjs` draws the same mark
-onto the 1200 × 630 card that iMessage, Slack and X show under a link
-(`public/og.png`); `index.html` points the Open Graph and Twitter tags at it with
-absolute addresses, since the preview is fetched by their servers, not the browser.
+onto the card that iMessage, Slack and X show under a link (`public/og.png`). It is
+laid out on the usual 1200 × 630 canvas but written at 2400 × 1260, because Messages
+on iOS draws an image full-width only at about that size and shows a small thumbnail
+beside the title otherwise; the other renderers scale it down. `index.html` points the
+Open Graph and Twitter tags at it with absolute addresses, since the preview is
+fetched by their servers, not the browser.
 An invite link, `/versus/CODE`, gets the same image with the room named in its title;
 see [Addresses](#addresses).
 
