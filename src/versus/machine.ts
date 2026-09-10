@@ -79,7 +79,7 @@ export type VersusAction =
   | { type: 'leave' };
 
 const emptyPlayer = (id: string, name: string, dif: DiffKey): Player =>
-  ({ id, name, color: colorOf(true), dif, ready: false, self: true, present: true });
+  ({ id, name, color: colorOf(true), dif, ready: false, present: true });
 
 export function initialVersus(name: string, dif: DiffKey, code = '', id = ''): VersusState {
   return {
@@ -104,10 +104,6 @@ export function initialVersus(name: string, dif: DiffKey, code = '', id = ''): V
     error: null,
   };
 }
-
-/** Both sides have an answer in for the round on screen. */
-export const bothAnswered = (s: VersusState): boolean =>
-  s.myAnswers[s.round] != null && s.theirAnswers[s.round] != null;
 
 /** Running total, so the score is always derived rather than tracked. */
 export const totalOf = (answers: (RoundAnswer | null)[]): number =>
@@ -182,7 +178,7 @@ function applySnapshot(s: VersusState, snap: LiveSnapshot, at: number): VersusSt
   };
   const them: Player | null = themRow ? {
     id: themRow.id, name: themRow.name, color: colorOf(!isHost),
-    dif: themRow.dif, ready: themRow.ready, self: false,
+    dif: themRow.dif, ready: themRow.ready,
     present: s.them?.id === themRow.id ? s.them.present : true,
   } : null;
 

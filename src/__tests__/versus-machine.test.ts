@@ -107,7 +107,7 @@ describe('getting into a room', () => {
   it('a second player opens the lobby', () => {
     const s = lobby();
     expect(s.phase).toBe('lobby');
-    expect(s.them).toMatchObject({ id: 'them', name: 'Sam', dif: 'guided', ready: false, self: false, present: true });
+    expect(s.them).toMatchObject({ id: 'them', name: 'Sam', dif: 'guided', ready: false, present: true });
     expect(s.lastOpponent).toBe('Sam');
     expect(s.error).toBeNull();
   });

@@ -8,7 +8,6 @@ import type { Abbr, DiffKey, ModeKey, Scope } from '../types';
 export const VERSUS_MODES: ModeKey[] = ['mixed', 'find', 'name', 'shape', 'capital', 'code', 'border'];
 
 export const ROUND_CHOICES = [5, 10, 15] as const;
-export type RoundCount = (typeof ROUND_CHOICES)[number];
 
 /** Everything both devices need to generate the identical question sequence. */
 export interface MatchConfig {
@@ -41,8 +40,6 @@ export interface Player {
   /** Per-player handicap: each side picks their own level, both sides see it. */
   dif: DiffKey;
   ready: boolean;
-  /** True for the player on this device. */
-  self: boolean;
   /** Whether their phone is on the room right now, as far as presence can tell. */
   present: boolean;
 }
@@ -77,7 +74,7 @@ export type Phase =
   | 'final';
 
 /** This phone's own connection to the room, so the UI can be honest about it. */
-export type LinkState = 'idle' | 'linked' | 'lost' | 'error';
+export type LinkState = 'idle' | 'linked' | 'lost';
 
 /** Where a room is in its life, as the server records it. */
 export type RoomStatus = 'waiting' | 'lobby' | 'playing' | 'final' | 'closed';

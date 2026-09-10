@@ -4,8 +4,8 @@ import { cleanName } from './identity';
  * The house leaderboard, kept in localStorage on this device.
  *
  * Two people passing phones around in the same room build up a running record
- * of who beats whom. There is no server and no account: this is one device's
- * memory of the matches it took part in, and clearing it is a button away.
+ * of who beats whom. There is no account: this is one device's memory of the
+ * matches it took part in, and clearing it is a button away.
  */
 const LB_KEY = 'fiftyStatesDrill.versus.leaderboard.v1';
 

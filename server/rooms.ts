@@ -309,7 +309,7 @@ async function sync(db: Db, input: Record<string, unknown>, now: Date): Promise<
 
 const ACTIONS = { create, join, settings, player, answer, advance, again, leave, sync } as const;
 
-export type ActionName = keyof typeof ACTIONS;
+type ActionName = keyof typeof ACTIONS;
 
 /** One request against one room. Throws `RoomError` for anything refused. */
 export async function versus(db: Db, input: unknown, now: Date): Promise<Snapshot> {
