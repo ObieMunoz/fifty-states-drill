@@ -19,10 +19,25 @@ export interface MatchConfig {
   scope: Scope;
 }
 
+/**
+ * The two seat colours. They belong to the seat, not the screen: the host is
+ * always teal and the guest always coral on *both* phones, so a pick painted
+ * coral means the same player wherever it is seen.
+ */
+export const PLAYER_COLORS = ['teal', 'coral'] as const;
+export type PlayerColor = (typeof PLAYER_COLORS)[number];
+
+export const COLOR_LABEL: Record<PlayerColor, string> = { teal: 'Teal', coral: 'Coral' };
+
+/** The host takes the first colour; whoever joins takes the other. */
+export const colorOf = (isHost: boolean): PlayerColor => (isHost ? 'teal' : 'coral');
+
 /** One player, as either device sees them. */
 export interface Player {
   id: string;
   name: string;
+  /** Their seat colour, the same on both phones. */
+  color: PlayerColor;
   /** Per-player handicap: each side picks their own level, both sides see it. */
   dif: DiffKey;
   ready: boolean;

@@ -1,7 +1,8 @@
 import { BUILD } from '../../build';
 import { DIFFS, DIFF_KEYS, MODES } from '../../data/modes';
 import { REGS, ST } from '../../data/states';
-import { ROUND_CHOICES, VERSUS_MODES } from '../../versus/types';
+import { COLOR_LABEL, ROUND_CHOICES, VERSUS_MODES, colorOf } from '../../versus/types';
+import type { PlayerColor } from '../../versus/types';
 import type { VersusApi } from '../../versus/useVersus';
 import type { DiffKey, ModeKey, Scope } from '../../types';
 
@@ -35,6 +36,7 @@ export function VersusLobby({ api }: { api: VersusApi }) {
       <div className="vs-versus">
         <PlayerCard
           side="me"
+          color={me.color}
           name={me.name}
           dif={me.dif}
           ready={me.ready}
@@ -43,6 +45,7 @@ export function VersusLobby({ api }: { api: VersusApi }) {
         <span className="vs-vs" aria-hidden="true">vs</span>
         <PlayerCard
           side="them"
+          color={them?.color ?? colorOf(!isHost)}
           name={them?.name || (state.lastOpponent ? `${state.lastOpponent} (gone)` : 'Waiting…')}
           dif={them?.dif ?? 'standard'}
           ready={!!them?.ready}
@@ -198,18 +201,27 @@ function LockIcon() {
   );
 }
 
+/**
+ * One seat. The colour on the card is the player's for the whole match — the
+ * host is always teal, the guest always coral, on both phones — and it is
+ * named here so "the coral pin" on the map later needs no legend.
+ */
 function PlayerCard({
-  side, name, dif, ready, onDif,
+  side, color, name, dif, ready, onDif,
 }: {
   side: 'me' | 'them';
+  color: PlayerColor;
   name: string;
   dif: DiffKey;
   ready: boolean;
   onDif?: (d: DiffKey) => void;
 }) {
   return (
-    <div className={`vs-card ${side}${ready ? ' ready' : ''}`}>
-      <span className="eyebrow">{side === 'me' ? 'You' : 'Opponent'}</span>
+    <div className={`vs-card ${side}${ready ? ' ready' : ''}`} data-pc={color}>
+      <span className="eyebrow vs-seat">
+        <i className="vs-swatch" aria-hidden="true" />
+        {side === 'me' ? 'You' : 'Opponent'} · {COLOR_LABEL[color]}
+      </span>
       <b className="vs-name">{name}</b>
       {onDif ? (
         <div className="vs-levels">

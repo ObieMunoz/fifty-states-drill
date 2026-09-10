@@ -5,13 +5,18 @@
    things. Targets are 52px and up, the primary action sits in the thumb zone
    at the bottom of the screen, and nothing depends on hover.
 
-   Colour carries the head-to-head read: you are always --hydro, the opponent
-   is always --signal, in the same two positions on every screen. */
+   Colour carries the head-to-head read. Each seat has a colour that is the
+   same on both phones — the host is teal, the guest coral — so a coral pin
+   on the map means the same player whichever screen it is on. Anything that
+   says "whose" carries data-pc, which sets --pc for everything inside it;
+   position still says which side is you: left on every screen. */
 
 :root{
-  --vs-me:var(--hydro); --vs-them:var(--signal);
+  --vs-teal:var(--hydro); --vs-coral:var(--signal);
   --qr-bg:#fff; --qr-ink:#000;
 }
+[data-pc="teal"]{--pc:var(--vs-teal)}
+[data-pc="coral"]{--pc:var(--vs-coral)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   /* The QR stays light-on-dark inverted: phone cameras want the quiet zone
      bright, and a dark-on-dark code does not scan. */
@@ -106,9 +111,10 @@ body[data-versus="1"] .app{display:none}
 .vs-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;
   padding:11px 11px 9px;display:flex;flex-direction:column;gap:5px;min-width:0;
   border-top:3px solid var(--line)}
-.vs-card.me{border-top-color:var(--vs-me)}
-.vs-card.them{border-top-color:var(--vs-them)}
+.vs-card[data-pc]{border-top-color:var(--pc)}
 .vs-card.ready{background:color-mix(in srgb,var(--right) 9%,var(--surface))}
+.vs-seat{display:flex;align-items:center;gap:5px}
+.vs-swatch{width:9px;height:9px;border-radius:50%;background:var(--pc);flex:none}
 .vs-name{font-size:16px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vs-levels{display:flex;gap:3px;background:var(--sunk);padding:3px;border-radius:9px;
   border:1px solid var(--line-soft)}
@@ -189,8 +195,7 @@ body[data-versus="1"] .app{display:none}
 @keyframes vs-pop{from{transform:scale(.72);opacity:.3}to{transform:scale(1);opacity:1}}
 .vs-count-vs{display:flex;align-items:center;gap:12px;margin:0;font-size:17px;font-weight:500}
 .vs-count-vs i{font-family:Fraunces,Georgia,serif;font-style:italic;color:var(--ink-3);font-size:14px}
-.vs-count-vs span:first-child{color:var(--vs-me)}
-.vs-count-vs span:last-child{color:var(--vs-them)}
+.vs-count-vs span[data-pc]{color:var(--pc)}
 
 /* ================= play ================= */
 .vs-play{gap:10px}
@@ -198,8 +203,8 @@ body[data-versus="1"] .app{display:none}
 .vs-score{display:flex;align-items:baseline;gap:7px;background:var(--surface);
   border:1px solid var(--line);border-radius:12px;padding:9px 11px;min-width:0;
   border-left:3px solid var(--line)}
-.vs-score.me{border-left-color:var(--vs-me)}
-.vs-score.them{border-left-color:var(--vs-them);justify-content:flex-end}
+.vs-score[data-pc]{border-left-color:var(--pc)}
+.vs-score.them{justify-content:flex-end}
 .vs-score-name{font-size:12.5px;color:var(--ink-2);overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .vs-score b{font-size:21px;font-weight:500;margin-left:auto;font-variant-numeric:tabular-nums}
@@ -207,10 +212,9 @@ body[data-versus="1"] .app{display:none}
 .vs-score.them .vs-score-name{order:-2}
 .vs-score i{width:7px;height:7px;border-radius:50%;background:var(--line);flex:none;
   align-self:center;transition:background .2s}
-.vs-score.me i.in{background:var(--vs-me)}
-.vs-score.them i.in{background:var(--vs-them)}
-.vs-scores[data-lead="me"] .vs-score.me{background:color-mix(in srgb,var(--vs-me) 10%,var(--surface))}
-.vs-scores[data-lead="them"] .vs-score.them{background:color-mix(in srgb,var(--vs-them) 10%,var(--surface))}
+.vs-score i.in{background:var(--pc)}
+.vs-scores[data-lead="me"] .vs-score.me,
+.vs-scores[data-lead="them"] .vs-score.them{background:color-mix(in srgb,var(--pc) 10%,var(--surface))}
 
 .vs-clock{height:5px;border-radius:3px;background:var(--sunk);overflow:hidden;flex:none}
 .vs-clock i{display:block;height:100%;background:var(--hydro);transform-origin:left center;
@@ -238,6 +242,14 @@ svg.vs-map{width:100%;height:auto;max-height:50dvh;
   border:1px solid var(--line-soft);border-radius:12px}
 svg.vs-map.solo{background:transparent;border-color:transparent;max-height:38dvh;
   width:auto;max-width:100%}
+/* A live tap is painted in the tapper's own seat colour, not a fixed one. */
+svg.vs-map .st.pick{fill:var(--pc);stroke:var(--pc)}
+/* At the reveal each player's tap gets a pin in their colour, on top of the
+   right/wrong fill, so "who tapped what" and "was it right" read separately. */
+.vs-pin circle{fill:var(--pc);stroke:var(--ground);stroke-width:2;
+  animation:vs-pin-drop .28s cubic-bezier(.2,.8,.3,1.2)}
+.vs-pin .vs-pin-dot{fill:var(--ground);stroke:none;animation:none}
+@keyframes vs-pin-drop{from{transform:scale(0)}to{transform:scale(1)}}
 /* With a map on screen the answers sit right under it, not adrift. */
 .vs-play .vs-stage+.vs-choices,
 .vs-play .vs-stage+.vs-entry,
@@ -280,10 +292,14 @@ svg.vs-map.solo{background:transparent;border-color:transparent;max-height:38dvh
 .vs-chip{background:var(--surface);border:1px solid var(--line);border-radius:12px;
   padding:10px 11px;display:flex;flex-direction:column;gap:2px;min-width:0;
   border-top:3px solid var(--line)}
-.vs-chip.you{border-top-color:var(--vs-me)}
-.vs-chip:not(.you){border-top-color:var(--vs-them)}
-.vs-chip-who{font-size:11.5px;color:var(--ink-3);overflow:hidden;
+.vs-chip[data-pc]{border-top-color:var(--pc)}
+.vs-chip-who{font-size:11.5px;color:var(--pc);font-weight:500;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
+/* What they actually put in, in the words of the question they saw. */
+.vs-chip-pick{font-size:13px;color:var(--ink);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.vs-chip.bad .vs-chip-pick{text-decoration:line-through;
+  text-decoration-color:color-mix(in srgb,var(--wrong) 60%,transparent);color:var(--ink-2)}
 .vs-chip b{font-size:15px}
 .vs-chip.ok b{color:var(--right)}
 .vs-chip.bad b{color:var(--wrong)}
@@ -308,8 +324,7 @@ svg.vs-map.solo{background:transparent;border-color:transparent;max-height:38dvh
   text-overflow:ellipsis;white-space:nowrap}
 .vs-final-scores b{font-family:Fraunces,Georgia,serif;font-size:clamp(30px,9vw,40px);
   font-weight:600;line-height:1.05;font-variant-numeric:tabular-nums}
-.vs-final-scores .me b{color:var(--vs-me)}
-.vs-final-scores .them b{color:var(--vs-them)}
+.vs-final-scores [data-pc] b{color:var(--pc)}
 .vs-final-scores i{font-style:normal;font-size:11px;color:var(--ink-3)}
 .vs-dash{color:var(--ink-3)}
 
@@ -319,8 +334,7 @@ svg.vs-map.solo{background:transparent;border-color:transparent;max-height:38dvh
   min-width:0;overflow:hidden}
 .vs-strip-key i{width:9px;height:9px;border-radius:50%;flex:none;margin-left:6px}
 .vs-strip-key i:first-child{margin-left:0}
-.vs-strip-key i.me{background:var(--vs-me)}
-.vs-strip-key i.them{background:var(--vs-them)}
+.vs-strip-key i[data-pc]{background:var(--pc)}
 .vs-strip ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
 .vs-strip li{display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:8px;
   background:var(--surface);font-size:13px}
@@ -329,10 +343,8 @@ svg.vs-map.solo{background:transparent;border-color:transparent;max-height:38dvh
 /* Colour says who, fill says how: solid for right, ring for wrong, faint for
    no answer at all. */
 .vs-dot{width:12px;height:12px;border-radius:50%;flex:none;border:2px solid transparent}
-.vs-dot.me{border-color:var(--vs-me)}
-.vs-dot.them{border-color:var(--vs-them)}
-.vs-dot.me.ok{background:var(--vs-me)}
-.vs-dot.them.ok{background:var(--vs-them)}
+.vs-dot[data-pc]{border-color:var(--pc)}
+.vs-dot.ok{background:var(--pc)}
 .vs-dot.bad{background:transparent}
 .vs-dot.out{opacity:.3;border-style:dotted}
 
@@ -372,7 +384,7 @@ svg.vs-map.solo{background:transparent;border-color:transparent;max-height:38dvh
 }
 
 @media (prefers-reduced-motion:reduce){
-  .vs-count-n,.vs-reveal,.vs-readout dd{animation:none}
+  .vs-count-n,.vs-reveal,.vs-readout dd,.vs-pin circle{animation:none}
   .vs-pulse i{animation:none;opacity:.6}
   .vs-big:active:not(:disabled),.vs-choices button:active{transform:none}
   .vs-clock i,.vs-count-ring .fill{transition:none}

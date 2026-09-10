@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BY } from '../../data/states';
 import { correctOf, matchResults } from '../../versus/machine';
+import { colorOf } from '../../versus/types';
 import { Leaderboard } from './Leaderboard';
 import type { VersusApi } from '../../versus/useVersus';
 
@@ -12,6 +13,8 @@ export function VersusFinal({ api }: { api: VersusApi }) {
   const [asked, setAsked] = useState(false);
   const { outcome } = matchResults(state);
   const them = state.them?.name || state.lastOpponent || 'Opponent';
+  const myColor = state.me.color;
+  const theirColor = state.them?.color ?? colorOf(!state.isHost);
 
   const headline = outcome === 'win' ? 'You win' : outcome === 'loss' ? `${them} wins` : 'Dead heat';
 
@@ -25,13 +28,13 @@ export function VersusFinal({ api }: { api: VersusApi }) {
       <div className={`vs-verdict ${outcome}`}>
         <h1>{headline}</h1>
         <div className="vs-final-scores">
-          <div className="me">
+          <div className="me" data-pc={myColor}>
             <span>{state.me.name}</span>
             <b className="mono">{myTotal}</b>
             <i className="mono">{correctOf(state.myAnswers)}/{state.plan.length} right</i>
           </div>
           <span className="vs-dash" aria-hidden="true">—</span>
-          <div className="them">
+          <div className="them" data-pc={theirColor}>
             <span>{them}</span>
             <b className="mono">{theirTotal}</b>
             <i className="mono">{correctOf(state.theirAnswers)}/{state.plan.length} right</i>
@@ -44,8 +47,8 @@ export function VersusFinal({ api }: { api: VersusApi }) {
           <span className="eyebrow">Round by round</span>
           {/* Which column is whose; the dots alone cannot say it. */}
           <span className="vs-strip-key">
-            <i className="me" aria-hidden="true" />{state.me.name}
-            <i className="them" aria-hidden="true" />{them}
+            <i className="me" data-pc={myColor} aria-hidden="true" />{state.me.name}
+            <i className="them" data-pc={theirColor} aria-hidden="true" />{them}
           </span>
         </div>
         <ol>
@@ -56,8 +59,8 @@ export function VersusFinal({ api }: { api: VersusApi }) {
               <li key={i}>
                 <b className="mono">{i + 1}</b>
                 <span className="vs-strip-state">{BY[r.abbr].n}</span>
-                <span className={`vs-dot me ${verdict(mine)}`} aria-label={`You: ${verdict(mine)}`} />
-                <span className={`vs-dot them ${verdict(theirs)}`} aria-label={`${them}: ${verdict(theirs)}`} />
+                <span className={`vs-dot me ${verdict(mine)}`} data-pc={myColor} aria-label={`You: ${verdict(mine)}`} />
+                <span className={`vs-dot them ${verdict(theirs)}`} data-pc={theirColor} aria-label={`${them}: ${verdict(theirs)}`} />
               </li>
             );
           })}

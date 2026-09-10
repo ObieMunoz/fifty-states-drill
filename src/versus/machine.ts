@@ -1,6 +1,7 @@
 import { planMatch } from './plan';
 import { outcomeOf } from './scoring';
 import { COUNTDOWN_MS } from './timing';
+import { colorOf } from './types';
 import type {
   AnswerRow, LinkState, MatchConfig, Phase, Player, PlannedRound, RoundAnswer,
 } from './types';
@@ -78,7 +79,7 @@ export type VersusAction =
   | { type: 'leave' };
 
 const emptyPlayer = (id: string, name: string, dif: DiffKey): Player =>
-  ({ id, name, dif, ready: false, self: true, present: true });
+  ({ id, name, color: colorOf(true), dif, ready: false, self: true, present: true });
 
 export function initialVersus(name: string, dif: DiffKey, code = '', id = ''): VersusState {
   return {
@@ -111,6 +112,19 @@ export const bothAnswered = (s: VersusState): boolean =>
 /** Running total, so the score is always derived rather than tracked. */
 export const totalOf = (answers: (RoundAnswer | null)[]): number =>
   answers.reduce((n, a) => n + (a?.points ?? 0), 0);
+
+/**
+ * The total as it should read on screen: rounds already revealed only.
+ *
+ * An answer is graded the moment it goes in, so `totalOf` would move the
+ * scoreline while the question is still live — telling the player they were
+ * right, and telling the opponent too, before either has seen the reveal.
+ * The round in play counts only once the phase has moved past the question.
+ */
+export function settledTotal(s: VersusState, answers: (RoundAnswer | null)[]): number {
+  const upTo = s.phase === 'question' ? s.round : answers.length;
+  return answers.reduce((n, a, i) => (i < upTo ? n + (a?.points ?? 0) : n), 0);
+}
 
 export const correctOf = (answers: (RoundAnswer | null)[]): number =>
   answers.reduce((n, a) => n + (a?.correct ? 1 : 0), 0);
@@ -162,11 +176,13 @@ function applySnapshot(s: VersusState, snap: LiveSnapshot, at: number): VersusSt
   const me: Player = {
     ...s.me,
     name: meRow?.name ?? s.me.name,
+    color: colorOf(isHost),
     dif: s.synced ? s.me.dif : (meRow?.dif ?? s.me.dif),
     ready: !s.synced ? (meRow?.ready ?? false) : reset ? false : s.me.ready,
   };
   const them: Player | null = themRow ? {
-    id: themRow.id, name: themRow.name, dif: themRow.dif, ready: themRow.ready, self: false,
+    id: themRow.id, name: themRow.name, color: colorOf(!isHost),
+    dif: themRow.dif, ready: themRow.ready, self: false,
     present: s.them?.id === themRow.id ? s.them.present : true,
   } : null;
 
@@ -260,6 +276,7 @@ export function reducer(s: VersusState, a: VersusAction): VersusState {
       return {
         ...initialVersus(s.me.name, s.me.dif, a.code, s.me.id),
         phase: 'connecting', isHost: a.asHost, lastOpponent: '',
+        me: { ...emptyPlayer(s.me.id, s.me.name, s.me.dif), color: colorOf(a.asHost) },
       };
 
     case 'snapshot':

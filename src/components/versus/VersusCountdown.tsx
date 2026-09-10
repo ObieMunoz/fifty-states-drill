@@ -1,5 +1,6 @@
 import { MODES } from '../../data/modes';
 import { COUNTDOWN_MS } from '../../versus/timing';
+import { colorOf } from '../../versus/types';
 import type { VersusApi } from '../../versus/useVersus';
 
 /** Three, two, one. Big enough to read from across a table. */
@@ -25,9 +26,11 @@ export function VersusCountdown({ api }: { api: VersusApi }) {
         <b key={n} className="vs-count-n">{n}</b>
       </div>
       <p className="vs-count-vs">
-        <span>{state.me.name}</span>
+        <span data-pc={state.me.color}>{state.me.name}</span>
         <i>vs</i>
-        <span>{state.them?.name || state.lastOpponent || 'Opponent'}</span>
+        <span data-pc={state.them?.color ?? colorOf(!state.isHost)}>
+          {state.them?.name || state.lastOpponent || 'Opponent'}
+        </span>
       </p>
     </div>
   );
