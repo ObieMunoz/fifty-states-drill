@@ -9,10 +9,26 @@ const base = '/';
 /** The commit being built: Vercel and Actions each name it their own way. */
 const commit = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA;
 
+/**
+ * What the browser needs to listen to the room: the project's address and
+ * its publishable key. Both are public by design. Vercel's Supabase
+ * integration sets them under its own names, so those are taken when the
+ * VITE_ ones are not set — and only these two, by name, so no secret in the
+ * build environment can reach the page.
+ */
+const env = process.env;
+const supabaseUrl = env.VITE_SUPABASE_URL ?? env.SUPABASE_URL ?? env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = env.VITE_SUPABASE_PUBLISHABLE_KEY
+  ?? env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? env.SUPABASE_ANON_KEY ?? env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
 export default defineConfig({
-  // Stamped onto the Versus screens, so two phones can be checked against
-  // each other. A local build has no commit to name.
-  define: { __BUILD__: JSON.stringify(commit?.slice(0, 7) ?? 'dev') },
+  define: {
+    // Stamped onto the Versus screens, so two phones can be checked against
+    // each other. A local build has no commit to name.
+    __BUILD__: JSON.stringify(commit?.slice(0, 7) ?? 'dev'),
+    'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
+    'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': JSON.stringify(supabaseKey),
+  },
   plugins: [
     react(),
     // Installable on iOS, Android and desktop, and usable offline: the map
