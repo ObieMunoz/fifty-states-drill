@@ -162,11 +162,13 @@ the publishable key read them, and adds them to the Realtime publication. Note t
 project URL and, under **Project Settings → API**, the *publishable* key and the *secret*
 key.
 
-**Vercel.** Import the repository as a project; the defaults are right for Vite. Add the
-environment variables listed in [`.env.example`](.env.example): the two `VITE_` ones are
-built into the page and are public, the rest are read only by the API functions, and the
-secret key must never get a `VITE_` prefix. `vercel.json` schedules the daily sweep; set
-`CRON_SECRET` too and the function refuses anyone else. Every push to `main` deploys.
+**Vercel.** Import the repository as a project; the defaults are right for Vite. Then
+either connect Supabase from the Vercel Marketplace, which sets the variables the app
+reads, or add them by hand from [`.env.example`](.env.example): the address and the
+publishable key are built into the page and are public, the secret key is read only by
+the API functions and must never get a `VITE_` prefix. `vercel.json` schedules the daily
+sweep; set `CRON_SECRET` too and the function refuses anyone else. Every push to `main`
+deploys.
 
 A free Supabase project pauses after a week without traffic. The daily cron is a query
 against the database every day, which is what keeps it awake through a quiet fortnight.
