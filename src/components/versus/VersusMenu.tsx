@@ -166,8 +166,8 @@ export function VersusMenu({ api, onExit }: { api: VersusApi; onExit: () => void
       <Leaderboard rows={api.board} onCleared={api.clearBoard} />
 
       <p className="vs-fine">
-        Phones talk to each other directly. Nothing you play is sent to a server, and the
-        standings above never leave this device.
+        A room lives on the server only while you play. Nobody signs in, and the standings
+        above never leave this device.
         <span className="vs-diag">Build {BUILD}</span>
       </p>
     </div>

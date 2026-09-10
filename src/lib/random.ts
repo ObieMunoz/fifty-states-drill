@@ -10,7 +10,8 @@ export type Rng = () => number;
  *
  * The point is reproducibility, not cryptographic quality: given the same
  * seed it yields the same sequence in every browser, which is what lets two
- * peers agree on a question order without sending the questions themselves.
+ * phones and the server agree on a question order without sending the
+ * questions themselves.
  */
 export function mulberry32(seed: number): Rng {
   let a = seed >>> 0;
