@@ -1,45 +1,28 @@
 import {
   useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState,
 } from 'react';
-import { BY } from '../data/states';
-import { DIFFS } from '../data/modes';
-import { buildAsk, expectedText } from '../game/question';
-import { near, norm } from '../lib/text';
-import { askRng } from './plan';
+import { askFor, grade } from './grade';
 import { roundLimitMs, scoreAnswer } from './scoring';
-import {
-  currentRound, initialVersus, matchResults, reducer, resolveHost, totalOf,
-} from './machine';
+import { currentRound, initialVersus, reducer, totalOf } from './machine';
 import type { VersusState } from './machine';
 import { cleanName, displayName, loadName, saveName } from './identity';
 import { loadBoard, rankBoard, recordMatch } from './leaderboard';
 import type { LeaderRow } from './leaderboard';
-import {
-  clearUrlCode, codeFromUrl, forgetHosted, isClosedRoom, isHostedHere, matchSeed, newRoomCode,
-  normalizeCode, rememberClosed, rememberHosted, setUrlCode,
-} from './room';
-import { connect, peerId } from './net';
-import type { Transport } from './net';
-import type { Path } from './path';
-import { PROTOCOL_VERSION } from './types';
-import type { MatchConfig, Msg, RoundAnswer } from './types';
+import { clearUrlCode, codeFromUrl, normalizeCode, setUrlCode } from './room';
+import { ApiError, OFFLINE, callVersus } from './client';
+import { openLive } from './live';
+import type { Live } from './live';
+import { playerId } from './player';
+import { COUNTDOWN_MS, GRACE_MS, REVEAL_MS } from './timing';
+import { outcomeOf } from './scoring';
+import type { RoundAnswer, Snapshot } from './types';
 import type { Abbr, Ask, DiffKey, ModeKey, Scope } from '../types';
 
-/** Ticks down on screen before the first question. */
-export const COUNTDOWN_MS = 3000;
+/** How long the host waits before asking the server again to move on. */
+const ADVANCE_RETRY_MS = 400;
 
-/** How long both answers stay up before the next question. */
-const REVEAL_MS = 2600;
-
-/** After this side has answered, how long to wait on a straggling opponent. */
-const GRACE_MS = 1500;
-
-/** How long after meeting to read the path again, once ICE has settled on it. */
-const PATH_RECHECK_MS = 4000;
-
-const BLOCKED_ERROR = 'Your phones found each other, but the connection between them was blocked. '
-  + 'Some mobile networks do this: put both phones on the same Wi-Fi, or keep this '
-  + 'open and it will keep trying.';
+/** How many times it asks: the server holds a round open a little longer than this phone. */
+const ADVANCE_TRIES = 5;
 
 export interface VersusApi {
   state: VersusState;
@@ -56,12 +39,6 @@ export interface VersusApi {
   answered: boolean;
   /** This device's standings, refreshed the moment a match is folded in. */
   board: LeaderRow[];
-  /** Relay sockets open right now; what the waiting screen has to go on. */
-  relays: number;
-  /** Whether TURN credentials were had for this search. */
-  turn: boolean;
-  /** How the link to the opponent runs, once known. */
-  path: Path | null;
   clearBoard: () => void;
   host: (name: string) => void;
   join: (code: string, name: string) => void;
@@ -76,30 +53,25 @@ export interface VersusApi {
   leave: () => void;
 }
 
-/** Grade one answer exactly the way the solo game does. */
-function grade(ask: Ask, qm: ModeKey, value: string): boolean {
-  if (ask.choices || qm === 'find') return value === ask.answer;
-  const expect = expectedText(ask, qm);
-  // A two-letter code has no near-misses: one edit is a different state.
-  if (qm === 'code' && !ask.rev) return norm(value) === norm(expect);
-  return near(value, expect);
+/** Sum one player's rows in a snapshot, for the standings. */
+function tally(snap: Snapshot, id: string | undefined): { points: number; correct: number } {
+  return snap.answers
+    .filter((a) => a.player_id === id)
+    .reduce((t, a) => ({ points: t.points + a.points, correct: t.correct + (a.correct ? 1 : 0) }), { points: 0, correct: 0 });
 }
 
 export function useVersus(): VersusApi {
   const [state, dispatch] = useReducer(
-    reducer, undefined, () => initialVersus(loadName(), 'standard', codeFromUrl() ?? ''),
+    reducer, undefined,
+    () => initialVersus(loadName(), 'standard', codeFromUrl() ?? '', playerId()),
   );
 
-  /** Latest state, so transport callbacks never read through a stale closure. */
+  /** Latest state, so callbacks never read through a stale closure. */
   const live = useRef(state);
   useEffect(() => { live.current = state; }, [state]);
 
-  const net = useRef<Transport | null>(null);
-  /**
-   * Messages raised before `connect` resolved. A peer can appear while the
-   * promise is still in flight, and the introduction must not be dropped.
-   */
-  const outbox = useRef<Msg[]>([]);
+  /** The room as the server pushes it, once this side has joined one. */
+  const room = useRef<Live | null>(null);
   /**
    * A clock sampled often enough to animate the ring. It is state rather than
    * a ref because the countdown renders from it, and rendering may neither
@@ -107,219 +79,120 @@ export function useVersus(): VersusApi {
    * `state.startedAt` — is set by the reducer from the action that starts it.
    */
   const [now, setNow] = useState(() => Date.now());
-  /* Read once at mount, then replaced by whatever `recordMatch` returns. Kept
-     here rather than in the results screen because the write has to happen
-     before that screen reads it, and child effects run before parent ones. */
+  /* Read once at mount, then replaced by whatever `recordMatch` returns. */
   const [board, setBoard] = useState<LeaderRow[]>(() => rankBoard(loadBoard()));
-  /** The match already folded into the standings, so a re-render cannot double it. */
+  /** The match already folded into the standings, so a repeat cannot double it. */
   const recorded = useRef('');
-  const [relays, setRelays] = useState(0);
-  const [turn, setTurn] = useState(false);
-  /** Keyed to the peer it was read from, so it lapses with them. */
-  const [pathOf, setPathOf] = useState<{ id: string; path: Path } | null>(null);
 
-  const send = useCallback((msg: Msg) => {
-    if (net.current) net.current.send(msg);
-    else outbox.current.push(msg);
+  /**
+   * Fold a finished match into this device's standings, once per seed. Done
+   * as the snapshot lands rather than from the result screen, so the write
+   * is there before anything reads it.
+   */
+  const noteFinal = useCallback((snap: Snapshot) => {
+    const { room: r, players } = snap;
+    if (r.status !== 'final' || !r.seed || recorded.current === r.seed) return;
+    recorded.current = r.seed;
+    const myId = live.current.me.id;
+    const them = players.find((p) => p.id !== myId);
+    const mine = tally(snap, myId);
+    const theirs = tally(snap, them?.id);
+    const outcome = outcomeOf(mine.points, theirs.points);
+    setBoard(recordMatch([
+      { name: displayName(live.current.me.name), ...mine, asked: r.rounds, outcome },
+      {
+        name: displayName(them?.name ?? live.current.lastOpponent, 'Opponent'),
+        ...theirs,
+        asked: r.rounds,
+        outcome: outcome === 'win' ? 'loss' : outcome === 'loss' ? 'win' : 'draw',
+      },
+    ]));
+  }, []);
+
+  const takeSnapshot = useCallback((snap: Snapshot) => {
+    noteFinal(snap);
+    // The live room takes it as the truth and hands it back through the same
+    // path a pushed change takes; before there is one, it goes straight in.
+    if (room.current) room.current.seed(snap);
+    else dispatch({ type: 'snapshot', snap: { ...snap, receivedAt: Date.now() }, at: Date.now() });
+  }, [noteFinal]);
+
+  const dropRoom = useCallback(() => {
+    room.current?.leave();
+    room.current = null;
   }, []);
 
   /**
-   * Tear the connection down. With `farewell`, the peer is told first, so a
-   * departure on purpose is not mistaken for a dropped connection: a guest
-   * hearing it from the host learns the room is closed, not merely quiet.
+   * One call to the room. The room comes back and is applied; a refusal
+   * becomes the message on screen. No room to be in — gone, closed, full —
+   * means back to the front door with the reason.
    */
-  const dropLink = useCallback((farewell: boolean) => {
-    const link = net.current;
-    if (link) {
-      if (farewell) link.send({ t: 'bye' });
-      link.leave();
-    }
-    net.current = null;
-    outbox.current = [];
-  }, []);
-
-  /**
-   * End the match: fold the result into this device's standings, then show it.
-   *
-   * Done here rather than in an effect on the results screen so the write
-   * lands before anything reads it, and so a repeat cannot double-count. The
-   * dependency list is empty, so this is stable for the life of the session.
-   */
-  const finishMatch = useCallback(() => {
+  const call = useCallback(async (input: Record<string, unknown>): Promise<Snapshot | null> => {
     const s = live.current;
-    if (s.cfg && recorded.current !== s.cfg.seed) {
-      recorded.current = s.cfg.seed;
-      const { mine, theirs, outcome } = matchResults(s);
-      setBoard(recordMatch([
-        { name: displayName(s.me.name), ...mine, outcome },
-        {
-          name: displayName(s.them?.name ?? '', 'Opponent'),
-          ...theirs,
-          outcome: outcome === 'win' ? 'loss' : outcome === 'loss' ? 'win' : 'draw',
-        },
-      ]));
-    }
-    dispatch({ type: 'finish' });
-  }, []);
-
-  /* ---------------- protocol ---------------- */
-
-  const handleMessage = useCallback((msg: Msg, id: string) => {
-    const s = live.current;
-    switch (msg.t) {
-      case 'hi': {
-        // Which side hosts is settled here too, so this reads the reconciled
-        // answer rather than the claim the button press left in state.
-        const isHost = resolveHost(s.isHost, msg.host, s.me.id, id);
-        dispatch({ type: 'peerHello', id, name: msg.name, dif: msg.dif, host: msg.host });
-        // Read how the link runs now, and again once ICE has had time to
-        // settle on a better pair than the first one that worked.
-        const readPath = () => {
-          void net.current?.pathTo(id).then((path) => { if (path) setPathOf({ id, path }); });
-        };
-        readPath();
-        setTimeout(readPath, PATH_RECHECK_MS);
-        // The host owns the settings, so it pushes them on introduction.
-        if (isHost) {
-          send({ t: 'cfg', mode: s.draft.mode, rounds: s.draft.rounds, scope: s.draft.scope });
-        }
-        break;
-      }
-      case 'cfg':
-        if (!s.isHost) {
-          dispatch({ type: 'setDraft', draft: { mode: msg.mode, rounds: msg.rounds, scope: msg.scope } });
-        }
-        break;
-      case 'dif':
-        dispatch({ type: 'setPeerDif', dif: msg.dif });
-        break;
-      case 'rdy':
-        dispatch({ type: 'setPeerReady', ready: msg.ready });
-        break;
-      case 'go':
-        dispatch({ type: 'startMatch', cfg: msg.cfg, difs: msg.difs, at: Date.now() });
-        break;
-      case 'ans':
-        dispatch({
-          type: 'peerAnswer',
-          round: msg.round,
-          answer: {
-            correct: msg.correct, ms: msg.ms, points: msg.points,
-            pick: msg.pick, timeout: msg.timeout,
-          },
-        });
-        break;
-      case 'nxt':
-        dispatch({ type: 'advance', round: msg.round, at: Date.now() });
-        break;
-      case 'end':
-        finishMatch();
-        break;
-      case 'again':
-        // The host owns the restart: it takes both sides back to the lobby,
-        // and a guest asking only registers as interest on the host's screen.
-        if (s.isHost) dispatch({ type: 'peerWantsAgain' });
-        else dispatch({ type: 'rematch' });
-        break;
-      case 'bye':
-        // A guest leaving on purpose hands the host back the waiting room:
-        // the code stays good for the next player. The host leaving closes
-        // the room: nobody can take the code over, so the guest is sent home
-        // and told why, and this device notes the code so a second try at
-        // the same invite is refused without a search.
-        if (s.isHost) {
-          dispatch({ type: 'peerQuit' });
-          break;
-        }
-        rememberClosed(s.code);
-        dropLink(false);
+    try {
+      const snap = await callVersus({ code: s.code, playerId: s.me.id, ...input });
+      takeSnapshot(snap);
+      return snap;
+    } catch (err) {
+      const e = err instanceof ApiError ? err : new ApiError(0, OFFLINE);
+      if (e.status === 404 || e.status === 409 || e.status === 410) {
+        dropRoom();
         clearUrlCode();
-        dispatch({ type: 'roomClosed', error: 'The host closed the room.' });
-        break;
+        dispatch({ type: 'roomClosed', error: e.message });
+      } else {
+        dispatch({ type: 'setError', error: e.message });
+      }
+      return null;
     }
-  }, [send, finishMatch, dropLink]);
+  }, [takeSnapshot, dropRoom]);
 
-  /** Kept in a ref so `connect`'s callbacks always reach the current handler. */
-  const onMsg = useRef(handleMessage);
-  useEffect(() => { onMsg.current = handleMessage; }, [handleMessage]);
+  const listen = useCallback((code: string) => {
+    dropRoom();
+    room.current = openLive(code, live.current.me.id, {
+      onSnapshot: (snap) => {
+        noteFinal(snap);
+        dispatch({ type: 'snapshot', snap, at: Date.now() });
+      },
+      onPresence: (ids) => dispatch({ type: 'presence', ids }),
+      onLink: (link) => {
+        const was = live.current.link;
+        dispatch({ type: 'setLink', link });
+        // Back after a loss: whatever happened meanwhile is on the server.
+        if (link === 'linked' && was === 'lost') void call({ action: 'sync' });
+      },
+    });
+  }, [dropRoom, noteFinal, call]);
 
-  /* ---------------- connection ---------------- */
+  /* ---------------- getting into a room ---------------- */
 
   const open = useCallback(async (code: string, name: string, asHost: boolean) => {
-    if (net.current) return;
+    if (live.current.phase !== 'menu') return;
     const clean = displayName(name);
     saveName(clean);
     dispatch({ type: 'setName', name: clean });
-    dispatch(asHost
-      ? { type: 'hostRoom', code, id: '' }
-      : { type: 'joinRoom', code, id: '' });
-    // A reload should come back to this room, not to the menu — and for the
-    // creator, come back as its host, whichever way they return to it.
-    setUrlCode(code);
-    if (asHost) rememberHosted(code);
-    /* This device's own id is half of what settles which side hosts, so it has
-       to be in hand before a peer can introduce itself. Asked for here rather
-       than read off the transport afterwards: `connect` waits on this same
-       module load before it joins a network, so this lands first — while there
-       is still nothing to have met. */
-    void peerId()
-      .then((id) => dispatch({ type: 'setSelfId', id }))
-      .catch(() => { /* the same load failing inside `connect` is what reports it */ });
-
-    try {
-      const transport = await connect(code, {
-        onPeer: () => {
-          send({
-            t: 'hi',
-            name: displayName(live.current.me.name),
-            dif: live.current.me.dif,
-            host: live.current.isHost,
-            ver: PROTOCOL_VERSION,
-          });
-        },
-        onPeerLeave: () => dispatch({ type: 'peerLeft' }),
-        onMessage: (msg, id) => onMsg.current(msg, id),
-        onStatus: (s) => {
-          setRelays(s.relays);
-          setTurn(s.turn);
-          if (live.current.them) return;
-          // Blocked outranks the timeout: the other player is there, so the
-          // code is not the problem and should not be blamed.
-          const error = s.blocked
-            ? BLOCKED_ERROR
-            : s.gaveUp
-              ? asHost
-                ? 'No one has joined yet. Keep this open, or start over if the code went stale.'
-                : 'No host answered, so that room has expired or been closed. '
-                  + 'Check the code, or ask for a fresh one.'
-              : null;
-          // Status arrives every second while searching; only a change matters.
-          if (error && error !== live.current.error) {
-            dispatch({ type: 'setLink', link: 'error' });
-            dispatch({ type: 'setError', error });
-          }
-        },
-      });
-      net.current = transport;
-      // Re-issue anything raised while the connection was still opening.
-      const queued = outbox.current;
-      outbox.current = [];
-      for (const m of queued) transport.send(m);
-    } catch {
-      dispatch({ type: 'setLink', link: 'error' });
-      dispatch({ type: 'setError', error: 'Could not reach the network. Check your connection and try again.' });
-    }
-  }, [send]);
-
-  const host = useCallback((name: string) => { void open(newRoomCode(), name, true); }, [open]);
-  const join = useCallback((code: string, name: string) => {
-    const clean = normalizeCode(code);
-    // A room this device has seen close has no host to find; say so now.
-    if (isClosedRoom(clean)) {
-      dispatch({ type: 'setError', error: 'That room has closed: its host left. Ask them for a fresh code.' });
+    dispatch({ type: 'enter', code, asHost });
+    if (code) setUrlCode(code);
+    const dif = live.current.me.dif;
+    const snap = await call(asHost
+      ? { action: 'create', name: clean, dif }
+      : { action: 'join', code, name: clean, dif });
+    if (!snap) {
+      clearUrlCode();
       return;
     }
-    void open(clean, name, isHostedHere(clean));
+    // A reload should come back to this room, not to the menu.
+    setUrlCode(snap.room.code);
+    try {
+      listen(snap.room.code);
+      room.current?.seed(snap);
+    } catch (err) {
+      dispatch({ type: 'setError', error: err instanceof Error ? err.message : String(err) });
+    }
+  }, [call, listen]);
+
+  const host = useCallback((name: string) => { void open('', name, true); }, [open]);
+  const join = useCallback((code: string, name: string) => {
+    void open(normalizeCode(code), name, false);
   }, [open]);
 
   /* An invite link or a scanned code lands straight in the room: nobody
@@ -329,12 +202,28 @@ export function useVersus(): VersusApi {
      loading screen into the room without a flash of the menu between. */
   const autoJoined = useRef(false);
   useLayoutEffect(() => {
-    // Once only: development's double-mount would otherwise open two links.
+    // Once only: development's double-mount would otherwise open two rooms.
     if (autoJoined.current) return;
     autoJoined.current = true;
     const s = live.current;
     if (s.phase === 'menu' && s.code && cleanName(s.me.name)) join(s.code, s.me.name);
   }, [join]);
+
+  /* Coming back to the foreground: a phone that slept through a round or two
+     asks where things stand rather than trusting what it last saw. */
+  useEffect(() => {
+    const onVisible = () => {
+      const s = live.current;
+      if (document.visibilityState === 'visible' && s.synced && s.phase !== 'menu') {
+        void call({ action: 'sync' });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [call]);
+
+  /* Going away without leaving keeps the seat: a reload comes back to it. */
+  useEffect(() => () => { dropRoom(); }, [dropRoom]);
 
   /* ---------------- the question this player sees ---------------- */
 
@@ -346,9 +235,7 @@ export function useVersus(): VersusApi {
     // The state and question type are already agreed; the scaffolding around
     // them is this player's own, from a generator of its own, so the opponent's
     // level cannot perturb these options.
-    return buildAsk(
-      BY[round.abbr], round.qm, DIFFS[state.me.dif], askRng(state.cfg.seed, state.round),
-    );
+    return askFor(state.cfg.seed, state.round, round, state.me.dif);
   }, [round, state.cfg, state.me.dif, state.round]);
 
   const limitMs = useMemo(() => {
@@ -361,8 +248,7 @@ export function useVersus(): VersusApi {
     return roundLimitMs(round.qm, difs);
   }, [round, state.difs, state.me.dif, state.them]);
 
-  /* Sample the clock while one is on screen. The first sample is taken up
-     front so the ring starts full rather than a tick behind. */
+  /* Sample the clock while one is on screen. */
   useEffect(() => {
     if (state.phase !== 'question' && state.phase !== 'countdown') return;
     const id = setInterval(() => setNow(Date.now()), 100);
@@ -385,13 +271,15 @@ export function useVersus(): VersusApi {
     const s = live.current;
     if (s.phase !== 'question' || s.myAnswers[s.round] != null) return;
     const ms = Date.now() - s.startedAt;
+    // Graded here for an instant reveal; the server grades again from the
+    // same seed, and its row replaces this one when it lands.
     const points = scoreAnswer(correct, ms, limitMs || 1);
     const answer: RoundAnswer = { correct, ms, points, pick: value, timeout };
     dispatch({ type: 'answer', round: s.round, answer });
-    send({ t: 'ans', round: s.round, correct, ms, points, pick: value, timeout });
+    void call({ action: 'answer', round: s.round, pick: value, ms, timeout });
     // A short buzz for right, a stutter for wrong. Silent where unsupported.
     if (!timeout && navigator.vibrate) navigator.vibrate(correct ? 18 : [0, 35, 55, 35]);
-  }, [limitMs, send]);
+  }, [limitMs, call]);
 
   const answerChoice = useCallback((abbr: Abbr) => {
     if (ask) submit(abbr, abbr === ask.answer, false);
@@ -434,21 +322,30 @@ export function useVersus(): VersusApi {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase, state.round, state.myAnswers, state.theirAnswers]);
 
-  /* Only the host decides when to move on, so the two screens stay in step. */
+  /* Only the host moves the match on, so the two screens stay in step. The
+     server has the last word on whether the round is over, and its clock
+     started a beat before this one did, so a refusal is asked again shortly. */
   useEffect(() => {
     if (state.phase !== 'reveal' || !state.isHost) return;
-    const id = setTimeout(() => {
-      const next = live.current.round + 1;
-      if (next >= live.current.plan.length) {
-        send({ t: 'end' });
-        finishMatch();
-      } else {
-        send({ t: 'nxt', round: next });
-        dispatch({ type: 'advance', round: next, at: Date.now() });
+    let cancelled = false;
+    let tries = 0;
+    const attempt = async () => {
+      const s = live.current;
+      if (cancelled || s.phase !== 'reveal') return;
+      try {
+        takeSnapshot(await callVersus({ action: 'advance', code: s.code, playerId: s.me.id }));
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 422 && ++tries < ADVANCE_TRIES) {
+          setTimeout(() => { void attempt(); }, ADVANCE_RETRY_MS);
+        } else {
+          dispatch({ type: 'setError', error: err instanceof ApiError ? err.message : OFFLINE });
+        }
       }
-    }, REVEAL_MS);
-    return () => clearTimeout(id);
-  }, [state.phase, state.round, state.isHost, send, finishMatch]);
+    };
+    const id = setTimeout(() => { void attempt(); }, REVEAL_MS);
+    return () => { cancelled = true; clearTimeout(id); };
+  }, [state.phase, state.round, state.isHost, takeSnapshot]);
 
   /* The countdown hands off to the first question. */
   useEffect(() => {
@@ -460,22 +357,6 @@ export function useVersus(): VersusApi {
     return () => clearTimeout(id);
   }, [state.phase, state.startedAt]);
 
-  /* Both ready in the lobby: the host starts the match. */
-  useEffect(() => {
-    if (!state.isHost || state.phase !== 'lobby') return;
-    if (!state.me.ready || !state.them?.ready || !state.me.id) return;
-    const cfg: MatchConfig = {
-      seed: matchSeed(state.code, state.matchNo),
-      mode: state.draft.mode,
-      rounds: state.draft.rounds,
-      scope: state.draft.scope,
-    };
-    const difs = { [state.me.id]: state.me.dif, [state.them.id]: state.them.dif };
-    send({ t: 'go', cfg, difs });
-    dispatch({ type: 'startMatch', cfg, difs, at: Date.now() });
-  }, [state.isHost, state.phase, state.me.ready, state.me.id, state.me.dif,
-    state.them, state.code, state.matchNo, state.draft, send]);
-
   /* ---------------- outward actions ---------------- */
 
   const setName = useCallback((name: string) => {
@@ -485,48 +366,34 @@ export function useVersus(): VersusApi {
 
   const setDif = useCallback((dif: DiffKey) => {
     dispatch({ type: 'setDif', dif });
-    send({ t: 'dif', dif });
-  }, [send]);
+    void call({ action: 'player', dif });
+  }, [call]);
 
   const setReady = useCallback((ready: boolean) => {
     dispatch({ type: 'setReady', ready });
-    send({ t: 'rdy', ready });
-  }, [send]);
+    void call({ action: 'player', ready });
+  }, [call]);
 
   const setDraft = useCallback((draft: { mode?: ModeKey; rounds?: number; scope?: Scope }) => {
     dispatch({ type: 'setDraft', draft });
-    const next = { ...live.current.draft, ...draft };
-    send({ t: 'cfg', mode: next.mode, rounds: next.rounds, scope: next.scope });
-  }, [send]);
+    void call({ action: 'settings', ...draft });
+  }, [call]);
 
-  const rematch = useCallback(() => {
-    send({ t: 'again' });
-    // The host restarts both sides; a guest is taken back when the host does.
-    if (live.current.isHost) dispatch({ type: 'rematch' });
-  }, [send]);
+  /* The host restarts both sides; a guest's ask registers on the host's screen. */
+  const rematch = useCallback(() => { void call({ action: 'again' }); }, [call]);
 
-  /* Leaving on purpose is the one thing that closes a room. A reload, a
-     discarded tab or a dropped connection is deliberately not treated as one:
-     the peer sees a plain disconnect and waits, the URL still carries the
-     code, and whoever dropped comes back on it. Sending a farewell from the
-     unload events instead would tell the guest the room had closed and note
-     it as closed here, while the guest's screen — if the farewell never got
-     through — kept waiting for a host their own device now refuses to let
-     back in. Those two screens must never disagree, so unload sends nothing. */
+  /* Leaving on purpose is the one thing that gives a seat up: the host's
+     leaving closes the room, a guest's hands the host the waiting room. The
+     server is told and not waited for; this screen is gone either way. */
   const leave = useCallback(() => {
     const s = live.current;
-    // The host's leaving closes the room for good; note it on this side too,
-    // so opening the old invite here is refused rather than searched.
-    if (s.isHost && s.phase !== 'menu') {
-      rememberClosed(s.code);
-      forgetHosted();
+    if (s.code && s.phase !== 'menu') {
+      void callVersus({ action: 'leave', code: s.code, playerId: s.me.id }).catch(() => { /* gone anyway */ });
     }
-    dropLink(true);
+    dropRoom();
     clearUrlCode();
     dispatch({ type: 'leave' });
-  }, [dropLink]);
-
-  useEffect(() => () => { dropLink(true); }, [dropLink]);
+  }, [dropRoom]);
 
   return {
     state,
@@ -538,10 +405,6 @@ export function useVersus(): VersusApi {
     theirTotal: totalOf(state.theirAnswers),
     answered: state.myAnswers[state.round] != null,
     board,
-    relays,
-    turn,
-    // The path belongs to a peer; there is none to describe once they are gone.
-    path: pathOf && pathOf.id === state.them?.id ? pathOf.path : null,
     clearBoard: () => setBoard([]),
     host, join, setName, setDif, setReady, setDraft,
     answerChoice, answerText, answerMap, rematch, leave,

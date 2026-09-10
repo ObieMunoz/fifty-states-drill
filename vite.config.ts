@@ -2,16 +2,17 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
-// The site is a GitHub Pages *project* page, served from
-// https://obiemunoz.github.io/fifty-states-drill/, so every asset URL needs
-// that prefix. `vite dev` and `vite preview` honour it too, which keeps local
-// runs on the same paths as production.
-const base = '/fifty-states-drill/';
+// Served from the root of its own domain on Vercel. The old GitHub Pages
+// address, which needed a path prefix, now only redirects here.
+const base = '/';
+
+/** The commit being built: Vercel and Actions each name it their own way. */
+const commit = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA;
 
 export default defineConfig({
   // Stamped onto the Versus screens, so two phones can be checked against
-  // each other. Actions sets GITHUB_SHA; a local build has no commit to name.
-  define: { __BUILD__: JSON.stringify(process.env.GITHUB_SHA?.slice(0, 7) ?? 'dev') },
+  // each other. A local build has no commit to name.
+  define: { __BUILD__: JSON.stringify(commit?.slice(0, 7) ?? 'dev') },
   plugins: [
     react(),
     // Installable on iOS, Android and desktop, and usable offline: the map

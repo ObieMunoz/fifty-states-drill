@@ -1,7 +1,6 @@
 import { BUILD } from '../../build';
 import { DIFFS, DIFF_KEYS, MODES } from '../../data/modes';
 import { REGS, ST } from '../../data/states';
-import { describePath } from '../../versus/path';
 import { ROUND_CHOICES, VERSUS_MODES } from '../../versus/types';
 import type { VersusApi } from '../../versus/useVersus';
 import type { DiffKey, ModeKey, Scope } from '../../types';
@@ -59,7 +58,7 @@ export function VersusLobby({ api }: { api: VersusApi }) {
       <p className="vs-fine">
         {DIFFS[me.dif].blurb}
         <span className="vs-diag">
-          {api.path ? `${describePath(api.path)} · ` : ''}Build {BUILD}
+          {state.link === 'lost' ? 'Reconnecting · ' : ''}Build {BUILD}
         </span>
       </p>
 
@@ -73,7 +72,8 @@ export function VersusLobby({ api }: { api: VersusApi }) {
           {me.ready ? 'Ready — tap to cancel' : "I'm ready"}
         </button>
         <p className="vs-foot-note" role="status">
-          {!them ? `Waiting for ${state.lastOpponent || 'the other player'} to reconnect…`
+          {!them ? 'Waiting for another player…'
+            : !them.present ? `Waiting for ${them.name} to reconnect…`
             : bothReady ? 'Starting…'
               : me.ready ? `Waiting for ${them.name}…`
                 : them.ready ? `${them.name} is ready` : 'Both players tap ready to start'}

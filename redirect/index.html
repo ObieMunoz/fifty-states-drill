@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fifty States Drill has moved</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+  body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;
+    background:#E7EAE4;color:#1d2420;padding:24px;box-sizing:border-box}
+  main{max-width:28rem;text-align:center}
+  a{color:#0b6e63;font-weight:600}
+  @media (prefers-color-scheme:dark){body{background:#0F1412;color:#e6ebe7}a{color:#6fd3c4}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Fifty States Drill has moved</h1>
+  <p>Taking you to the new address, with your progress. If nothing happens,
+    <a id="go" href="https://fifty-states-drill.vercel.app/">carry on here</a>.</p>
+  <p>If you had the app on your home screen, add it again from the new address.</p>
+</main>
+<script>
+/* The new home. Everything a device saved here goes across in the URL
+   fragment, which never leaves the browser, and src/migrate.ts on the other
+   side imports it once. The keys mirror HANDOFF_KEYS there. */
+(function () {
+  var NEW_ORIGIN = 'https://fifty-states-drill.vercel.app';
+  var KEYS = [
+    'fiftyStatesDrill.v1',
+    'fiftyStatesDrill.theme',
+    'fiftyStatesDrill.versus.name',
+    'fiftyStatesDrill.versus.leaderboard.v1'
+  ];
+  var data = {};
+  var any = false;
+  try {
+    for (var i = 0; i < KEYS.length; i++) {
+      var v = localStorage.getItem(KEYS[i]);
+      if (v !== null) { data[KEYS[i]] = v; any = true; }
+    }
+  } catch (e) { /* blocked storage: nothing to carry */ }
+
+  var url = NEW_ORIGIN + '/';
+  if (any) {
+    var json = JSON.stringify({ v: 1, data: data });
+    var bytes = new TextEncoder().encode(json);
+    var bin = '';
+    for (var j = 0; j < bytes.length; j++) bin += String.fromCharCode(bytes[j]);
+    var b64 = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    url += '#import=' + b64;
+  }
+  document.getElementById('go').href = url;
+
+  /* The old service worker is told to stand down first, so this page is
+     what loads next time rather than the cached app shell. */
+  var swDone = ('serviceWorker' in navigator)
+    ? navigator.serviceWorker.getRegistrations().then(function (rs) {
+        return Promise.all(rs.map(function (r) { return r.unregister(); }));
+      }).catch(function () {})
+    : Promise.resolve();
+  var cachesDone = ('caches' in window)
+    ? caches.keys().then(function (ks) {
+        return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+      }).catch(function () {})
+    : Promise.resolve();
+  Promise.all([swDone, cachesDone]).then(function () { location.replace(url); });
+})();
+</script>
+</body>
+</html>

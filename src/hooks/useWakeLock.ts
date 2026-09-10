@@ -5,10 +5,10 @@ import { useEffect } from 'react';
  *
  * A phone left face-up on the table while the other player types the code is
  * the ordinary way to host, and a phone that dims and locks freezes the page:
- * the relay sockets drop, the announcements stop, and the guest searches for a
- * host who is there but asleep. The browser releases the lock itself when the
- * page is hidden, so it is asked for again on coming back. Where the API is
- * missing, or the request is refused, nothing changes.
+ * its link to the room drops, and it sleeps through the guest arriving. The
+ * browser releases the lock itself when the page is hidden, so it is asked
+ * for again on coming back. Where the API is missing, or the request is
+ * refused, nothing changes.
  */
 export function useWakeLock(active: boolean): void {
   useEffect(() => {

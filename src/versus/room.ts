@@ -41,12 +41,6 @@ export function normalizeCode(raw: string): string {
 export const isCompleteCode = (code: string): boolean =>
   normalizeCode(code).length === CODE_LENGTH;
 
-/**
- * The trystero room id. Namespaced so a code cannot collide with any other
- * room this app might use later.
- */
-export const roomIdFor = (code: string): string => `fsd-versus-${normalizeCode(code)}`;
-
 /** The link a guest opens to land straight in the room. */
 export function joinUrl(code: string): string {
   const { origin, pathname } = window.location;
@@ -77,100 +71,6 @@ export function clearUrlCode(): void {
   const clean = window.location.hash.replace(/[#&]versus=[A-Za-z0-9]*/g, '');
   history.replaceState(null, '', window.location.pathname + window.location.search
     + (clean && clean !== '#' ? clean : ''));
-}
-
-/**
- * Rooms this device has seen close, so a stale invite can be refused at once.
- *
- * There is no server to ask whether a room is still open. What is known is
- * that a room does not outlive its host: hosting again draws a fresh code, and
- * nobody else can take the old one over. So the host notes the code when it
- * leaves, and a guest notes it when told the host has gone. Joining that code
- * again from either device is then refused on the spot, rather than after a
- * thirty-second search for a host who is not coming. A device with no such
- * note gets the search, and then the same explanation.
- *
- * Only leaving on purpose counts. A reload, a discarded tab or a dropped
- * connection is not the host giving the room up: the guest waits for them,
- * and they come back on the same code — as a guest by claim, with the host
- * role settled again on meeting — so nothing is noted then.
- *
- * Notes expire after a day. Codes are dealt at random and one will come round
- * again eventually; a day is long past when anyone would still be holding it.
- */
-const CLOSED_KEY = 'fiftyStatesDrill.versus.closed.v1';
-
-const CLOSED_TTL_MS = 24 * 60 * 60 * 1000;
-
-/** The codes still worth remembering, keyed to when each closed. */
-function readClosed(now: number): Record<string, number> {
-  let stored: unknown;
-  try {
-    stored = JSON.parse(localStorage.getItem(CLOSED_KEY) ?? '{}');
-  } catch {
-    return {};
-  }
-  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return {};
-  const live: Record<string, number> = {};
-  for (const [code, at] of Object.entries(stored as Record<string, unknown>)) {
-    if (typeof at === 'number' && now - at < CLOSED_TTL_MS) live[code] = at;
-  }
-  return live;
-}
-
-export function rememberClosed(code: string, now = Date.now()): void {
-  const clean = normalizeCode(code);
-  if (clean.length !== CODE_LENGTH) return;
-  try {
-    localStorage.setItem(CLOSED_KEY, JSON.stringify({ ...readClosed(now), [clean]: now }));
-  } catch {
-    // Storage is unavailable; a rejoin will search and time out instead.
-  }
-}
-
-export function isClosedRoom(code: string, now = Date.now()): boolean {
-  try {
-    return normalizeCode(code) in readClosed(now);
-  } catch {
-    return false;
-  }
-}
-
-/**
- * The room this device is hosting, so coming back to it claims the host role.
- *
- * Which side hosts is settled when the two devices meet, from what each one
- * claims. A creator who reloads, or opens a fresh tab and types their own
- * code, would otherwise come back claiming nothing, and the role would fall
- * to whichever peer id sorts lower — sometimes the guest. Then the creator's
- * Leave would read as a guest's, and the guest would be left waiting for a
- * host who had just closed the room on purpose. Noted here so the creator
- * claims the room again on return; cleared when they leave it on purpose.
- */
-const HOSTED_KEY = 'fiftyStatesDrill.versus.hosted';
-
-export function rememberHosted(code: string): void {
-  try {
-    localStorage.setItem(HOSTED_KEY, normalizeCode(code));
-  } catch {
-    // Storage is unavailable; the role falls back to the tie-break on return.
-  }
-}
-
-export function forgetHosted(): void {
-  try {
-    localStorage.removeItem(HOSTED_KEY);
-  } catch {
-    // Ignored, as above.
-  }
-}
-
-export function isHostedHere(code: string): boolean {
-  try {
-    return localStorage.getItem(HOSTED_KEY) === normalizeCode(code);
-  } catch {
-    return false;
-  }
 }
 
 /**

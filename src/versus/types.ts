@@ -28,6 +28,8 @@ export interface Player {
   ready: boolean;
   /** True for the player on this device. */
   self: boolean;
+  /** Whether their phone is on the room right now, as far as presence can tell. */
+  present: boolean;
 }
 
 /** One round, as planned identically on both devices from the seed. */
@@ -59,26 +61,68 @@ export type Phase =
   | 'reveal'
   | 'final';
 
-/** Connection status, surfaced so the UI can be honest about what is happening. */
-export type LinkState = 'idle' | 'searching' | 'linked' | 'lost' | 'error';
+/** This phone's own connection to the room, so the UI can be honest about it. */
+export type LinkState = 'idle' | 'linked' | 'lost' | 'error';
 
-/** A protocol message. Kept terse: these cross a data channel on a phone. */
-export type Msg =
-  | { t: 'hi'; name: string; dif: DiffKey; host: boolean; ver: number }
-  | { t: 'cfg'; mode: ModeKey; rounds: number; scope: Scope }
-  | { t: 'dif'; dif: DiffKey }
-  | { t: 'rdy'; ready: boolean }
-  | { t: 'go'; cfg: MatchConfig; difs: Record<string, DiffKey> }
-  | { t: 'ans'; round: number; correct: boolean; ms: number; points: number; pick: string | null; timeout: boolean }
-  | { t: 'nxt'; round: number }
-  | { t: 'end' }
-  | { t: 'again' }
+/** Where a room is in its life, as the server records it. */
+export type RoomStatus = 'waiting' | 'lobby' | 'playing' | 'final' | 'closed';
+
+/**
+ * The server's rows, as both the API and the phones see them.
+ *
+ * Snake case throughout: these are the database columns, and Realtime
+ * delivers them verbatim, so renaming on the way in would mean two shapes.
+ */
+export interface RoomRow {
+  code: string;
+  host_id: string;
+  status: RoomStatus;
+  mode: ModeKey;
+  rounds: number;
+  scope: Scope;
+  /** Counts up on every rematch; feeds the seed. */
+  match_no: number;
+  /** Set at kick-off; null in the lobby. */
+  seed: string | null;
+  /** Levels locked at kick-off, by player id. */
+  difs: Record<string, DiffKey> | null;
+  round: number;
   /**
-   * Leaving on purpose, as opposed to dropping off. From the host this closes
-   * the room: hosting again draws a fresh code, so a guest left behind would
-   * be waiting for nobody. From a guest it is just the peer going away.
+   * When the question on screen is meant to have appeared, on the server's
+   * clock. Kick-off plus the countdown at the start, then now on each advance.
+   * A phone that reloads mid-match resumes its clock from this.
    */
-  | { t: 'bye' };
+  round_started_at: string | null;
+  updated_at: string;
+}
 
-/** Bumped when the wire format changes in a way old clients cannot read. */
-export const PROTOCOL_VERSION = 1;
+export interface PlayerRow {
+  room_code: string;
+  id: string;
+  name: string;
+  dif: DiffKey;
+  ready: boolean;
+  wants_again: boolean;
+}
+
+export interface AnswerRow {
+  room_code: string;
+  match_no: number;
+  round: number;
+  player_id: string;
+  correct: boolean;
+  ms: number;
+  points: number;
+  pick: string | null;
+  timeout: boolean;
+}
+
+/** Everything about a room, as the API answers every call. */
+export interface Snapshot {
+  room: RoomRow;
+  players: PlayerRow[];
+  /** Answers for the current match only. */
+  answers: AnswerRow[];
+  /** The server's clock when this was taken, for recovering a round's timing. */
+  now: string;
+}

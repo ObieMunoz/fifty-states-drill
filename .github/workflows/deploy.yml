@@ -1,9 +1,13 @@
-name: Deploy to GitHub Pages
+name: Redirect the old address
 
+# The app itself deploys from Vercel on every push to main. The GitHub Pages
+# address it used to live at now serves only the redirect in redirect/, which
+# carries each device's saved progress across and retires the old service
+# worker. Keep publishing it: installed apps and bookmarks still point here.
 on:
   push:
     branches: [main]
-  # Lets a deploy be re-run from the Actions tab without a new commit.
+    paths: [redirect/**, .github/workflows/deploy.yml]
   workflow_dispatch:
 
 permissions:
@@ -11,41 +15,20 @@ permissions:
   pages: write
   id-token: write
 
-# One deploy at a time. In-flight runs finish rather than being cancelled, so a
-# push never leaves the site half-published.
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
-      - run: npm test
-      # `npm run build` type-checks first, so a type error fails the deploy.
-      # TURN_URL is a repository variable (Settings → Secrets and variables →
-      # Actions → Variables): where Versus fetches relay credentials. See the
-      # README's Versus section. Unset, Versus runs on STUN alone.
-      - run: npm run build
-        env:
-          VITE_TURN_URL: ${{ vars.TURN_URL }}
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: dist
-
   deploy:
-    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v7
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: redirect
       - id: deployment
         uses: actions/deploy-pages@v5

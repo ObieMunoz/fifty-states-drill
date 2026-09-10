@@ -1,5 +1,5 @@
 import { MODES } from '../../data/modes';
-import { COUNTDOWN_MS } from '../../versus/useVersus';
+import { COUNTDOWN_MS } from '../../versus/timing';
 import type { VersusApi } from '../../versus/useVersus';
 
 /** Three, two, one. Big enough to read from across a table. */

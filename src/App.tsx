@@ -19,7 +19,7 @@ import { RollPanel } from './components/panels/RollPanel';
 import { codeFromUrl } from './versus/room';
 import { applyPendingUpdate } from './pwa';
 
-/* Versus pulls in the peer-to-peer stack, which solo players never need. It is
+/* Versus pulls in the realtime client, which solo players never need. It is
    split out so the study modes stay as light as they were. */
 const VersusScreen = lazy(() => import('./components/versus/VersusScreen')
   .then((m) => ({ default: m.VersusScreen })));
