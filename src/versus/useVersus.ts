@@ -3,7 +3,7 @@ import {
 } from 'react';
 import { askFor, grade } from './grade';
 import { roundLimitMs, scoreAnswer } from './scoring';
-import { currentRound, initialVersus, reducer, totalOf } from './machine';
+import { currentRound, initialVersus, reducer, settledTotal } from './machine';
 import type { VersusState } from './machine';
 import { cleanName, displayName, loadName, saveName } from './identity';
 import { loadBoard, rankBoard, recordMatch } from './leaderboard';
@@ -28,11 +28,14 @@ export interface VersusApi {
   state: VersusState;
   /** The question as this player sees it, built at their own level. */
   ask: Ask | null;
+  /** The same round as the opponent saw it, so their pick can be read back in its own words. */
+  theirAsk: Ask | null;
   /** Milliseconds left in the round, or null outside a live question. */
   msLeft: number | null;
   limitMs: number;
   /** Milliseconds until the first question, while counting down. */
   countdownMs: number;
+  /** Points from rounds already revealed; the round in play is not yet counted. */
   myTotal: number;
   theirTotal: number;
   /** True once this side has an answer in for the round on screen. */
@@ -238,6 +241,13 @@ export function useVersus(): VersusApi {
     return askFor(state.cfg.seed, state.round, round, state.me.dif);
   }, [round, state.cfg, state.me.dif, state.round]);
 
+  const theirAsk = useMemo(() => {
+    if (!round || !state.cfg) return null;
+    // Their level is the one locked at kick-off; before it is, the lobby's.
+    const dif = (state.them && state.difs[state.them.id]) ?? state.them?.dif ?? 'standard';
+    return askFor(state.cfg.seed, state.round, round, dif);
+  }, [round, state.cfg, state.difs, state.them, state.round]);
+
   const limitMs = useMemo(() => {
     if (!round) return 0;
     // Levels are locked at kick-off; before then, use what the lobby shows.
@@ -277,8 +287,9 @@ export function useVersus(): VersusApi {
     const answer: RoundAnswer = { correct, ms, points, pick: value, timeout };
     dispatch({ type: 'answer', round: s.round, answer });
     void call({ action: 'answer', round: s.round, pick: value, ms, timeout });
-    // A short buzz for right, a stutter for wrong. Silent where unsupported.
-    if (!timeout && navigator.vibrate) navigator.vibrate(correct ? 18 : [0, 35, 55, 35]);
+    // One short tick to say the tap landed. Right or wrong waits for the
+    // reveal, like everything else about the round. Silent where unsupported.
+    if (!timeout && navigator.vibrate) navigator.vibrate(12);
   }, [limitMs, call]);
 
   const answerChoice = useCallback((abbr: Abbr) => {
@@ -321,6 +332,13 @@ export function useVersus(): VersusApi {
     // restarting this timer on every tick would push the deadline forever.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase, state.round, state.myAnswers, state.theirAnswers]);
+
+  /* The verdict lands with the reveal: a short buzz for right, a stutter for wrong. */
+  useEffect(() => {
+    if (state.phase !== 'reveal' || !navigator.vibrate) return;
+    const mine = live.current.myAnswers[state.round];
+    if (mine && !mine.timeout) navigator.vibrate(mine.correct ? 18 : [0, 35, 55, 35]);
+  }, [state.phase, state.round]);
 
   /* Only the host moves the match on, so the two screens stay in step. The
      server has the last word on whether the round is over, and its clock
@@ -398,11 +416,12 @@ export function useVersus(): VersusApi {
   return {
     state,
     ask: inMatch ? ask : null,
+    theirAsk: inMatch ? theirAsk : null,
     msLeft,
     limitMs,
     countdownMs,
-    myTotal: totalOf(state.myAnswers),
-    theirTotal: totalOf(state.theirAnswers),
+    myTotal: settledTotal(state, state.myAnswers),
+    theirTotal: settledTotal(state, state.theirAnswers),
     answered: state.myAnswers[state.round] != null,
     board,
     clearBoard: () => setBoard([]),

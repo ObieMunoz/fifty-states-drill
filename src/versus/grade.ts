@@ -1,9 +1,9 @@
 import { BY } from '../data/states';
 import { DIFFS } from '../data/modes';
-import { buildAsk, expectedText } from '../game/question';
+import { buildAsk, choiceLabel, expectedText } from '../game/question';
 import { near, norm } from '../lib/text';
 import { askRng } from './plan';
-import type { Ask, DiffKey, ModeKey } from '../types';
+import type { Abbr, Ask, DiffKey, ModeKey } from '../types';
 import type { PlannedRound } from './types';
 
 /**
@@ -27,4 +27,21 @@ export function grade(ask: Ask, qm: ModeKey, value: string): boolean {
   // A two-letter code has no near-misses: one edit is a different state.
   if (qm === 'code' && !ask.rev) return norm(value) === norm(expect);
   return near(value, expect);
+}
+
+/**
+ * What one answer looked like to the player who gave it, in words the other
+ * player can read: a tapped or chosen state by the label its question used,
+ * a typed answer as typed. Null when nothing went in.
+ *
+ * The pick is whatever the phone sent, so an abbreviation that names no state
+ * is shown as it came rather than looked up.
+ */
+export function pickLabel(ask: Ask, qm: ModeKey, pick: string | null): string | null {
+  if (pick === null) return null;
+  if (ask.choices || qm === 'find') {
+    const s = BY[pick as Abbr];
+    return s ? choiceLabel(ask, s.a) : pick;
+  }
+  return pick;
 }

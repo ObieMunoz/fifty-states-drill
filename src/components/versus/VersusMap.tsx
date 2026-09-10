@@ -2,8 +2,9 @@ import { useMemo, useRef } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { DC_PATH, ST } from '../../data/states';
 import { useViewBox } from '../../hooks/useViewBox';
-import { stateClass } from '../../versus/marks';
+import { pinsFor, stateClass } from '../../versus/marks';
 import type { MapMarks } from '../../versus/marks';
+import type { PlayerColor } from '../../versus/types';
 import type { Abbr, Box, State } from '../../types';
 
 /**
@@ -19,6 +20,9 @@ import type { Abbr, Box, State } from '../../types';
     Larger than the solo map's: this is a thumb on a phone, not a mouse. */
 const hitPad = (s: State) => (s.ar < 1200 ? 10 : s.ar < 4000 ? 5 : 1.5);
 
+/** A pin's radius in map units: readable on a phone at the full frame. */
+const PIN_R = 7;
+
 export interface VersusMapProps {
   zoom: Box;
   /** Lit while the question is live, e.g. the state Borders is asking about. */
@@ -29,16 +33,23 @@ export interface VersusMapProps {
   solo?: Abbr | null;
   /** What this player tapped. */
   picked?: Abbr | null;
+  /** What the opponent tapped. Painted only once revealed. */
+  theirPick?: Abbr | null;
   /** The right answer, revealed once the round is graded. */
   answer?: Abbr | null;
   revealed?: boolean;
+  /** Seat colours, so a live tap and the reveal's pins say whose they are. */
+  colors?: { mine: PlayerColor; theirs: PlayerColor };
   onPick?: (abbr: Abbr) => void;
   disabled?: boolean;
 }
 
+const DEFAULT_COLORS = { mine: 'teal', theirs: 'coral' } as const;
+
 export function VersusMap({
   zoom, highlight = null, divisionHint = null, solo = null,
-  picked = null, answer = null, revealed = false, onPick, disabled = false,
+  picked = null, theirPick = null, answer = null, revealed = false,
+  colors = DEFAULT_COLORS, onPick, disabled = false,
 }: VersusMapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   useViewBox(svgRef, zoom);
@@ -63,12 +74,14 @@ export function VersusMap({
 
   const live = !disabled && !!onPick && !revealed;
   // One object for the whole map rather than one per state.
-  const marks: MapMarks = { solo, highlight, divisionHint, picked, answer, revealed };
+  const marks: MapMarks = { solo, highlight, divisionHint, picked, theirPick, answer, revealed };
+  const pins = pinsFor(marks, colors);
 
   return (
     <svg
       ref={svgRef}
       className={`map vs-map${solo ? ' solo' : ''}`}
+      data-pc={colors.mine}
       role="img"
       aria-label="Map of the United States"
     >
@@ -84,6 +97,16 @@ export function VersusMap({
         ))}
         {!solo && <use href="#vp-DC" className="dc" />}
       </g>
+      {pins.length > 0 && (
+        <g className="vs-pins" aria-hidden="true">
+          {pins.map((p) => (
+            <g key={p.color} className="vs-pin" data-pc={p.color} transform={`translate(${p.x} ${p.y})`}>
+              <circle r={PIN_R} />
+              <circle r={PIN_R * 0.38} className="vs-pin-dot" />
+            </g>
+          ))}
+        </g>
+      )}
       <g
         className={`hit ${live ? 'live' : 'off'}`}
         onClick={(e) => {

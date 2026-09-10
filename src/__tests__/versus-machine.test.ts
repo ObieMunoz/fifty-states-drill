@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  correctOf, currentRound, initialVersus, matchResults, reducer, totalOf,
+  correctOf, currentRound, initialVersus, matchResults, reducer, settledTotal, totalOf,
 } from '../versus/machine';
 import type { VersusAction, VersusState } from '../versus/machine';
 import type { LiveSnapshot } from '../versus/live';
@@ -296,6 +296,68 @@ describe('scoring the match', () => {
     const s = playing();
     expect(totalOf(s.myAnswers)).toBe(0);
     expect(correctOf(s.myAnswers)).toBe(0);
+  });
+});
+
+describe('seat colours', () => {
+  it('gives the host teal and the guest coral', () => {
+    const s = lobby();
+    expect(s.me.color).toBe('teal');
+    expect(s.them?.color).toBe('coral');
+  });
+
+  it('agrees on both phones: the guest sees the same two colours the host does', () => {
+    const guest = reducer(entered(false), { type: 'snapshot', snap: snap({ host_id: 'them', status: 'lobby' }, both()), at: T });
+    expect(guest.me.color).toBe('coral');
+    expect(guest.them?.color).toBe('teal');
+  });
+
+  it('assumes the seat’s colour from the moment of entering, before the server answers', () => {
+    expect(entered(true).me.color).toBe('teal');
+    expect(entered(false).me.color).toBe('coral');
+  });
+
+  it('goes by the room, not by which button was pressed', () => {
+    const s = reducer(entered(true), { type: 'snapshot', snap: snap({ host_id: 'them', status: 'lobby' }, both()), at: T });
+    expect(s.me.color).toBe('coral');
+    expect(s.them?.color).toBe('teal');
+  });
+});
+
+describe('the score on screen', () => {
+  it('does not move for an answer to the round still in play', () => {
+    // The bug this guards: an answer is graded as it goes in, so the total
+    // moved before the reveal — and told the player whether they were right.
+    const s = reducer(playing(), { type: 'answer', round: 0, answer: ans({ points: 140 }) });
+    expect(totalOf(s.myAnswers)).toBe(140);
+    expect(settledTotal(s, s.myAnswers)).toBe(0);
+  });
+
+  it('nor for the other side’s answer, which arrives before the reveal too', () => {
+    const s = reducer(playing(), { type: 'snapshot', snap: snap(playingRoom(), both(), [row('them', 0, { points: 120 })]), at: T + 5000 });
+    expect(settledTotal(s, s.theirAnswers)).toBe(0);
+  });
+
+  it('counts the round once it is revealed', () => {
+    const answered = reducer(playing(), { type: 'answer', round: 0, answer: ans({ points: 140 }) });
+    const s = reducer(answered, { type: 'reveal' });
+    expect(settledTotal(s, s.myAnswers)).toBe(140);
+  });
+
+  it('keeps earlier rounds in while a later one is live', () => {
+    const revealed = reducer(reducer(playing(), { type: 'answer', round: 0, answer: ans({ points: 140 }) }), { type: 'reveal' });
+    const next = reducer(revealed, { type: 'snapshot', snap: snap(playingRoom({ round: 1, round_started_at: iso(T + 9000) }), both(), [row('me', 0, { points: 140 })]), at: T + 9000 });
+    expect(next.phase).toBe('question');
+    expect(next.round).toBe(1);
+    const s = reducer(next, { type: 'answer', round: 1, answer: ans({ points: 130 }) });
+    expect(settledTotal(s, s.myAnswers)).toBe(140);
+    expect(settledTotal(reducer(s, { type: 'reveal' }), s.myAnswers)).toBe(270);
+  });
+
+  it('counts everything at the final', () => {
+    const s = finished();
+    expect(settledTotal(s, s.myAnswers)).toBe(540);
+    expect(settledTotal(s, s.theirAnswers)).toBe(485);
   });
 });
 

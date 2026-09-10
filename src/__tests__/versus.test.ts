@@ -13,7 +13,8 @@ import {
 import { playerId } from '../versus/player';
 import { cleanName, displayName } from '../versus/identity';
 import { accuracy, loadBoard, rankBoard, recordMatch, resetBoard } from '../versus/leaderboard';
-import { stateClass } from '../versus/marks';
+import { askFor, pickLabel } from '../versus/grade';
+import { pinsFor, stateClass } from '../versus/marks';
 import type { MatchConfig } from '../versus/types';
 
 const cfg = (over: Partial<MatchConfig> = {}): MatchConfig =>
@@ -394,6 +395,66 @@ const base = () => ({
   points: 0, best: 0, correct: 0, asked: 0, last: 0,
 });
 
+describe('versus map pins', () => {
+  const colors = { mine: 'teal', theirs: 'coral' } as const;
+
+  it('draws nothing before the reveal', () => {
+    expect(pinsFor({ picked: 'NV', theirPick: 'CA' }, colors)).toEqual([]);
+  });
+
+  it('pins each tap in its player’s colour at the anchor', () => {
+    const pins = pinsFor({ picked: 'NV', theirPick: 'CA', answer: 'CA', revealed: true }, colors);
+    expect(pins.map((p) => [p.abbr, p.color])).toEqual([['NV', 'teal'], ['CA', 'coral']]);
+    expect(pins[0]).toMatchObject({ x: BY.NV.c[0], y: BY.NV.c[1] });
+    expect(pins[1]).toMatchObject({ x: BY.CA.c[0], y: BY.CA.c[1] });
+  });
+
+  it('sets two taps on one state side by side', () => {
+    const pins = pinsFor({ picked: 'NV', theirPick: 'NV', revealed: true }, colors);
+    expect(pins).toHaveLength(2);
+    expect(pins[0].x).toBeLessThan(BY.NV.c[0]);
+    expect(pins[1].x).toBeGreaterThan(BY.NV.c[0]);
+    expect(pins[0].y).toBe(pins[1].y);
+  });
+
+  it('skips a side that did not tap', () => {
+    expect(pinsFor({ picked: null, theirPick: 'CA', revealed: true }, colors).map((p) => p.color)).toEqual(['coral']);
+    expect(pinsFor({ picked: 'CA', theirPick: null, revealed: true }, colors).map((p) => p.color)).toEqual(['teal']);
+  });
+});
+
+describe('reading a pick back', () => {
+  const planned = { qm: 'capital', abbr: 'CA' } as const;
+
+  it('names a tapped state', () => {
+    const ask = askFor('s', 0, { qm: 'find', abbr: 'CA' }, 'standard');
+    expect(pickLabel(ask, 'find', 'NV')).toBe('Nevada');
+  });
+
+  it('labels a chosen option the way that player’s buttons did', () => {
+    // Guided picks a capital from four; the pick is the state's code.
+    const ask = askFor('s', 0, planned, 'guided');
+    expect(ask.choices).not.toBeNull();
+    expect(pickLabel(ask, 'capital', 'NV')).toBe('Carson City');
+  });
+
+  it('shows a typed answer as typed', () => {
+    const ask = askFor('s', 0, planned, 'standard');
+    expect(ask.choices).toBeNull();
+    expect(pickLabel(ask, 'capital', 'Sacremento')).toBe('Sacremento');
+  });
+
+  it('leaves a code that names no state as it came', () => {
+    const ask = askFor('s', 0, { qm: 'find', abbr: 'CA' }, 'standard');
+    expect(pickLabel(ask, 'find', 'ZZ')).toBe('ZZ');
+  });
+
+  it('has nothing to say for no answer', () => {
+    const ask = askFor('s', 0, planned, 'standard');
+    expect(pickLabel(ask, 'capital', null)).toBeNull();
+  });
+});
+
 describe('versus map marks', () => {
   const CA = BY.CA;  // Pacific
   const NV = BY.NV;  // Mountain
@@ -424,6 +485,16 @@ describe('versus map marks', () => {
     const marks = { picked: 'CA' as const, answer: 'CA' as const, revealed: true };
     expect(stateClass(CA, marks).split(' ')).toContain('ok');
     expect(stateClass(CA, marks).split(' ')).not.toContain('bad');
+  });
+
+  it('keeps the other side’s tap to itself until the reveal', () => {
+    // Their row lands the moment they answer; painting it early would show a
+    // player who has not answered yet where to tap.
+    const live = stateClass(NV, { picked: null, theirPick: 'NV', answer: 'CA' }).split(' ');
+    expect(live).not.toContain('pick');
+    expect(live).not.toContain('bad');
+    expect(stateClass(NV, { theirPick: 'NV', answer: 'CA', revealed: true }).split(' ')).toContain('bad');
+    expect(stateClass(CA, { theirPick: 'CA', answer: 'CA', revealed: true }).split(' ')).toContain('ok');
   });
 
   it('keeps a pick outside the guided division legible', () => {
