@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { MODES } from './data/modes';
 import type { ModeKind } from './types';
 import { GameContext } from './game/context';
@@ -16,7 +16,8 @@ import { ProgressPanel } from './components/panels/ProgressPanel';
 import { QuizPanel } from './components/panels/QuizPanel';
 import { RecallPanel } from './components/panels/RecallPanel';
 import { RollPanel } from './components/panels/RollPanel';
-import { codeFromUrl } from './versus/room';
+import { currentRoute, modeRoute, onRouteChange, writeRoute } from './router';
+import type { Route } from './router';
 import { applyPendingUpdate } from './pwa';
 
 /* Versus pulls in the realtime client, which solo players never need. It is
@@ -35,13 +36,49 @@ const RETRY_FLASH_MS = 700;
 const DETAIL_KINDS = new Set<ModeKind>(['explore', 'letters', 'hooks', 'weak']);
 
 export function App() {
-  // An invite link opens straight into versus rather than the study map.
-  const [versus, setVersus] = useState(() => codeFromUrl() !== null);
-  const [state, dispatch] = useReducer(reducer, undefined, () => initialState(loadProgress()));
+  // The URL says where to start: a mode, the Versus menu, or a room by invite.
+  const [route0] = useState(currentRoute);
+  const [versus, setVersus] = useState(route0.kind === 'versus');
+  const [state, dispatch] = useReducer(reducer, undefined, () => {
+    const s = initialState(loadProgress());
+    return route0.kind === 'mode' && route0.mode !== s.mode
+      ? reducer(s, { type: 'setMode', mode: route0.mode })
+      : s;
+  });
   const api = useMemo(() => ({ state, dispatch }), [state]);
 
   const { mode, qm, ask, locked, scope, dif, progress } = state;
   const kind = MODES[mode].kind;
+
+  /* The address bar follows the app. On load the URL is corrected in place:
+     an unknown path becomes home, and an old-style invite fragment becomes
+     the room's path. After that every change is a history entry, so back
+     walks through the modes visited. Inside a room, useVersus writes the
+     code segment; this only has to get the screen onto /versus at all. */
+  const booted = useRef(false);
+  useLayoutEffect(() => {
+    if (!booted.current) {
+      booted.current = true;
+      writeRoute(currentRoute(), true);
+      return;
+    }
+    if (versus) {
+      if (!window.location.pathname.startsWith('/versus')) writeRoute({ kind: 'versus', code: null });
+      return;
+    }
+    writeRoute(modeRoute(mode));
+  }, [versus, mode]);
+
+  /* Back and forward. Leaving Versus this way unmounts its screen, which
+     tells the room; arriving opens the menu, or the room named in the URL.
+     Read through refs so the listener is installed once. */
+  const at = useRef({ versus, mode });
+  useEffect(() => { at.current = { versus, mode }; }, [versus, mode]);
+  useEffect(() => onRouteChange((route: Route) => {
+    if (route.kind === 'versus') { setVersus(true); return; }
+    if (at.current.versus) { setVersus(false); applyPendingUpdate(); }
+    if (route.mode !== at.current.mode) dispatch({ type: 'setMode', mode: route.mode });
+  }), []);
 
   /* Draw the next question whenever one is called for. Kept in an effect
      because it uses randomness, which would make the reducer impure. */

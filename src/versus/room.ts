@@ -42,16 +42,22 @@ export const isCompleteCode = (code: string): boolean =>
   normalizeCode(code).length === CODE_LENGTH;
 
 /** The link a guest opens to land straight in the room. */
-export function joinUrl(code: string): string {
-  const { origin, pathname } = window.location;
-  return `${origin}${pathname}#versus=${normalizeCode(code)}`;
+export function joinUrl(code: string, origin = window.location.origin): string {
+  return `${origin}/versus/${normalizeCode(code)}`;
 }
 
-/** The room code in the current URL, if the page was opened from an invite. */
-export function codeFromUrl(hash = window.location.hash): string | null {
-  const m = /[#&]versus=([A-Za-z0-9]+)/.exec(hash);
+/**
+ * The room code in a URL, if the page was opened from an invite. Rooms live
+ * at `/versus/CODE`; the fragment form, `#versus=CODE`, is what invites
+ * carried before rooms had a path, and those links still work.
+ */
+export function codeFromUrl(
+  pathname = window.location.pathname,
+  hash = window.location.hash,
+): string | null {
+  const m = /^\/versus\/([^/]+)\/?$/.exec(pathname) ?? /[#&]versus=([A-Za-z0-9]+)/.exec(hash);
   if (!m) return null;
-  const code = normalizeCode(m[1]);
+  const code = normalizeCode(decodeURIComponent(m[1]));
   return code.length === CODE_LENGTH ? code : null;
 }
 
@@ -59,18 +65,16 @@ export function codeFromUrl(hash = window.location.hash): string | null {
  * Put the room in the URL, so a reload lands back in it rather than on the
  * menu. A guest who arrived by invite already has it; this gives the host,
  * and a guest who typed the code, the same way back after a dropped tab.
+ * Replaces rather than pushes: the room is where /versus led, not a step past it.
  */
 export function setUrlCode(code: string): void {
-  const { pathname, search } = window.location;
-  history.replaceState(null, '', `${pathname}${search}#versus=${normalizeCode(code)}`);
+  history.replaceState(null, '', `/versus/${normalizeCode(code)}${window.location.search}`);
 }
 
 /** Drop the room from the URL on the way out, so a reload does not rejoin it. */
 export function clearUrlCode(): void {
-  if (!window.location.hash) return;
-  const clean = window.location.hash.replace(/[#&]versus=[A-Za-z0-9]*/g, '');
-  history.replaceState(null, '', window.location.pathname + window.location.search
-    + (clean && clean !== '#' ? clean : ''));
+  if (!/^\/versus\//.test(window.location.pathname) && !window.location.hash) return;
+  history.replaceState(null, '', `/versus${window.location.search}`);
 }
 
 /**

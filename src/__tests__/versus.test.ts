@@ -8,7 +8,7 @@ import {
   BASE_POINTS, SPEED_POINTS, isTyped, outcomeOf, roundLimitMs, scoreAnswer,
 } from '../versus/scoring';
 import {
-  CODE_LENGTH, codeFromUrl, isCompleteCode, matchSeed, newRoomCode, normalizeCode,
+  CODE_LENGTH, codeFromUrl, isCompleteCode, joinUrl, matchSeed, newRoomCode, normalizeCode,
 } from '../versus/room';
 import { playerId } from '../versus/player';
 import { cleanName, displayName } from '../versus/identity';
@@ -254,13 +254,20 @@ describe('room codes', () => {
     expect(store.get('fiftyStatesDrill.versus.player')).toBe(id);
   });
 
-  it('reads a code out of an invite hash', () => {
-    expect(codeFromUrl('#versus=ACDE')).toBe('ACDE');
-    expect(codeFromUrl('#versus=acde')).toBe('ACDE');
-    expect(codeFromUrl('#other=1&versus=ACDE')).toBe('ACDE');
-    expect(codeFromUrl('#versus=AC')).toBeNull();
-    expect(codeFromUrl('')).toBeNull();
-    expect(codeFromUrl('#nothing')).toBeNull();
+  it('reads a code out of an invite path, or the fragment older invites carry', () => {
+    expect(codeFromUrl('/versus/ACDE', '')).toBe('ACDE');
+    expect(codeFromUrl('/versus/acde/', '')).toBe('ACDE');
+    expect(codeFromUrl('/versus/AC', '')).toBeNull();
+    expect(codeFromUrl('/versus', '')).toBeNull();
+    expect(codeFromUrl('/', '#versus=ACDE')).toBe('ACDE');
+    expect(codeFromUrl('/', '#other=1&versus=ACDE')).toBe('ACDE');
+    expect(codeFromUrl('/', '#versus=AC')).toBeNull();
+    expect(codeFromUrl('/', '')).toBeNull();
+    expect(codeFromUrl('/quiz/mixed', '#nothing')).toBeNull();
+  });
+
+  it('builds the invite link on the room path', () => {
+    expect(joinUrl('acde', 'https://fifty-states-drill.vercel.app')).toBe('https://fifty-states-drill.vercel.app/versus/ACDE');
   });
 
   it('seeds each match in a room differently', () => {

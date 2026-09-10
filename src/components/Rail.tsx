@@ -28,9 +28,17 @@ export function Rail({ onVersus }: { onVersus: () => void }) {
     <header className="rail">
       <div className="wordmark"><b>Fifty States</b><span>Drill</span></div>
       <div className="rail-right">
-        <button type="button" className="vs-open" onClick={onVersus}>
+        <a
+          className="vs-open"
+          href="/versus"
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+            e.preventDefault();
+            onVersus();
+          }}
+        >
           Versus
-        </button>
+        </a>
         <label className="railsel lvl">
           <span className="eyebrow">Level</span>
           <select

@@ -1,5 +1,20 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/versus/:code",
+      "destination": "/api/invite?code=:code"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "functions": {
+    "api/invite.ts": {
+      "includeFiles": "dist/index.html"
+    }
+  },
   "crons": [
     { "path": "/api/keepalive", "schedule": "0 9 * * *" }
   ]
