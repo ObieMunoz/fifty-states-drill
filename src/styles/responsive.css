@@ -3,11 +3,24 @@
 /* ---- mode bar wraps once there are many modes ---- */
 @media (min-width:900px){.modebar{flex-wrap:wrap;overflow:visible}}
 
+/* Phones: the rail cannot fit on one line, and letting flex wrap it leaves
+   the wordmark alone on top with everything else crowded bottom-right. Lay it
+   out as two deliberate rows instead: wordmark and Versus on the first, then
+   Level, the two tallies and Theme spread across the second. `.rail-right`
+   dissolves into the grid so its children can be placed directly. */
 @media (max-width:680px){
   .wordmark b{font-size:16.5px}
   .railsel span{display:none}
-  .rail{gap:10px;padding:9px 12px}
-  .rail-right{gap:11px}
+  .rail{display:grid;grid-template-columns:auto 1fr auto auto auto;align-items:center;
+    column-gap:12px;row-gap:9px;padding:9px 12px;
+    grid-template-areas:"mark mark mark mark vs" "lvl . a b theme"}
+  .rail-right{display:contents}
+  .wordmark{grid-area:mark}
+  .vs-open{grid-area:vs;align-self:center;padding:7px 10px}
+  .railsel.lvl{grid-area:lvl}
+  .rail-right>.stat:not(.hot){grid-area:a}
+  .stat.hot{grid-area:b}
+  .railsel:not(.lvl){grid-area:theme}
   .stat b{font-size:14.5px}
   .stat span{font-size:8.5px;letter-spacing:.08em}
   .stat.solid{display:none}
@@ -17,7 +30,5 @@
   .choices{grid-template-columns:1fr}
   .grp ul{grid-template-columns:1fr}
   .wordmark span{display:none}
-  .rail{padding:9px 12px;gap:10px}
-  .rail-right{gap:11px}
   .modebar{padding:7px 12px}
 }
