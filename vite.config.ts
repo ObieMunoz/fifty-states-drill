@@ -59,6 +59,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        // The link-preview card is fetched by messaging apps' servers, never
+        // by the page, so it has no place in the offline shell.
+        globIgnores: ['**/node_modules/**/*', 'og.png'],
         runtimeCaching: [
           {
             // The Google Fonts stylesheet changes with browser support, so

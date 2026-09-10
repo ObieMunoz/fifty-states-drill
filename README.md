@@ -223,6 +223,7 @@ npm run dev        # http://localhost:5173/
 | `npm run lint` | ESLint over the app, the API and the tests. |
 | `npm run typecheck` | Types only, no build. |
 | `node scripts/make-icons.mjs` | Redraws the app icon and favicon into `public/`. Needs `rsvg-convert` and `magick`. |
+| `node scripts/make-og.mjs` | Redraws the link-preview card into `public/og.png`. Needs `rsvg-convert`, and the network once for the fonts. |
 
 ### Icon and PWA
 
@@ -230,7 +231,12 @@ The icon is the mainland outline from `src/data/states.json`, unioned into one
 shape by `scripts/make-icons.mjs`, with Missouri lit in the answer colour. The script
 writes the SVG favicon, a legacy `.ico`, the Apple touch icon and the 192/512 px
 Android icons (plain and maskable) into `public/`; the outputs are committed, so it
-only runs again when the mark changes.
+only runs again when the mark changes. `scripts/make-og.mjs` draws the same mark
+onto the 1200 × 630 card that iMessage, Slack and X show under a link
+(`public/og.png`); `index.html` points the Open Graph and Twitter tags at it with
+absolute addresses, since the preview is fetched by their servers, not the browser.
+A Versus invite is the app's address plus `#versus=CODE`, and the hash never
+reaches the server, so an invite shows the same card as the app link.
 
 `vite.config.ts` configures `vite-plugin-pwa`, which writes `manifest.webmanifest`
 and a Workbox service worker into `dist/` at build time. The worker precaches the
