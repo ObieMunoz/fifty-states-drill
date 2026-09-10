@@ -10,7 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  */
 let client: SupabaseClient | null = null;
 
-export const UNCONFIGURED = 'Versus is not set up on this deployment: the Supabase address and key are missing.';
+const UNCONFIGURED = 'Versus is not set up on this deployment: the Supabase address and key are missing.';
 
 export function supabase(): SupabaseClient {
   if (client) return client;

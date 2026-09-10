@@ -17,7 +17,7 @@ export const THEME_LABELS: Record<Theme, string> = {
 
 const isTheme = (v: unknown): v is Theme => (THEMES as unknown[]).includes(v);
 
-export function loadTheme(): Theme {
+function loadTheme(): Theme {
   try {
     const raw = localStorage.getItem(THEME_KEY);
     if (isTheme(raw)) return raw;

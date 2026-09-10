@@ -305,7 +305,7 @@ export function useVersus(): VersusApi {
   /* ---------------- round and match flow ---------------- */
 
   /* Both answers in ends the round at once. One answer in starts a grace
-     period, so a peer that has gone quiet cannot stall the match. */
+     period, so an opponent who has gone quiet cannot stall the match. */
   useEffect(() => {
     if (state.phase !== 'question') return;
     const mine = state.myAnswers[state.round];
