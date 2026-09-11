@@ -1,4 +1,4 @@
-import type { Snapshot } from './types';
+import type { Receipt, Snapshot } from './types';
 
 /**
  * Calls to the room API. One endpoint, one shape back: the whole room.
@@ -19,7 +19,7 @@ export class ApiError extends Error {
 
 export const OFFLINE = 'Could not reach the server. Check your connection and try again.';
 
-export async function callVersus(input: Record<string, unknown>): Promise<Snapshot> {
+async function call(input: Record<string, unknown>): Promise<unknown> {
   let res: Response;
   try {
     res = await fetch('/api/versus', {
@@ -43,5 +43,13 @@ export async function callVersus(input: Record<string, unknown>): Promise<Snapsh
       : `The server answered ${res.status}.`;
     throw new ApiError(res.status, error);
   }
-  return body as Snapshot;
+  return body;
 }
+
+/** A call about a room: the whole room comes back. */
+export const callVersus = (input: Record<string, unknown>): Promise<Snapshot> =>
+  call(input) as Promise<Snapshot>;
+
+/** A call about this phone — where its notifications go — which answers with a receipt. */
+export const callPhone = (input: Record<string, unknown>): Promise<Receipt> =>
+  call(input) as Promise<Receipt>;

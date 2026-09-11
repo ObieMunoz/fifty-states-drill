@@ -72,9 +72,15 @@ export function VersusWaiting({ api }: { api: VersusApi }) {
             ? <span>Reconnecting…</span>
             : state.lastOpponent
               ? <span>{state.lastOpponent} left. Waiting for the next player…</span>
-              : state.isHost
-                ? <span>Waiting for the other player…</span>
-                : <span>Taking a seat…</span>}
+              : state.invite
+                ? state.invite.sent === null
+                  ? <span>Pinging {state.invite.name}…</span>
+                  : state.invite.sent
+                    ? <span>{state.invite.name}’s phone has been pinged. Waiting for them…</span>
+                    : <span className="vs-error">{state.invite.name} couldn’t be reached: their notifications are off. Share the link instead.</span>
+                : state.isHost
+                  ? <span>Waiting for the other player…</span>
+                  : <span>Taking a seat…</span>}
       </div>
 
       <p className="vs-fine">

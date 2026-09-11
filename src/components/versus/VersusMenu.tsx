@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { BUILD } from '../../build';
 import { MAX_NAME, cleanName, clearName } from '../../versus/identity';
 import { CODE_LENGTH, isCompleteCode, normalizeCode } from '../../versus/room';
+import { usePush } from '../../versus/usePush';
+import { Friends } from './Friends';
 import { Leaderboard } from './Leaderboard';
+import { Notifications } from './Notifications';
 import type { VersusApi } from '../../versus/useVersus';
 
 /**
@@ -24,6 +27,7 @@ export function VersusMenu({ api, onExit }: { api: VersusApi; onExit: () => void
   const [code, setCode] = useState(state.code);
   const nameRef = useRef<HTMLInputElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
+  const push = usePush();
 
   useEffect(() => {
     if (mode === 'join') codeRef.current?.focus();
@@ -163,11 +167,20 @@ export function VersusMenu({ api, onExit }: { api: VersusApi; onExit: () => void
         </div>
       )}
 
+      <Friends
+        friends={api.friends}
+        canAsk={named}
+        onAsk={(f) => api.requestRematch(f, name)}
+        onRemove={api.removeFriend}
+      />
+
+      <Notifications push={push} />
+
       <Leaderboard rows={api.board} onCleared={api.clearBoard} />
 
       <p className="vs-fine">
         A room lives on the server only while you play. Nobody signs in, and the standings
-        above never leave this device.
+        and friends above never leave this device.
         <span className="vs-diag">Build {BUILD}</span>
       </p>
     </div>

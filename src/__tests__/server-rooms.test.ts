@@ -1,20 +1,37 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { BY } from '../data/states';
-import { RoomError, expireRooms, versus } from '../../server/rooms';
+import { RoomError, expireRooms, phone, versus } from '../../server/rooms';
 import type { Db } from '../../server/rooms';
+import type { Pusher } from '../../server/push';
 import { planMatch } from '../versus/plan';
 import { roundLimitMs, scoreAnswer } from '../versus/scoring';
-import { COUNTDOWN_MS, GRACE_MS, ROOM_TTL_MS } from '../versus/timing';
-import type { AnswerRow, PlayerRow, RoomRow, Snapshot } from '../versus/types';
+import {
+  COUNTDOWN_MS, GRACE_MS, PAIRING_TTL_MS, REMATCH_COOLDOWN_MS, ROOM_TTL_MS,
+} from '../versus/timing';
+import type {
+  AnswerRow, PairingRow, PlayerRow, RoomRow, Snapshot, SubscriptionRow,
+} from '../versus/types';
 
-function memoryDb(): Db & { rooms: Map<string, RoomRow>; players: PlayerRow[]; answers: AnswerRow[] } {
+interface MemoryDb extends Db {
+  rooms: Map<string, RoomRow>;
+  players: PlayerRow[];
+  answers: AnswerRow[];
+  subs: SubscriptionRow[];
+  pairings: PairingRow[];
+}
+
+function memoryDb(): MemoryDb {
   const rooms = new Map<string, RoomRow>();
   let players: PlayerRow[] = [];
   let answers: AnswerRow[] = [];
+  let subs: SubscriptionRow[] = [];
+  let pairings: PairingRow[] = [];
   return {
     rooms,
     get players() { return players; },
     get answers() { return answers; },
+    get subs() { return subs; },
+    get pairings() { return pairings; },
     async getRoom(code) { return rooms.get(code) ?? null; },
     async insertRoom(row) {
       if (rooms.has(row.code)) return false;
@@ -55,6 +72,27 @@ function memoryDb(): Db & { rooms: Map<string, RoomRow>; players: PlayerRow[]; a
           n++;
         }
       }
+      return n;
+    },
+    async getSubscription(endpoint) { return subs.find((r) => r.endpoint === endpoint) ?? null; },
+    async getSubscriptions(playerId) { return subs.filter((r) => r.player_id === playerId); },
+    async upsertSubscription(row) {
+      subs = [...subs.filter((r) => r.endpoint !== row.endpoint), { ...row }];
+    },
+    async deleteSubscription(endpoint, playerId) {
+      subs = subs.filter((r) => r.endpoint !== endpoint || (playerId !== undefined && r.player_id !== playerId));
+    },
+    async getPairing(aId, bId) { return pairings.find((r) => r.a_id === aId && r.b_id === bId) ?? null; },
+    async upsertPairing(row) {
+      pairings = [...pairings.filter((r) => !(r.a_id === row.a_id && r.b_id === row.b_id)), { ...row }];
+    },
+    async deletePairing(aId, bId) {
+      pairings = pairings.filter((r) => !(r.a_id === aId && r.b_id === bId));
+    },
+    async deletePairingsBefore(before) {
+      const keep = pairings.filter((r) => new Date(r.played_at) >= before);
+      const n = pairings.length - keep.length;
+      pairings = keep;
       return n;
     },
   };
@@ -320,18 +358,19 @@ describe('advancing', () => {
   });
 });
 
-describe('rematch and leaving', () => {
-  const finished = async (): Promise<Snapshot> => {
-    let s = await playing('find', 5);
-    for (let r = 0; r < 5; r++) {
-      const when = questionTime(s, 1000);
-      await call({ action: 'answer', code: s.room.code, playerId: 'host', round: r, pick: 'CA', ms: 1000, timeout: false }, when);
-      await call({ action: 'answer', code: s.room.code, playerId: 'guest', round: r, pick: 'CA', ms: 1000, timeout: false }, when);
-      s = await call({ action: 'advance', code: s.room.code, playerId: 'host' }, new Date(when.getTime() + 1));
-    }
-    return s;
-  };
+/** A whole match played through, ending on the final screen. */
+async function finished(): Promise<Snapshot> {
+  let s = await playing('find', 5);
+  for (let r = 0; r < 5; r++) {
+    const when = questionTime(s, 1000);
+    await call({ action: 'answer', code: s.room.code, playerId: 'host', round: r, pick: 'CA', ms: 1000, timeout: false }, when);
+    await call({ action: 'answer', code: s.room.code, playerId: 'guest', round: r, pick: 'CA', ms: 1000, timeout: false }, when);
+    s = await call({ action: 'advance', code: s.room.code, playerId: 'host' }, new Date(when.getTime() + 1));
+  }
+  return s;
+}
 
+describe('rematch and leaving', () => {
   it('notes a guest asking again, and lets the host restart on a fresh seed', async () => {
     const s = await finished();
     const code = s.room.code;
@@ -401,5 +440,161 @@ describe('sync and housekeeping', () => {
     expect(err).toBeInstanceOf(RoomError);
     expect((err as RoomError).status).toBe(404);
     expect((err as RoomError).message).toMatch(/room/i);
+  });
+});
+
+describe('rematch requests', () => {
+  const sub = (playerId: string, n = 1) => ({
+    action: 'subscribe', playerId,
+    subscription: { endpoint: `https://push.example/${playerId}/${n}`, keys: { p256dh: 'p', auth: 'a' } },
+  });
+
+  /** A push service that records what it was sent and answers as told. */
+  function recorder(answer: (endpoint: string) => 'sent' | 'gone' | 'failed' = () => 'sent') {
+    const sent: { endpoint: string; payload: Record<string, unknown>; ttl: number }[] = [];
+    const pusher: Pusher = {
+      async send(to, payload, ttl) {
+        sent.push({ endpoint: to.endpoint, payload: JSON.parse(payload) as Record<string, unknown>, ttl });
+        return answer(to.endpoint);
+      },
+    };
+    return { sent, pusher };
+  }
+
+  const ask = (input: Record<string, unknown>, pusher: Pusher | null, now = T0) =>
+    versus(db, { action: 'rematch', playerId: 'host', to: 'guest', name: 'Obie', dif: 'standard', ...input }, now, pusher);
+
+  it('keeps a phone’s subscription against its player, and lets it go again', async () => {
+    expect(await phone(db, sub('guest'))).toEqual({ ok: true });
+    expect(await phone(db, sub('guest', 2))).toEqual({ ok: true });
+    expect(db.subs.map((r) => r.player_id)).toEqual(['guest', 'guest']);
+    // Only the owner may drop a row.
+    await phone(db, { action: 'unsubscribe', playerId: 'host', endpoint: 'https://push.example/guest/1' });
+    expect(db.subs).toHaveLength(2);
+    await phone(db, { action: 'unsubscribe', playerId: 'guest', endpoint: 'https://push.example/guest/1' });
+    expect(db.subs.map((r) => r.endpoint)).toEqual(['https://push.example/guest/2']);
+  });
+
+  it('refuses a subscription that is not one', async () => {
+    await expect(phone(db, { action: 'subscribe', playerId: 'g', subscription: { endpoint: 'http://x', keys: { p256dh: 'p', auth: 'a' } } }))
+      .rejects.toMatchObject({ status: 400 });
+    await expect(phone(db, { action: 'subscribe', playerId: 'g', subscription: { endpoint: 'https://x', keys: { p256dh: 'p' } } }))
+      .rejects.toMatchObject({ status: 400 });
+    await expect(versus(db, { action: 'subscribe', playerId: 'g' }, T0)).rejects.toMatchObject({ status: 400 });
+    await expect(phone(db, { action: 'sync', code: 'ACDE', playerId: 'g' })).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('moves a rotated subscription to the new endpoint without a player id', async () => {
+    await phone(db, sub('guest'));
+    await phone(db, {
+      action: 'resubscribe', endpoint: 'https://push.example/guest/1',
+      subscription: { endpoint: 'https://push.example/rotated', keys: { p256dh: 'p2', auth: 'a2' } },
+    });
+    expect(db.subs).toEqual([{ endpoint: 'https://push.example/rotated', player_id: 'guest', p256dh: 'p2', auth: 'a2' }]);
+    await expect(phone(db, { action: 'resubscribe', endpoint: 'https://push.example/nope', subscription: { endpoint: 'https://x', keys: { p256dh: 'p', auth: 'a' } } }))
+      .rejects.toMatchObject({ status: 404 });
+  });
+
+  it('pairs the two players once a match ends, whoever is in the room by then', async () => {
+    const s = await playing('find', 5);
+    expect(db.pairings).toEqual([]);
+    await finished();
+    expect(db.pairings).toEqual([expect.objectContaining({ a_id: 'guest', b_id: 'host', invited_by: null })]);
+    // A room in play pairs nobody.
+    expect(db.pairings.every((p) => p.played_at)).toBe(true);
+    expect(s.room.status).toBe('playing');
+  });
+
+  it('only reaches someone the player has finished a match with', async () => {
+    await phone(db, sub('guest'));
+    const { pusher, sent } = recorder();
+    await expect(ask({}, pusher)).rejects.toMatchObject({ status: 403 });
+    await expect(ask({ to: 'host' }, pusher)).rejects.toMatchObject({ status: 400 });
+    expect(sent).toEqual([]);
+    expect(db.rooms.size).toBe(0);
+  });
+
+  it('opens a room for the requester and pings every phone the friend has', async () => {
+    await finished();
+    await phone(db, sub('guest', 1));
+    await phone(db, sub('guest', 2));
+    const { pusher, sent } = recorder();
+    const s = await ask({}, pusher, at(60_000));
+    expect(s.room).toMatchObject({ host_id: 'host', status: 'waiting' });
+    expect(s.players).toEqual([expect.objectContaining({ id: 'host', name: 'Obie' })]);
+    expect(s.notified).toBe(true);
+    expect(sent.map((x) => x.endpoint).sort()).toEqual(['https://push.example/guest/1', 'https://push.example/guest/2']);
+    expect(sent[0].payload).toEqual({ kind: 'rematch', code: s.room.code, from: 'Obie' });
+    expect(sent[0].ttl).toBe(30 * 60);
+    expect(db.pairings[0]).toMatchObject({ invited_by: 'host', invited_at: at(60_000).toISOString() });
+  });
+
+  it('still opens the room when the friend cannot be reached, and says so', async () => {
+    await finished();
+    const { pusher, sent } = recorder();
+    const s = await ask({}, pusher);
+    expect(s.room.status).toBe('waiting');
+    expect(s.notified).toBe(false);
+    expect(sent).toEqual([]);
+    // Nothing was sent, so nothing starts the cooldown.
+    expect(db.pairings[0].invited_by).toBeNull();
+    // No push service configured at all reads the same way.
+    await phone(db, sub('guest'));
+    expect((await ask({}, null)).notified).toBe(false);
+  });
+
+  it('drops a subscription the push service says is gone', async () => {
+    await finished();
+    await phone(db, sub('guest', 1));
+    await phone(db, sub('guest', 2));
+    const { pusher } = recorder((e) => (e.endsWith('/1') ? 'gone' : 'sent'));
+    const s = await ask({}, pusher);
+    expect(s.notified).toBe(true);
+    expect(db.subs.map((r) => r.endpoint)).toEqual(['https://push.example/guest/2']);
+    // A transient failure keeps the row.
+    const failing = recorder(() => 'failed');
+    const again = await ask({}, failing.pusher, at(REMATCH_COOLDOWN_MS + 1));
+    expect(again.notified).toBe(false);
+    expect(db.subs).toHaveLength(1);
+  });
+
+  it('will not ping the same friend twice in a minute, but the other side may', async () => {
+    await finished();
+    await phone(db, sub('guest'));
+    await phone(db, sub('host'));
+    const { pusher, sent } = recorder();
+    await ask({}, pusher, T0);
+    await expect(ask({}, pusher, at(REMATCH_COOLDOWN_MS - 1))).rejects.toMatchObject({ status: 429 });
+    expect(sent).toHaveLength(1);
+    expect(db.rooms.size).toBe(2); // the finished room and the first request's
+    // The friend answering with a request of their own is not a repeat.
+    const back = await ask({ playerId: 'guest', to: 'host', name: 'Sam' }, pusher, at(1000));
+    expect(back.notified).toBe(true);
+    expect(sent[1]).toMatchObject({ endpoint: 'https://push.example/host/1', payload: { from: 'Sam' } });
+    // And after a minute, so may the first side.
+    expect((await ask({}, pusher, at(REMATCH_COOLDOWN_MS + 1))).notified).toBe(true);
+  });
+
+  it('playing again clears the pending request, and forgetting cuts the link both ways', async () => {
+    await finished();
+    await phone(db, sub('guest'));
+    const { pusher } = recorder();
+    await ask({}, pusher);
+    expect(db.pairings[0].invited_by).toBe('host');
+    await finished();
+    expect(db.pairings).toHaveLength(1);
+    expect(db.pairings[0].invited_by).toBeNull();
+    await phone(db, { action: 'forget', playerId: 'guest', to: 'host' });
+    expect(db.pairings).toEqual([]);
+    await expect(ask({}, pusher, at(REMATCH_COOLDOWN_MS + 1))).rejects.toMatchObject({ status: 403 });
+    await expect(ask({ playerId: 'guest', to: 'host' }, pusher)).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('sweeps pairings of players who have not met in months', async () => {
+    await finished();
+    await expireRooms(db, at(PAIRING_TTL_MS - 1));
+    expect(db.pairings).toHaveLength(1);
+    await expireRooms(db, at(PAIRING_TTL_MS + 60_000));
+    expect(db.pairings).toEqual([]);
   });
 });

@@ -8,8 +8,10 @@ import type { VersusState } from './machine';
 import { cleanName, displayName, loadName, saveName } from './identity';
 import { loadBoard, rankBoard, recordMatch } from './leaderboard';
 import type { LeaderRow } from './leaderboard';
+import { addFriend as keepFriend, loadFriends, removeFriend as dropFriend, touchFriend } from './friends';
+import type { Friend } from './friends';
 import { clearUrlCode, codeFromUrl, normalizeCode, setUrlCode } from './room';
-import { ApiError, OFFLINE, callVersus } from './client';
+import { ApiError, OFFLINE, callPhone, callVersus } from './client';
 import { openLive } from './live';
 import type { Live } from './live';
 import { playerId } from './player';
@@ -43,6 +45,14 @@ export interface VersusApi {
   /** This device's standings, refreshed the moment a match is folded in. */
   board: LeaderRow[];
   clearBoard: () => void;
+  /** Opponents this device has chosen to keep, most recently played first. */
+  friends: Friend[];
+  /** Keep the opponent of the match just finished. */
+  addFriend: () => void;
+  /** Drop them here, and cut the link on the server so neither side can ping the other. */
+  removeFriend: (id: string) => void;
+  /** Open a room and send a friend a notification about it, playing under `name`. */
+  requestRematch: (friend: Friend, name?: string) => void;
   host: (name: string) => void;
   join: (code: string, name: string) => void;
   setName: (name: string) => void;
@@ -84,6 +94,7 @@ export function useVersus(): VersusApi {
   const [now, setNow] = useState(() => Date.now());
   /* Read once at mount, then replaced by whatever `recordMatch` returns. */
   const [board, setBoard] = useState<LeaderRow[]>(() => rankBoard(loadBoard()));
+  const [friends, setFriends] = useState<Friend[]>(() => loadFriends());
   /** The match already folded into the standings, so a repeat cannot double it. */
   const recorded = useRef('');
 
@@ -110,6 +121,8 @@ export function useVersus(): VersusApi {
         outcome: outcome === 'win' ? 'loss' : outcome === 'loss' ? 'win' : 'draw',
       },
     ]));
+    // A friend's line moves to the top and takes the name they used today.
+    if (them) setFriends(touchFriend({ id: them.id, name: displayName(them.name) }));
   }, []);
 
   const takeSnapshot = useCallback((snap: Snapshot) => {
@@ -400,6 +413,56 @@ export function useVersus(): VersusApi {
   /* The host restarts both sides; a guest's ask registers on the host's screen. */
   const rematch = useCallback(() => { void call({ action: 'again' }); }, [call]);
 
+  /* ---------------- friends ---------------- */
+
+  const addFriend = useCallback(() => {
+    const s = live.current;
+    const who = s.them ?? (s.lastOpponentId ? { id: s.lastOpponentId, name: s.lastOpponent } : null);
+    if (who) setFriends(keepFriend({ id: who.id, name: displayName(who.name, 'Opponent') }));
+  }, []);
+
+  const removeFriend = useCallback((id: string) => {
+    setFriends(dropFriend(id));
+    void callPhone({ action: 'forget', playerId: live.current.me.id, to: id }).catch(() => {
+      // The list here is what the player sees; the server link goes when it can.
+    });
+  }, []);
+
+  /**
+   * A rematch request is hosting a room with a friend told about it. It
+   * leaves any room this side is still in — a finished match's, usually —
+   * since the request opens a fresh one, and a refusal comes back to the
+   * menu with the reason rather than leaving an empty waiting room up.
+   */
+  const requestRematch = useCallback(async (friend: Friend, name = live.current.me.name) => {
+    const s = live.current;
+    if (s.phase !== 'menu' && s.code) {
+      void callVersus({ action: 'leave', code: s.code, playerId: s.me.id }).catch(() => { /* gone anyway */ });
+    }
+    dropRoom();
+    const clean = displayName(name);
+    saveName(clean);
+    dispatch({ type: 'setName', name: clean });
+    dispatch({ type: 'enter', code: '', asHost: true, invite: friend.name });
+    let snap: Snapshot;
+    try {
+      snap = await callVersus({ action: 'rematch', playerId: s.me.id, to: friend.id, name: clean, dif: s.me.dif });
+    } catch (err) {
+      clearUrlCode();
+      dispatch({ type: 'leave' });
+      dispatch({ type: 'setError', error: err instanceof ApiError ? err.message : OFFLINE });
+      return;
+    }
+    setUrlCode(snap.room.code);
+    try {
+      listen(snap.room.code);
+      room.current?.seed(snap);
+    } catch (err) {
+      dispatch({ type: 'setError', error: err instanceof Error ? err.message : String(err) });
+    }
+    dispatch({ type: 'invited', sent: snap.notified === true });
+  }, [dropRoom, listen]);
+
   /* Leaving on purpose is the one thing that gives a seat up: the host's
      leaving closes the room, a guest's hands the host the waiting room. The
      server is told and not waited for; this screen is gone either way. */
@@ -425,6 +488,8 @@ export function useVersus(): VersusApi {
     answered: state.myAnswers[state.round] != null,
     board,
     clearBoard: () => setBoard([]),
+    friends, addFriend, removeFriend,
+    requestRematch: (friend, name) => { void requestRematch(friend, name); },
     host, join, setName, setDif, setReady, setDraft,
     answerChoice, answerText, answerMap, rematch, leave,
   };
