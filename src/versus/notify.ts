@@ -56,3 +56,24 @@ export function noticeFor(p: PushPayload): Notice {
     tag: `rematch:${p.code}`,
   };
 }
+
+/**
+ * What the service worker tells an open page when a notification is tapped:
+ * go to this room. Sent rather than navigating the page from the worker,
+ * which browsers do inconsistently once an installed app is in the
+ * background — the page itself changes screen, and joins.
+ */
+export interface OpenRoomMessage {
+  type: 'OPEN_ROOM';
+  code: string;
+}
+
+export const openRoomMessage = (code: string): OpenRoomMessage => ({ type: 'OPEN_ROOM', code });
+
+/** The room code a message carries, or null for any other message. */
+export function roomFromMessage(data: unknown): string | null {
+  const m = data as Partial<OpenRoomMessage> | null;
+  if (!m || m.type !== 'OPEN_ROOM' || typeof m.code !== 'string') return null;
+  const code = m.code.replace(/[^A-Z0-9]/g, '').slice(0, 8);
+  return code || null;
+}

@@ -18,7 +18,7 @@ import { RecallPanel } from './components/panels/RecallPanel';
 import { RollPanel } from './components/panels/RollPanel';
 import { currentRoute, modeRoute, onRouteChange, writeRoute } from './router';
 import type { Route } from './router';
-import { applyPendingUpdate } from './pwa';
+import { applyPendingUpdate, onOpenRoom } from './pwa';
 
 /* Versus pulls in the realtime client, which solo players never need. It is
    split out so the study modes stay as light as they were. */
@@ -39,6 +39,8 @@ export function App() {
   // The URL says where to start: a mode, the Versus menu, or a room by invite.
   const [route0] = useState(currentRoute);
   const [versus, setVersus] = useState(route0.kind === 'versus');
+  /** Bumped to remount Versus on a new room, so it reads the code afresh and joins. */
+  const [roomKey, setRoomKey] = useState(0);
   const [state, dispatch] = useReducer(reducer, undefined, () => {
     const s = initialState(loadProgress());
     return route0.kind === 'mode' && route0.mode !== s.mode
@@ -78,6 +80,16 @@ export function App() {
     if (route.kind === 'versus') { setVersus(true); return; }
     if (at.current.versus) { setVersus(false); applyPendingUpdate(); }
     if (route.mode !== at.current.mode) dispatch({ type: 'setMode', mode: route.mode });
+  }), []);
+
+  /* A tapped rematch notification names a room. The URL is set to it and
+     Versus mounted anew, which is the same path an invite link takes: the
+     screen reads the code on the way in and joins with the saved name. A
+     room already open is left by the old screen's unmount. */
+  useEffect(() => onOpenRoom((code) => {
+    writeRoute({ kind: 'versus', code }, true);
+    setVersus(true);
+    setRoomKey((k) => k + 1);
   }), []);
 
   /* Draw the next question whenever one is called for. Kept in an effect
@@ -151,7 +163,7 @@ export function App() {
     <GameContext.Provider value={api}>
       {versus && (
         <Suspense fallback={<div className="vs-root vs-boot">Loading versus…</div>}>
-          <VersusScreen onExit={() => { setVersus(false); applyPendingUpdate(); }} />
+          <VersusScreen key={roomKey} onExit={() => { setVersus(false); applyPendingUpdate(); }} />
         </Suspense>
       )}
       <div className="app">

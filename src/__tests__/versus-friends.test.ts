@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MAX_FRIENDS, addFriend, agoLabel, loadFriends, removeFriend, touchFriend } from '../versus/friends';
-import { noticeFor, parsePayload, rematchPayload } from '../versus/notify';
+import { noticeFor, openRoomMessage, parsePayload, rematchPayload, roomFromMessage } from '../versus/notify';
 
 const store = new Map<string, string>();
 
@@ -103,5 +103,15 @@ describe('rematch notifications', () => {
     expect(n.body).toMatch(/ACDE/);
     expect(n.url).toBe('/versus/ACDE');
     expect(n.tag).toBe('rematch:ACDE');
+  });
+});
+
+describe('the tap on a notification', () => {
+  it('tells the page which room, and the page reads only that', () => {
+    expect(roomFromMessage(openRoomMessage('ACDE'))).toBe('ACDE');
+    expect(roomFromMessage({ type: 'OPEN_ROOM', code: 'ac/de' })).toBeNull();
+    expect(roomFromMessage({ type: 'SKIP_WAITING' })).toBeNull();
+    expect(roomFromMessage('ACDE')).toBeNull();
+    expect(roomFromMessage(null)).toBeNull();
   });
 });
