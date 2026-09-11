@@ -82,6 +82,11 @@ export function supabaseDb(): Db {
       check(error);
       return data?.length ?? 0;
     },
+    async getWaitingRoomsHostedBy(hostId) {
+      const { data, error } = await sb.from('rooms').select('*').eq('host_id', hostId).eq('status', 'waiting');
+      check(error);
+      return (data as RoomRow[] | null) ?? [];
+    },
     async getSubscription(endpoint) {
       const { data, error } = await sb.from('push_subscriptions').select('*').eq('endpoint', endpoint).maybeSingle();
       check(error);
