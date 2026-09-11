@@ -2,11 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { BY } from '../../data/states';
 import { DIFFS, MODES } from '../../data/modes';
 import { choiceLabel } from '../../game/question';
+import { useCountUp } from '../../hooks/useCountUp';
 import { fitBox, fullBox } from '../../lib/geo';
 import { pickLabel } from '../../versus/grade';
-import { currentRound } from '../../versus/machine';
-import { isTyped } from '../../versus/scoring';
+import { currentRound, roundTaker, settledUpTo, verdictsOf } from '../../versus/machine';
+import type { VersusState } from '../../versus/machine';
+import { breakdown, isFinalRound, isTyped, streakBefore } from '../../versus/scoring';
+import type { Bonus } from '../../versus/scoring';
 import { colorOf } from '../../versus/types';
+import { ReactionBubbles, ReactionTray } from './Reactions';
+import { SoundToggle } from './SoundToggle';
 import { VersusMap } from './VersusMap';
 import type { VersusApi } from '../../versus/useVersus';
 import type { Abbr, Ask, DiffKey, ModeKey } from '../../types';
@@ -15,20 +20,30 @@ import type { PlayerColor, RoundAnswer } from '../../versus/types';
 /** Longer prompts drop a size so they still fit two lines on a phone. */
 const LONG_HEAD = 20;
 
+/** How long the totals wait after the reveal lands before rolling up. */
+const TOTAL_DELAY_MS = 650;
+
 /** The opponent's colour: theirs if they are still here, else the seat they had. */
 const theirColor = (api: VersusApi): PlayerColor =>
   api.state.them?.color ?? colorOf(!api.state.isHost);
 
+const theirName = (api: VersusApi): string =>
+  api.state.them?.name || api.state.lastOpponent || 'Opponent';
+
+const secs = (ms: number): string => `${(ms / 1000).toFixed(1)}s`;
+
 /**
- * The match itself: a scoreline that never moves, the question, and answers
- * big enough to hit with a thumb without looking.
+ * The match itself: a scoreline that only moves at the reveal, the round's
+ * story so far in a row of pips, the question, and answers big enough to
+ * hit with a thumb without looking.
  *
  * Each player has a seat colour that is the same on both phones, and every
- * mark that says "whose" — the scoreline, a tap on the map, the reveal's
- * chips — carries it, so what the other player did reads as theirs at once.
+ * mark that says "whose" — the scoreline, a pip, a tap on the map, the
+ * reveal's chips and banner — carries it, so what the other player did
+ * reads as theirs at once.
  */
 export function VersusPlay({ api }: { api: VersusApi }) {
-  const { state, ask, msLeft, limitMs, answered } = api;
+  const { state, ask, msLeft, limitMs, answered, worth } = api;
   const round = currentRound(state);
   const revealing = state.phase === 'reveal';
 
@@ -37,25 +52,45 @@ export function VersusPlay({ api }: { api: VersusApi }) {
   const mine = state.myAnswers[state.round];
   const theirs = state.theirAnswers[state.round];
   const frac = limitMs > 0 && msLeft !== null ? msLeft / limitMs : 1;
+  const low = frac < 0.25;
+  const finalRound = isFinalRound(state.round, state.plan.length);
+  // They are in and this side is not: the clock just got louder.
+  const pressure = !!theirs && !theirs.timeout && !answered && !revealing;
 
   return (
     <div className="vs-sheet vs-play">
       <ScoreBar api={api} />
+      <RoundPips state={state} them={theirName(api)} theirColor={theirColor(api)} />
 
       <div className="vs-clock" aria-hidden="true">
-        <i style={{ transform: `scaleX(${frac})` }} className={frac < 0.25 ? 'low' : undefined} />
+        <i style={{ transform: `scaleX(${frac})` }} className={low ? 'low' : undefined} />
       </div>
 
       <div className="vs-round-line">
         <span className="eyebrow">
           Round {state.round + 1} of {state.plan.length} · {MODES[round.qm].label}
         </span>
-        {msLeft !== null && (
-          <span className={`vs-secs mono${frac < 0.25 ? ' low' : ''}`}>
-            {Math.ceil(msLeft / 1000)}s
-          </span>
-        )}
+        {finalRound && <i className="vs-x2" role="img" aria-label="Double points">2×</i>}
+        <span className="vs-round-right">
+          {worth > 0 && (
+            <span className={`vs-worth mono${low ? ' low' : ''}`} aria-label={`Worth ${worth} points right now`}>
+              +{worth}
+            </span>
+          )}
+          {msLeft !== null && (
+            <span className={`vs-secs mono${low ? ' low' : ''}`}>
+              {Math.ceil(msLeft / 1000)}s
+            </span>
+          )}
+          <SoundToggle />
+        </span>
       </div>
+
+      {pressure && (
+        <p className="vs-pressure" role="status" data-pc={theirColor(api)}>
+          <b>{theirName(api)}</b> is in · {secs(theirs.ms)}
+        </p>
+      )}
 
       <Question
         key={state.round}
@@ -74,11 +109,14 @@ export function VersusPlay({ api }: { api: VersusApi }) {
 /**
  * The two running totals, always in the same place so a glance is enough.
  *
- * They count revealed rounds only. The dot says an answer is in; whether it
- * scored is the reveal's to say, and the totals move on the reveal.
+ * They count revealed rounds only, and roll up a beat after the reveal so
+ * the verdict lands first. The dot says an answer is in; the flame says how
+ * many in a row. Reactions float up from each player's side of it.
  */
 function ScoreBar({ api }: { api: VersusApi }) {
-  const { state, myTotal, theirTotal } = api;
+  const { state, myTotal, theirTotal, myStreak, theirStreak, reactions } = api;
+  const mine = useCountUp(myTotal, { delay: TOTAL_DELAY_MS });
+  const theirs = useCountUp(theirTotal, { delay: TOTAL_DELAY_MS });
   const lead = myTotal === theirTotal ? 'tie' : myTotal > theirTotal ? 'me' : 'them';
   const done = state.myAnswers[state.round] != null;
   const theyDone = state.theirAnswers[state.round] != null;
@@ -87,15 +125,62 @@ function ScoreBar({ api }: { api: VersusApi }) {
     <div className="vs-scores" data-lead={lead}>
       <div className="vs-score me" data-pc={state.me.color}>
         <span className="vs-score-name">{state.me.name}</span>
-        <b className="mono">{myTotal}</b>
+        <Flame n={myStreak} />
+        <b className="mono">{mine}</b>
         <i className={done ? 'in' : undefined} aria-label={done ? 'Answered' : 'Thinking'} />
       </div>
       <div className="vs-score them" data-pc={theirColor(api)}>
-        <span className="vs-score-name">{state.them?.name || state.lastOpponent || 'Opponent'}</span>
-        <b className="mono">{theirTotal}</b>
+        <span className="vs-score-name">{theirName(api)}</span>
+        <Flame n={theirStreak} />
+        <b className="mono">{theirs}</b>
         <i className={theyDone ? 'in' : undefined} aria-label={theyDone ? 'Answered' : 'Thinking'} />
       </div>
+      <ReactionBubbles reactions={reactions} them={theirName(api)} />
     </div>
+  );
+}
+
+/** A streak worth showing: two or more in a row. Remounted on change, which replays the pop. */
+function Flame({ n }: { n: number }) {
+  if (n < 2) return null;
+  return (
+    <span key={n} className="vs-flame" aria-label={`${n} in a row`}>
+      <svg viewBox="0 0 12 12" aria-hidden="true">
+        <path d="M6.2 0C6.4 2.6 3 4.1 3 7.3a3.2 3.2 0 0 0 6.4 0c0-1.5-.7-2.4-1.2-3.2-.3.9-.9 1.3-1.4 1.3.3-1.4-.1-3.6-.6-5.4z" />
+      </svg>
+      {n}
+    </span>
+  );
+}
+
+/**
+ * One pip per round: filled in the colour of whoever took it, grey for a
+ * split, a pulsing ring for the round in play and faint for what is left.
+ * The match's story so far, readable from across a table.
+ */
+function RoundPips({ state, them, theirColor: tc }: { state: VersusState; them: string; theirColor: PlayerColor }) {
+  const upTo = settledUpTo(state);
+  return (
+    <ol className="vs-pips" aria-label="Rounds so far">
+      {state.plan.map((_, i) => {
+        let cls: string;
+        let pc: PlayerColor | undefined;
+        let label: string;
+        if (i < upTo) {
+          const t = roundTaker(state.myAnswers[i] ?? null, state.theirAnswers[i] ?? null);
+          cls = t;
+          pc = t === 'me' ? state.me.color : t === 'them' ? tc : undefined;
+          label = t === 'me' ? 'yours' : t === 'them' ? `${them}’s` : 'split';
+        } else if (i === state.round && state.phase === 'question') {
+          cls = 'live';
+          label = 'in play';
+        } else {
+          cls = 'todo';
+          label = 'still to play';
+        }
+        return <li key={i} className={cls} data-pc={pc} aria-label={`Round ${i + 1}: ${label}`} />;
+      })}
+    </ol>
   );
 }
 
@@ -121,6 +206,25 @@ function Question({ api, ask, qm, revealing, answered, mine, theirs }: QuestionP
   useEffect(() => {
     if (typed && !answered && !revealing) inputRef.current?.focus({ preventScroll: true });
   }, [typed, answered, revealing]);
+
+  /* On a keyboard, 1–4 picks an option, as the solo quiz does. */
+  const { answerChoice } = api;
+  const choices = ask.choices;
+  useEffect(() => {
+    if (!choices || answered || revealing) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el?.tagName === 'INPUT' || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!/^[1-4]$/.test(e.key)) return;
+      const a = choices[Number(e.key) - 1];
+      if (a) {
+        e.preventDefault();
+        answerChoice(a);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [choices, answered, revealing, answerChoice]);
 
   const zoom = useMemo(() => {
     if (qm === 'shape') return fitBox([s], 0.06);
@@ -171,13 +275,15 @@ function Question({ api, ask, qm, revealing, answered, mine, theirs }: QuestionP
         <Reveal api={api} ask={ask} qm={qm} mine={mine} theirs={theirs} />
       ) : answered ? (
         <div className="vs-locked" role="status">
-          <b>Locked in.</b>
-          <span>{theirs ? 'Both in — here comes the answer.' : `Waiting for ${state.them?.name || state.lastOpponent || 'them'}…`}</span>
+          <b>Locked in{mine && !mine.timeout ? ` · ${secs(mine.ms)}` : ''}</b>
+          <span>{theirs ? 'Both in — here comes the answer.' : `Waiting for ${theirName(api)}…`}</span>
+          {!theirs && <ReactionTray onReact={api.react} small />}
         </div>
       ) : ask.choices ? (
         <div className="vs-choices">
-          {ask.choices.map((a) => (
+          {ask.choices.map((a, i) => (
             <button key={a} type="button" onClick={() => api.answerChoice(a)}>
+              <kbd aria-hidden="true">{i + 1}</kbd>
               {choiceLabel(ask, a)}
             </button>
           ))}
@@ -211,7 +317,8 @@ function Question({ api, ask, qm, revealing, answered, mine, theirs }: QuestionP
 }
 
 /**
- * Both answers, side by side, then the fact worth carrying away.
+ * The round's verdict: who took it, both answers side by side with what
+ * each was worth and why, then the fact worth carrying away.
  *
  * Each chip says what its player actually put in — the state they tapped,
  * the option they chose, the word they typed — in the words of the question
@@ -226,22 +333,39 @@ function Reveal({
 }) {
   const { state, theirAsk } = api;
   const s = ask.s;
+  const taker = roundTaker(mine, theirs);
+  const took = taker === 'me' ? mine : taker === 'them' ? theirs : null;
+  const anyPoints = (mine?.points ?? 0) > 0 || (theirs?.points ?? 0) > 0;
+  const final = isFinalRound(state.round, state.plan.length);
+  const myBonus: Bonus = { streak: streakBefore(verdictsOf(state.myAnswers), state.round), final };
+  const theirBonus: Bonus = { streak: streakBefore(verdictsOf(state.theirAnswers), state.round), final };
+  const pc = taker === 'me' ? state.me.color : taker === 'them' ? theirColor(api) : undefined;
 
   return (
     <div className="vs-reveal">
+      <div className={`vs-call ${taker}`} data-pc={pc} role="status">
+        <b>
+          {taker === 'me' ? 'Round to you'
+            : taker === 'them' ? `Round to ${theirName(api)}`
+              : anyPoints ? 'Split round' : 'Nobody had it'}
+        </b>
+        {took && <span className="mono">+{took.points} · {secs(took.ms)}</span>}
+      </div>
       <div className="vs-answers">
         <AnswerChip
           who={state.me.name}
           color={state.me.color}
           answer={mine}
           pick={mine ? pickLabel(ask, qm, mine.pick) : null}
+          bonus={myBonus}
           you
         />
         <AnswerChip
-          who={state.them?.name || state.lastOpponent || 'Opponent'}
+          who={theirName(api)}
           color={theirColor(api)}
           answer={theirs}
           pick={theirs && theirAsk ? pickLabel(theirAsk, qm, theirs.pick) : null}
+          bonus={theirBonus}
         />
       </div>
       <p className="vs-fact">
@@ -254,10 +378,13 @@ function Reveal({
   );
 }
 
-function AnswerChip({ who, color, answer, pick, you = false }: {
-  who: string; color: PlayerColor; answer: RoundAnswer | null; pick: string | null; you?: boolean;
+function AnswerChip({ who, color, answer, pick, bonus, you = false }: {
+  who: string; color: PlayerColor; answer: RoundAnswer | null; pick: string | null;
+  bonus: Bonus; you?: boolean;
 }) {
   const cls = !answer || answer.timeout ? 'out' : answer.correct ? 'ok' : 'bad';
+  const parts = answer?.correct ? breakdown(answer.points, bonus) : null;
+  const tagged = !!parts && (parts.speed > 0 || parts.streak > 0 || parts.doubled);
   return (
     <div className={`vs-chip ${cls}${you ? ' you' : ''}`} data-pc={color}>
       <span className="vs-chip-who">{who}</span>
@@ -267,9 +394,16 @@ function AnswerChip({ who, color, answer, pick, you = false }: {
       </b>
       {pick && <span className="vs-chip-pick">{pick}</span>}
       <span className="mono vs-chip-pts">
-        {answer && !answer.timeout && `${(answer.ms / 1000).toFixed(1)}s`}
-        {answer && answer.points > 0 ? ` · +${answer.points}` : ''}
+        {answer && !answer.timeout && secs(answer.ms)}
+        {answer && answer.points > 0 && <em>+{answer.points}</em>}
       </span>
+      {tagged && parts && (
+        <span className="vs-chip-tags">
+          {parts.speed > 0 && <i>+{parts.speed} speed</i>}
+          {parts.streak > 0 && <i>+{parts.streak} streak</i>}
+          {parts.doubled && <i>×2 last round</i>}
+        </span>
+      )}
     </div>
   );
 }

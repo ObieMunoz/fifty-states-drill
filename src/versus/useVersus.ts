@@ -2,8 +2,10 @@ import {
   useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState,
 } from 'react';
 import { askFor, grade } from './grade';
-import { roundLimitMs, scoreAnswer } from './scoring';
-import { currentRound, initialVersus, reducer, settledTotal } from './machine';
+import { isFinalRound, roundLimitMs, scoreAnswer, streakBefore } from './scoring';
+import {
+  currentRound, initialVersus, matchResults, reducer, settledTotal, streakInto, verdictsOf,
+} from './machine';
 import type { VersusState } from './machine';
 import { cleanName, displayName, loadName, saveName } from './identity';
 import { loadBoard, rankBoard, recordMatch } from './leaderboard';
@@ -11,10 +13,15 @@ import type { LeaderRow } from './leaderboard';
 import { addFriend as keepFriend, loadFriends, removeFriend as dropFriend, touchFriend } from './friends';
 import type { Friend } from './friends';
 import { clearUrlCode, codeFromUrl, normalizeCode, setUrlCode } from './room';
+import { clearSeries, loadSeries, saveSeries } from './series';
 import { ApiError, OFFLINE, callPhone, callVersus } from './client';
 import { openLive } from './live';
 import type { Live } from './live';
 import { playerId } from './player';
+import { REACT_GAP_MS, REACT_TTL_MS } from './reactions';
+import type { Emoji } from './reactions';
+import { haptic } from './haptics';
+import { play, unlockAudio } from './sound';
 import { COUNTDOWN_MS, GRACE_MS, REVEAL_MS } from './timing';
 import { outcomeOf } from './scoring';
 import type { RoundAnswer, Snapshot } from './types';
@@ -25,6 +32,21 @@ const ADVANCE_RETRY_MS = 400;
 
 /** How many times it asks: the server holds a round open a little longer than this phone. */
 const ADVANCE_TRIES = 5;
+
+/** The streaks that get a cue of their own at the reveal. */
+const STREAK_CHEERS = new Set([3, 5]);
+
+/** An emoji on its way across the screen, and whose it is. */
+export interface FloatingReaction {
+  id: number;
+  from: 'me' | 'them';
+  emoji: Emoji;
+  /** Epoch ms it was sent or arrived. */
+  at: number;
+}
+
+/** How many float at once before the oldest is dropped. */
+const MAX_FLOATING = 8;
 
 export interface VersusApi {
   state: VersusState;
@@ -40,8 +62,17 @@ export interface VersusApi {
   /** Points from rounds already revealed; the round in play is not yet counted. */
   myTotal: number;
   theirTotal: number;
+  /** Right answers in a row each side carries, as of the rounds revealed. */
+  myStreak: number;
+  theirStreak: number;
+  /** What a right answer is worth this instant, while the question is live and unanswered. */
+  worth: number;
   /** True once this side has an answer in for the round on screen. */
   answered: boolean;
+  /** Emoji in flight on this screen, oldest first. */
+  reactions: FloatingReaction[];
+  /** Send the other phone an emoji, and float it here too. */
+  react: (emoji: Emoji) => void;
   /** This device's standings, refreshed the moment a match is folded in. */
   board: LeaderRow[];
   clearBoard: () => void;
@@ -76,7 +107,10 @@ function tally(snap: Snapshot, id: string | undefined): { points: number; correc
 export function useVersus(): VersusApi {
   const [state, dispatch] = useReducer(
     reducer, undefined,
-    () => initialVersus(loadName(), 'standard', codeFromUrl() ?? '', playerId()),
+    () => {
+      const code = codeFromUrl() ?? '';
+      return initialVersus(loadName(), 'standard', code, playerId(), loadSeries(code));
+    },
   );
 
   /** Latest state, so callbacks never read through a stale closure. */
@@ -97,6 +131,38 @@ export function useVersus(): VersusApi {
   const [friends, setFriends] = useState<Friend[]>(() => loadFriends());
   /** The match already folded into the standings, so a repeat cannot double it. */
   const recorded = useRef('');
+
+  /* ---------------- reactions ---------------- */
+
+  const [reactions, setReactions] = useState<FloatingReaction[]>([]);
+  const reactionId = useRef(0);
+  const lastReact = useRef(0);
+
+  const float = useCallback((from: 'me' | 'them', emoji: Emoji) => {
+    const next: FloatingReaction = { id: ++reactionId.current, from, emoji, at: Date.now() };
+    setReactions((rs) => [...rs.slice(1 - MAX_FLOATING), next]);
+  }, []);
+
+  /* Each one is forgotten once it has floated away. */
+  useEffect(() => {
+    if (!reactions.length) return;
+    const due = reactions[0].at + REACT_TTL_MS - Date.now();
+    const id = setTimeout(() => {
+      const cutoff = Date.now() - REACT_TTL_MS;
+      setReactions((rs) => rs.filter((r) => r.at > cutoff));
+    }, Math.max(0, due));
+    return () => clearTimeout(id);
+  }, [reactions]);
+
+  const react = useCallback((emoji: Emoji) => {
+    const t = Date.now();
+    // One at a time: a thumb drumming on the tray is not six reactions.
+    if (t - lastReact.current < REACT_GAP_MS) return;
+    lastReact.current = t;
+    unlockAudio();
+    float('me', emoji);
+    room.current?.react(emoji);
+  }, [float]);
 
   /**
    * Fold a finished match into this device's standings, once per seed. Done
@@ -154,6 +220,7 @@ export function useVersus(): VersusApi {
       if (e.status === 404 || e.status === 409 || e.status === 410) {
         dropRoom();
         clearUrlCode();
+        clearSeries();
         dispatch({ type: 'roomClosed', error: e.message });
       } else {
         dispatch({ type: 'setError', error: e.message });
@@ -176,13 +243,19 @@ export function useVersus(): VersusApi {
         // Back after a loss: whatever happened meanwhile is on the server.
         if (link === 'linked' && was === 'lost') void call({ action: 'sync' });
       },
+      onReaction: (r) => {
+        float('them', r.emoji);
+        play('react');
+        haptic('react');
+      },
     });
-  }, [dropRoom, noteFinal, call]);
+  }, [dropRoom, noteFinal, call, float]);
 
   /* ---------------- getting into a room ---------------- */
 
   const open = useCallback(async (code: string, name: string, asHost: boolean) => {
     if (live.current.phase !== 'menu') return;
+    unlockAudio();
     const clean = displayName(name);
     saveName(clean);
     dispatch({ type: 'setName', name: clean });
@@ -241,6 +314,22 @@ export function useVersus(): VersusApi {
   /* Going away without leaving keeps the seat: a reload comes back to it. */
   useEffect(() => () => { dropRoom(); }, [dropRoom]);
 
+  /* And the series comes back with it. */
+  useEffect(() => {
+    if (state.synced && state.code) saveSeries(state.code, state.series);
+  }, [state.synced, state.code, state.series]);
+
+  /* Somebody sat down across the table. */
+  const seated = useRef<string | null>(null);
+  useEffect(() => {
+    const id = state.them?.id ?? null;
+    if (state.phase === 'lobby' && id && seated.current !== id) {
+      play('join');
+      haptic('join');
+    }
+    seated.current = id;
+  }, [state.phase, state.them?.id]);
+
   /* ---------------- the question this player sees ---------------- */
 
   const round = currentRound(state);
@@ -288,6 +377,16 @@ export function useVersus(): VersusApi {
     ? Math.max(0, COUNTDOWN_MS - elapsed)
     : COUNTDOWN_MS;
 
+  const answered = state.myAnswers[state.round] != null;
+  const myStreak = streakInto(state, state.myAnswers);
+  const theirStreak = streakInto(state, state.theirAnswers);
+  const finalRound = isFinalRound(state.round, state.plan.length);
+
+  /* What the clock is costing: the points a right answer would bank right now. */
+  const worth = state.phase === 'question' && !answered && limitMs > 0
+    ? scoreAnswer(true, elapsed, limitMs, { streak: myStreak, final: finalRound })
+    : 0;
+
   /* ---------------- answering ---------------- */
 
   const submit = useCallback((value: string | null, correct: boolean, timeout: boolean) => {
@@ -295,14 +394,20 @@ export function useVersus(): VersusApi {
     if (s.phase !== 'question' || s.myAnswers[s.round] != null) return;
     const ms = Date.now() - s.startedAt;
     // Graded here for an instant reveal; the server grades again from the
-    // same seed, and its row replaces this one when it lands.
-    const points = scoreAnswer(correct, ms, limitMs || 1);
+    // same seed and the same rows, and its row replaces this one when it lands.
+    const points = scoreAnswer(correct, ms, limitMs || 1, {
+      streak: streakBefore(verdictsOf(s.myAnswers), s.round),
+      final: isFinalRound(s.round, s.plan.length),
+    });
     const answer: RoundAnswer = { correct, ms, points, pick: value, timeout };
     dispatch({ type: 'answer', round: s.round, answer });
     void call({ action: 'answer', round: s.round, pick: value, ms, timeout });
     // One short tick to say the tap landed. Right or wrong waits for the
     // reveal, like everything else about the round. Silent where unsupported.
-    if (!timeout && navigator.vibrate) navigator.vibrate(12);
+    if (!timeout) {
+      haptic('tap');
+      play('lock');
+    }
   }, [limitMs, call]);
 
   const answerChoice = useCallback((abbr: Abbr) => {
@@ -346,12 +451,38 @@ export function useVersus(): VersusApi {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase, state.round, state.myAnswers, state.theirAnswers]);
 
-  /* The verdict lands with the reveal: a short buzz for right, a stutter for wrong. */
+  /* The verdict lands with the reveal: a short buzz and a rising note for
+     right, a stutter and a low one for wrong, and a cheer at a streak worth
+     one. */
   useEffect(() => {
-    if (state.phase !== 'reveal' || !navigator.vibrate) return;
-    const mine = live.current.myAnswers[state.round];
-    if (mine && !mine.timeout) navigator.vibrate(mine.correct ? 18 : [0, 35, 55, 35]);
+    if (state.phase !== 'reveal') return;
+    const s = live.current;
+    const mine = s.myAnswers[s.round];
+    if (!mine || mine.timeout) {
+      play('miss');
+      haptic('miss');
+      return;
+    }
+    if (mine.correct) {
+      const run = streakBefore(verdictsOf(s.myAnswers), s.round) + 1;
+      const cheer = STREAK_CHEERS.has(run);
+      play(cheer ? 'streak' : 'right');
+      haptic(cheer ? 'streak' : 'right');
+    } else {
+      play('wrong');
+      haptic('wrong');
+    }
   }, [state.phase, state.round]);
+
+  /* The result gets its fanfare once, a beat after the screen lands. */
+  const cheered = useRef('');
+  useEffect(() => {
+    if (state.phase !== 'final' || !state.cfg || cheered.current === state.cfg.seed) return;
+    cheered.current = state.cfg.seed;
+    const { outcome } = matchResults(state);
+    const id = setTimeout(() => { play(outcome); haptic(outcome); }, 350);
+    return () => clearTimeout(id);
+  }, [state]);
 
   /* Only the host moves the match on, so the two screens stay in step. The
      server has the last word on whether the round is over, and its clock
@@ -382,7 +513,10 @@ export function useVersus(): VersusApi {
   useEffect(() => {
     if (state.phase !== 'countdown') return;
     const id = setTimeout(
-      () => dispatch({ type: 'beginQuestions', at: Date.now() }),
+      () => {
+        dispatch({ type: 'beginQuestions', at: Date.now() });
+        play('go');
+      },
       Math.max(0, COUNTDOWN_MS - (Date.now() - state.startedAt)),
     );
     return () => clearTimeout(id);
@@ -401,6 +535,9 @@ export function useVersus(): VersusApi {
   }, [call]);
 
   const setReady = useCallback((ready: boolean) => {
+    // The tap that starts a match is the gesture the phone wants before it
+    // will play a sound later.
+    unlockAudio();
     dispatch({ type: 'setReady', ready });
     void call({ action: 'player', ready });
   }, [call]);
@@ -411,7 +548,10 @@ export function useVersus(): VersusApi {
   }, [call]);
 
   /* The host restarts both sides; a guest's ask registers on the host's screen. */
-  const rematch = useCallback(() => { void call({ action: 'again' }); }, [call]);
+  const rematch = useCallback(() => {
+    unlockAudio();
+    void call({ action: 'again' });
+  }, [call]);
 
   /* ---------------- friends ---------------- */
 
@@ -436,6 +576,7 @@ export function useVersus(): VersusApi {
    */
   const requestRematch = useCallback(async (friend: Friend, name = live.current.me.name) => {
     const s = live.current;
+    unlockAudio();
     if (s.phase !== 'menu' && s.code) {
       void callVersus({ action: 'leave', code: s.code, playerId: s.me.id }).catch(() => { /* gone anyway */ });
     }
@@ -473,6 +614,8 @@ export function useVersus(): VersusApi {
     }
     dropRoom();
     clearUrlCode();
+    clearSeries();
+    setReactions([]);
     dispatch({ type: 'leave' });
   }, [dropRoom]);
 
@@ -485,7 +628,12 @@ export function useVersus(): VersusApi {
     countdownMs,
     myTotal: settledTotal(state, state.myAnswers),
     theirTotal: settledTotal(state, state.theirAnswers),
-    answered: state.myAnswers[state.round] != null,
+    myStreak,
+    theirStreak,
+    worth,
+    answered,
+    reactions,
+    react,
     board,
     clearBoard: () => setBoard([]),
     friends, addFriend, removeFriend,

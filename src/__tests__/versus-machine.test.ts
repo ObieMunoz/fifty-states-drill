@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  correctOf, currentRound, initialVersus, matchResults, reducer, settledTotal, totalOf,
+  correctOf, currentRound, initialVersus, matchResults, reducer, roundTaker, roundsWon, seriesOf,
+  settledTotal, settledUpTo, streakInto, totalOf,
 } from '../versus/machine';
 import type { VersusAction, VersusState } from '../versus/machine';
 import type { LiveSnapshot } from '../versus/live';
@@ -296,6 +297,83 @@ describe('scoring the match', () => {
     const s = playing();
     expect(totalOf(s.myAnswers)).toBe(0);
     expect(correctOf(s.myAnswers)).toBe(0);
+  });
+});
+
+describe('who took the round', () => {
+  it('goes to the side with more points, or nobody when level', () => {
+    expect(roundTaker(ans({ points: 150 }), ans({ points: 120 }))).toBe('me');
+    expect(roundTaker(ans({ points: 100 }), ans({ points: 120 }))).toBe('them');
+    expect(roundTaker(ans({ points: 130 }), ans({ points: 130 }))).toBe('split');
+    expect(roundTaker(null, ans({ points: 0, correct: false }))).toBe('split');
+    expect(roundTaker(ans({ points: 100 }), null)).toBe('me');
+  });
+
+  it('tallies revealed rounds only, like the score', () => {
+    // The fixture: me 150/0/130/140/120, them 100/145/0/110/130.
+    const s = finished();
+    expect(roundsWon(s)).toEqual({ me: 3, them: 2, split: 0 });
+    // Back on a live question, the round in play is not on the table yet.
+    const live = { ...s, phase: 'question' as const, round: 2 };
+    expect(settledUpTo(live)).toBe(2);
+    expect(roundsWon(live)).toEqual({ me: 1, them: 1, split: 0 });
+    expect(settledTotal(live, live.myAnswers)).toBe(150);
+  });
+
+  it('reads the streak each side carries into the round on screen', () => {
+    const s = finished();
+    const live = { ...s, phase: 'question' as const, round: 4 };
+    // Me: right, wrong, right, right → two in a row going into round 4.
+    expect(streakInto(live, live.myAnswers)).toBe(2);
+    // Them: right, right, wrong, right → one.
+    expect(streakInto(live, live.theirAnswers)).toBe(1);
+    // At the final everything counts: mine ends 3 in a row, theirs 2.
+    expect(streakInto(s, s.myAnswers)).toBe(3);
+    expect(streakInto(s, s.theirAnswers)).toBe(2);
+  });
+});
+
+describe('the series', () => {
+  it('starts empty and notes a finished match from this side', () => {
+    expect(seriesOf(playing())).toEqual({ wins: 0, losses: 0, draws: 0, played: 0 });
+    const s = finished();
+    expect(s.series).toEqual({ 'ACDE:0': 'win' });
+    expect(seriesOf(s)).toEqual({ wins: 1, losses: 0, draws: 0, played: 1 });
+  });
+
+  it('corrects itself while the result is still on screen, as late rows land', () => {
+    // The final arrives with the last of their rows still in flight.
+    const partial = reducer(playing(), { type: 'snapshot', snap: snap(playingRoom({ status: 'final', round: 4 }), both(), [row('me', 4, { points: 100 })]), at: T + 60000 });
+    expect(seriesOf(partial).wins).toBe(1);
+    const complete = reducer(partial, { type: 'snapshot', snap: snap(playingRoom({ status: 'final', round: 4 }), both(), [row('me', 4, { points: 100 }), row('them', 4, { points: 300 })]), at: T + 60001 });
+    expect(complete.series).toEqual({ 'ACDE:0': 'loss' });
+  });
+
+  it('carries across a rematch and counts the next match separately', () => {
+    const again = reducer(finished(), { type: 'snapshot', snap: snap({ status: 'lobby', match_no: 1 }, both()), at: T + 70000 });
+    expect(seriesOf(again)).toEqual({ wins: 1, losses: 0, draws: 0, played: 1 });
+    const second = reducer(again, { type: 'snapshot', snap: snap(playingRoom({ match_no: 1, seed: 'ACDE:1', round_started_at: iso(T + 80000) }), both()), at: T + 77000 });
+    const drawn = reducer(second, {
+      type: 'snapshot',
+      snap: snap(playingRoom({ match_no: 1, seed: 'ACDE:1', status: 'final', round: 4 }), both(),
+        [row('me', 0, { match_no: 1, points: 120 }), row('them', 0, { match_no: 1, points: 120 })]),
+      at: T + 90000,
+    });
+    expect(drawn.series).toEqual({ 'ACDE:0': 'win', 'ACDE:1': 'draw' });
+    expect(seriesOf(drawn)).toEqual({ wins: 1, losses: 0, draws: 1, played: 2 });
+  });
+
+  it('is forgotten on leaving the room', () => {
+    expect(reducer(finished(), { type: 'leave' }).series).toEqual({});
+  });
+
+  it('comes back with a phone returning to the same room, and not to another', () => {
+    const kept = { 'ACDE:0': 'win' as const, 'ACDE:1': 'loss' as const };
+    const back = initialVersus('Obie', 'standard', 'ACDE', 'me', kept);
+    expect(seriesOf(back)).toEqual({ wins: 1, losses: 1, draws: 0, played: 2 });
+    expect(reducer(back, { type: 'enter', code: 'ACDE', asHost: false }).series).toEqual(kept);
+    expect(reducer(back, { type: 'enter', code: 'XYZW', asHost: false }).series).toEqual({});
+    expect(reducer(back, { type: 'enter', code: '', asHost: true }).series).toEqual({});
   });
 });
 

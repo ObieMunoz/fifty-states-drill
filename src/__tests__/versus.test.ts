@@ -5,7 +5,8 @@ import { buildAsk } from '../game/question';
 import { hashSeed, mulberry32, pickRnd, shuffle, weightedIndex } from '../lib/random';
 import { askRng, matchPool, planMatch } from '../versus/plan';
 import {
-  BASE_POINTS, SPEED_POINTS, isTyped, outcomeOf, roundLimitMs, scoreAnswer,
+  BASE_POINTS, FINAL_ROUND_MULTIPLIER, SPEED_POINTS, STREAK_CAP, STREAK_POINTS, breakdown, isFinalRound,
+  isTyped, outcomeOf, roundLimitMs, scoreAnswer, streakBefore, streakBonus,
 } from '../versus/scoring';
 import {
   CODE_LENGTH, codeFromUrl, isCompleteCode, joinUrl, matchSeed, newRoomCode, normalizeCode,
@@ -204,6 +205,46 @@ describe('scoring', () => {
     expect(outcomeOf(500, 400)).toBe('win');
     expect(outcomeOf(400, 500)).toBe('loss');
     expect(outcomeOf(450, 450)).toBe('draw');
+  });
+
+  it('counts the right answers in a row going into a round, and nothing past a miss', () => {
+    expect(streakBefore([], 0)).toBe(0);
+    expect(streakBefore([true, true, true], 3)).toBe(3);
+    expect(streakBefore([true, false, true, true], 4)).toBe(2);
+    expect(streakBefore([true, true, true], 1)).toBe(1);
+    // A round never answered, or timed out, ends the streak like a miss.
+    expect(streakBefore([true, null, true], 3)).toBe(1);
+    expect(streakBefore([true, undefined, true], 2)).toBe(0);
+  });
+
+  it('pays the streak a step at a time, up to the cap', () => {
+    expect(streakBonus(0)).toBe(0);
+    expect(streakBonus(1)).toBe(STREAK_POINTS);
+    expect(streakBonus(STREAK_CAP)).toBe(STREAK_POINTS * STREAK_CAP);
+    expect(streakBonus(STREAK_CAP + 4)).toBe(STREAK_POINTS * STREAK_CAP);
+    expect(streakBonus(-2)).toBe(0);
+  });
+
+  it('adds the streak to a right answer and never to a wrong one', () => {
+    expect(scoreAnswer(true, 0, 20000, { streak: 3 })).toBe(BASE_POINTS + SPEED_POINTS + 3 * STREAK_POINTS);
+    expect(scoreAnswer(true, 20000, 20000, { streak: 9 })).toBe(BASE_POINTS + STREAK_CAP * STREAK_POINTS);
+    expect(scoreAnswer(false, 0, 20000, { streak: 5 })).toBe(0);
+  });
+
+  it('doubles the last round of a match', () => {
+    expect(isFinalRound(4, 5)).toBe(true);
+    expect(isFinalRound(3, 5)).toBe(false);
+    expect(isFinalRound(0, 0)).toBe(false);
+    expect(scoreAnswer(true, 10000, 20000, { final: true })).toBe((BASE_POINTS + SPEED_POINTS / 2) * FINAL_ROUND_MULTIPLIER);
+    expect(scoreAnswer(true, 0, 20000, { streak: 5, final: true })).toBe(400);
+    expect(scoreAnswer(false, 0, 20000, { final: true })).toBe(0);
+  });
+
+  it('reads a score back into its parts', () => {
+    expect(breakdown(0)).toEqual({ base: 0, speed: 0, streak: 0, doubled: false });
+    expect(breakdown(142)).toEqual({ base: BASE_POINTS, speed: 42, streak: 0, doubled: false });
+    expect(breakdown(162, { streak: 2 })).toEqual({ base: BASE_POINTS, speed: 42, streak: 20, doubled: false });
+    expect(breakdown(324, { streak: 2, final: true })).toEqual({ base: BASE_POINTS, speed: 42, streak: 20, doubled: true });
   });
 });
 

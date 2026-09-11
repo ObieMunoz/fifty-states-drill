@@ -1,8 +1,14 @@
 import { BUILD } from '../../build';
 import { DIFFS, DIFF_KEYS, MODES } from '../../data/modes';
 import { REGS, ST } from '../../data/states';
+import { seriesOf } from '../../versus/machine';
+import {
+  BASE_POINTS, FINAL_ROUND_MULTIPLIER, SPEED_POINTS, STREAK_POINTS,
+} from '../../versus/scoring';
 import { COLOR_LABEL, ROUND_CHOICES, VERSUS_MODES, colorOf } from '../../versus/types';
 import type { PlayerColor } from '../../versus/types';
+import { ReactionBubbles, ReactionTray } from './Reactions';
+import { SoundToggle } from './SoundToggle';
 import type { VersusApi } from '../../versus/useVersus';
 import type { DiffKey, ModeKey, Scope } from '../../types';
 
@@ -25,13 +31,28 @@ export function VersusLobby({ api }: { api: VersusApi }) {
   const { state } = api;
   const { me, them, draft, isHost } = state;
   const bothReady = me.ready && them?.ready;
+  const series = seriesOf(state);
+  const themName = them?.name || state.lastOpponent || 'them';
 
   return (
     <div className="vs-sheet vs-lobby">
       <header className="vs-top">
         <button type="button" className="vs-back" onClick={api.leave}>← Leave</button>
-        <span className="eyebrow mono">Room {state.code}</span>
+        <span className="vs-top-right">
+          <span className="eyebrow mono">Room {state.code}</span>
+          <SoundToggle />
+        </span>
       </header>
+
+      {series.played > 0 && (
+        <p className="vs-series-line">
+          <b>Match {series.played + 1}</b>
+          {' · '}
+          {series.wins > series.losses ? `You lead ${series.wins}–${series.losses}`
+            : series.losses > series.wins ? `${themName} leads ${series.losses}–${series.wins}`
+              : `Level at ${series.wins}–${series.losses}`}
+        </p>
+      )}
 
       <div className="vs-versus">
         <PlayerCard
@@ -50,13 +71,23 @@ export function VersusLobby({ api }: { api: VersusApi }) {
           dif={them?.dif ?? 'standard'}
           ready={!!them?.ready}
         />
+        <ReactionBubbles reactions={api.reactions} them={themName} />
       </div>
+
+      {them && <ReactionTray onReact={api.react} small />}
 
       <section className="vs-rules">
         {isHost
           ? <HostRules draft={draft} setDraft={api.setDraft} />
           : <GuestRules draft={draft} host={them?.name} />}
       </section>
+
+      <ul className="vs-howto" aria-label="How scoring works">
+        <li><b>{BASE_POINTS}</b><span>a right answer</span></li>
+        <li><b>+{SPEED_POINTS}</b><span>at most, for speed</span></li>
+        <li><b>+{STREAK_POINTS}</b><span>per answer in a streak</span></li>
+        <li><b>×{FINAL_ROUND_MULTIPLIER}</b><span>on the last round</span></li>
+      </ul>
 
       <p className="vs-fine">
         {DIFFS[me.dif].blurb}

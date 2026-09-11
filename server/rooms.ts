@@ -4,7 +4,7 @@ import { askFor, grade } from '../src/versus/grade';
 import { cleanName, displayName } from '../src/versus/identity';
 import { planMatch } from '../src/versus/plan';
 import { CODE_LENGTH, matchSeed, newRoomCode, normalizeCode } from '../src/versus/room';
-import { roundLimitMs, scoreAnswer } from '../src/versus/scoring';
+import { isFinalRound, roundLimitMs, scoreAnswer, streakBefore } from '../src/versus/scoring';
 import { rematchPayload } from '../src/versus/notify';
 import {
   COUNTDOWN_MS, GRACE_MS, PAIRING_TTL_MS, REMATCH_COOLDOWN_MS, REMATCH_TTL_MS, ROOM_TTL_MS,
@@ -258,7 +258,15 @@ async function answer(db: Db, input: Record<string, unknown>, now: Date): Promis
   const ms = Math.min(limit, Math.max(0, Math.round(claimed)));
   const planned = { qm, abbr } as Parameters<typeof askFor>[2];
   const correct = pick !== null && grade(askFor(room.seed, room.round, planned, dif), qm, pick);
-  const points = scoreAnswer(correct, ms, limit);
+  // A streak is read off this player's own rows so far; the last round
+  // pays double. The phone works both out the same way from the same rows.
+  const rows = await db.getAnswers(code, room.match_no);
+  const verdicts = Array.from({ length: room.round }, (_, i) =>
+    rows.find((a) => a.round === i && a.player_id === playerId)?.correct ?? null);
+  const points = scoreAnswer(correct, ms, limit, {
+    streak: streakBefore(verdicts, room.round),
+    final: isFinalRound(room.round, room.rounds),
+  });
 
   await db.insertAnswer({
     room_code: code, match_no: room.match_no, round: room.round, player_id: playerId,

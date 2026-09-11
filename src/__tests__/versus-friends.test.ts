@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MAX_FRIENDS, addFriend, agoLabel, loadFriends, removeFriend, touchFriend } from '../versus/friends';
 import { noticeFor, openRoomMessage, parsePayload, rematchPayload, roomFromMessage } from '../versus/notify';
+import { clearSeries, loadSeries, saveSeries } from '../versus/series';
 
 const store = new Map<string, string>();
 
@@ -113,5 +114,24 @@ describe('the tap on a notification', () => {
     expect(roomFromMessage({ type: 'SKIP_WAITING' })).toBeNull();
     expect(roomFromMessage('ACDE')).toBeNull();
     expect(roomFromMessage(null)).toBeNull();
+  });
+});
+
+describe('the series on this device', () => {
+  it('round-trips for the room it was saved for, and for no other', () => {
+    expect(loadSeries('ACDE')).toEqual({});
+    saveSeries('ACDE', { 'ACDE:0': 'win', 'ACDE:1': 'draw' });
+    expect(loadSeries('ACDE')).toEqual({ 'ACDE:0': 'win', 'ACDE:1': 'draw' });
+    expect(loadSeries('XYZW')).toEqual({});
+    expect(loadSeries('')).toEqual({});
+    clearSeries();
+    expect(loadSeries('ACDE')).toEqual({});
+  });
+
+  it('survives whatever is in storage', () => {
+    localStorage.setItem('fiftyStatesDrill.versus.series', '{not json');
+    expect(loadSeries('ACDE')).toEqual({});
+    localStorage.setItem('fiftyStatesDrill.versus.series', JSON.stringify({ code: 'ACDE', series: { a: 'win', b: 'nonsense', c: 3 } }));
+    expect(loadSeries('ACDE')).toEqual({ a: 'win' });
   });
 });

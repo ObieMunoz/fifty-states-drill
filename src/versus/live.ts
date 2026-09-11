@@ -1,3 +1,5 @@
+import { parseReaction } from './reactions';
+import type { Emoji, Reaction } from './reactions';
 import { supabase } from './supabase';
 import type { AnswerRow, PlayerRow, RoomRow, Snapshot } from './types';
 
@@ -24,11 +26,15 @@ export interface LiveEvents {
   onPresence: (ids: string[]) => void;
   /** This phone's own link to the room. `linked` again after a loss means resync. */
   onLink: (link: 'linked' | 'lost') => void;
+  /** The other phone sent an emoji. */
+  onReaction: (r: Reaction) => void;
 }
 
 export interface Live {
   /** Take a snapshot from the API as the truth. */
   seed: (snap: Snapshot) => void;
+  /** Send the other phone an emoji. Fire and forget: it is a broadcast, not a row. */
+  react: (emoji: Emoji) => void;
   leave: () => void;
 }
 
@@ -99,6 +105,11 @@ export function openLive(code: string, playerId: string, ev: LiveEvents): Live {
     .on('presence', { event: 'sync' }, () => {
       if (!closed) ev.onPresence(Object.keys(channel.presenceState()));
     })
+    .on('broadcast', { event: 'react' }, ({ payload }: { payload: unknown }) => {
+      const r = parseReaction(payload);
+      // A broadcast is not echoed to its sender, but a stray one is ignored anyway.
+      if (r && r.from !== playerId && !closed) ev.onReaction(r);
+    })
     .subscribe((status) => {
       if (closed) return;
       if (status === 'SUBSCRIBED') {
@@ -117,6 +128,13 @@ export function openLive(code: string, playerId: string, ev: LiveEvents): Live {
       if (closed) return;
       current = { ...snap, receivedAt: Date.now() };
       emit();
+    },
+    react(emoji) {
+      if (closed) return;
+      const payload: Reaction = { from: playerId, emoji };
+      void channel.send({ type: 'broadcast', event: 'react', payload }).catch(() => {
+        // Not delivered: a reaction is not worth a retry.
+      });
     },
     leave() {
       closed = true;

@@ -6,6 +6,7 @@ import { usePush } from '../../versus/usePush';
 import { Friends } from './Friends';
 import { Leaderboard } from './Leaderboard';
 import { Notifications } from './Notifications';
+import { SoundToggle } from './SoundToggle';
 import type { VersusApi } from '../../versus/useVersus';
 
 /**
@@ -45,7 +46,10 @@ export function VersusMenu({ api, onExit }: { api: VersusApi; onExit: () => void
         <button type="button" className="vs-back" onClick={onExit} aria-label="Back to solo practice">
           ← Solo
         </button>
-        <span className="eyebrow">Versus</span>
+        <span className="vs-top-right">
+          <span className="eyebrow">Versus</span>
+          <SoundToggle />
+        </span>
       </header>
 
       <div className="vs-hero">
@@ -58,7 +62,8 @@ export function VersusMenu({ api, onExit }: { api: VersusApi; onExit: () => void
           <>
             <h1>Head to head</h1>
             <p>
-              Two phones, the same questions, one clock. Fastest right answer takes the round.
+              Two phones, the same questions, one clock. Speed pays, streaks stack, and the
+              last round counts double.
             </p>
           </>
         )}
