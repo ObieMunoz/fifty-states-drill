@@ -11,3 +11,12 @@ export const GRACE_MS = 1500;
 
 /** Rooms nobody has touched for this long are swept away. */
 export const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Once a rematch request has gone to someone, how long before another may. */
+export const REMATCH_COOLDOWN_MS = 60 * 1000;
+
+/** How long a rematch notification waits for a phone that is off the network. */
+export const REMATCH_TTL_MS = 30 * 60 * 1000;
+
+/** Two players who have not met for this long may no longer ping each other. */
+export const PAIRING_TTL_MS = 90 * 24 * 60 * 60 * 1000;

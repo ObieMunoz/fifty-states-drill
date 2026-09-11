@@ -57,6 +57,13 @@ export interface VersusState {
    * "Sam has left" rather than "Opponent has left".
    */
   lastOpponent: string;
+  /** Their player id, kept the same way, so they can be added as a friend after they go. */
+  lastOpponentId: string;
+  /**
+   * Set while this room was opened by a rematch request: who was asked, and
+   * whether the notification reached them (null until the server has said).
+   */
+  invite: { name: string; sent: boolean | null } | null;
   /** Whether the room on screen has been seen from the server yet. */
   synced: boolean;
   error: string | null;
@@ -65,7 +72,8 @@ export interface VersusState {
 export type VersusAction =
   | { type: 'setLink'; link: LinkState }
   | { type: 'setError'; error: string | null }
-  | { type: 'enter'; code: string; asHost: boolean }
+  | { type: 'enter'; code: string; asHost: boolean; invite?: string }
+  | { type: 'invited'; sent: boolean }
   | { type: 'snapshot'; snap: LiveSnapshot; at: number }
   | { type: 'presence'; ids: string[] }
   | { type: 'setName'; name: string }
@@ -100,6 +108,8 @@ export function initialVersus(name: string, dif: DiffKey, code = '', id = ''): V
     matchNo: 0,
     theyWantAgain: false,
     lastOpponent: '',
+    lastOpponentId: '',
+    invite: null,
     synced: false,
     error: null,
   };
@@ -255,6 +265,7 @@ function applySnapshot(s: VersusState, snap: LiveSnapshot, at: number): VersusSt
     matchNo: room.match_no,
     theyWantAgain: themRow?.wants_again ?? false,
     lastOpponent: them?.name ?? s.lastOpponent,
+    lastOpponentId: them?.id ?? s.lastOpponentId,
     synced: true,
     error: null,
   };
@@ -273,7 +284,11 @@ export function reducer(s: VersusState, a: VersusAction): VersusState {
         ...initialVersus(s.me.name, s.me.dif, a.code, s.me.id),
         phase: 'connecting', isHost: a.asHost, lastOpponent: '',
         me: { ...emptyPlayer(s.me.id, s.me.name, s.me.dif), color: colorOf(a.asHost) },
+        invite: a.invite ? { name: a.invite, sent: null } : null,
       };
+
+    case 'invited':
+      return s.invite ? { ...s, invite: { ...s.invite, sent: a.sent } } : s;
 
     case 'snapshot':
       return applySnapshot(s, a.snap, a.at);

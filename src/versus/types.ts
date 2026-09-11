@@ -129,6 +129,31 @@ export interface AnswerRow {
   timeout: boolean;
 }
 
+/**
+ * One phone's push subscription: where its notifications go, and the keys
+ * that encrypt them. Only the API ever reads these.
+ */
+export interface SubscriptionRow {
+  endpoint: string;
+  player_id: string;
+  p256dh: string;
+  auth: string;
+}
+
+/**
+ * Two players who have finished a match together, which is what lets either
+ * send the other a rematch request. Ids are stored in sorted order so a pair
+ * has one row whichever side looks it up.
+ */
+export interface PairingRow {
+  a_id: string;
+  b_id: string;
+  played_at: string;
+  /** Who last sent a rematch request across this pairing, and when. */
+  invited_by: string | null;
+  invited_at: string | null;
+}
+
 /** Everything about a room, as the API answers every call. */
 export interface Snapshot {
   room: RoomRow;
@@ -137,4 +162,11 @@ export interface Snapshot {
   answers: AnswerRow[];
   /** The server's clock when this was taken, for recovering a round's timing. */
   now: string;
+  /** On a rematch request: whether a notification reached the other phone. */
+  notified?: boolean;
+}
+
+/** What the API answers to a call that is about a phone rather than a room. */
+export interface Receipt {
+  ok: true;
 }

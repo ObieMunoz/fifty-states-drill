@@ -83,6 +83,8 @@ body[data-versus="1"] .app{display:none}
 .vs-mini{background:var(--surface);border:1px solid var(--line);border-radius:9px;
   padding:8px 12px;font-size:12.5px;color:var(--ink-2);cursor:pointer;min-height:44px;flex:none}
 .vs-mini.danger{color:var(--wrong);border-color:color-mix(in srgb,var(--wrong) 45%,var(--line))}
+.vs-mini.primary{background:var(--hydro);color:var(--btn-ink);border-color:var(--hydro)}
+.vs-mini:disabled{opacity:.45;cursor:default}
 .vs-confirm{display:flex;gap:6px}
 
 /* ================= waiting room ================= */
@@ -361,6 +363,20 @@ svg.vs-map .st.pick{fill:var(--pc);stroke:var(--pc)}
 .vs-wl{font-size:12.5px;color:var(--ink-2);flex:none}
 .vs-wl i{font-style:normal;color:var(--ink-3);font-size:10px;margin:0 4px 0 1px}
 .vs-acc{font-size:12px;color:var(--ink-3);flex:none;width:3.4em;text-align:right}
+
+/* ================= friends and notifications ================= */
+.vs-who small{display:block;font-weight:400;font-size:11px;color:var(--ink-3);margin-top:1px}
+/* A row asked about: the question replaces the line, tinted so it reads as a pause. */
+.vs-rows li.asking{background:color-mix(in srgb,var(--wrong) 8%,var(--surface));
+  border:1px solid color-mix(in srgb,var(--wrong) 35%,transparent);padding:10px 12px}
+.vs-sure{display:flex;flex-direction:column;gap:9px;width:100%}
+.vs-sure p{margin:0;display:flex;flex-direction:column;gap:2px;line-height:1.4}
+.vs-sure p b{font-weight:600;font-size:14px}
+.vs-sure p span{font-size:12px;color:var(--ink-2)}
+.vs-sure .vs-confirm{justify-content:flex-end}
+.vs-hint{margin:0;color:var(--ink-3);font-size:12px;line-height:1.5}
+.vs-hint b{font-weight:600;color:var(--ink-2)}
+.vs-notify .vs-big{min-height:56px}
 
 /* ================= wider screens ================= */
 @media (min-width:620px){

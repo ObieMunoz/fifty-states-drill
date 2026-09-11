@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Db } from './rooms';
-import type { AnswerRow, PlayerRow, RoomRow } from '../src/versus/types';
+import type { AnswerRow, PairingRow, PlayerRow, RoomRow, SubscriptionRow } from '../src/versus/types';
 
 /**
  * The `Db` the API runs against: the Supabase project, through its secret
@@ -79,6 +79,44 @@ export function supabaseDb(): Db {
     },
     async deleteRoomsBefore(before) {
       const { data, error } = await sb.from('rooms').delete().lt('updated_at', before.toISOString()).select('code');
+      check(error);
+      return data?.length ?? 0;
+    },
+    async getSubscription(endpoint) {
+      const { data, error } = await sb.from('push_subscriptions').select('*').eq('endpoint', endpoint).maybeSingle();
+      check(error);
+      return (data as SubscriptionRow | null) ?? null;
+    },
+    async getSubscriptions(playerId) {
+      const { data, error } = await sb.from('push_subscriptions').select('*').eq('player_id', playerId);
+      check(error);
+      return (data as SubscriptionRow[] | null) ?? [];
+    },
+    async upsertSubscription(row) {
+      const { error } = await sb.from('push_subscriptions').upsert(row);
+      check(error);
+    },
+    async deleteSubscription(endpoint, playerId) {
+      let q = sb.from('push_subscriptions').delete().eq('endpoint', endpoint);
+      if (playerId !== undefined) q = q.eq('player_id', playerId);
+      const { error } = await q;
+      check(error);
+    },
+    async getPairing(aId, bId) {
+      const { data, error } = await sb.from('pairings').select('*').eq('a_id', aId).eq('b_id', bId).maybeSingle();
+      check(error);
+      return (data as PairingRow | null) ?? null;
+    },
+    async upsertPairing(row) {
+      const { error } = await sb.from('pairings').upsert(row);
+      check(error);
+    },
+    async deletePairing(aId, bId) {
+      const { error } = await sb.from('pairings').delete().eq('a_id', aId).eq('b_id', bId);
+      check(error);
+    },
+    async deletePairingsBefore(before) {
+      const { data, error } = await sb.from('pairings').delete().lt('played_at', before.toISOString()).select('a_id');
       check(error);
       return data?.length ?? 0;
     },

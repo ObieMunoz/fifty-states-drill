@@ -21,6 +21,13 @@ const supabaseUrl = env.VITE_SUPABASE_URL ?? env.SUPABASE_URL ?? env.NEXT_PUBLIC
 const supabaseKey = env.VITE_SUPABASE_PUBLISHABLE_KEY
   ?? env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? env.SUPABASE_ANON_KEY ?? env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+/**
+ * The public half of the key the API signs notifications with. A phone
+ * subscribes against it, so it is built into the page; the private half
+ * stays with the API. Unset, the app offers no notifications at all.
+ */
+const vapidKey = env.VITE_VAPID_PUBLIC_KEY ?? env.VAPID_PUBLIC_KEY;
+
 export default defineConfig({
   define: {
     // Stamped onto the Versus screens, so two phones can be checked against
@@ -28,6 +35,8 @@ export default defineConfig({
     __BUILD__: JSON.stringify(commit?.slice(0, 7) ?? 'dev'),
     'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
     'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': JSON.stringify(supabaseKey),
+    // Left to Vite's own env loading when unset, so a .env.local works in dev.
+    ...(vapidKey ? { 'import.meta.env.VITE_VAPID_PUBLIC_KEY': JSON.stringify(vapidKey) } : {}),
   },
   plugins: [
     react(),
@@ -38,6 +47,11 @@ export default defineConfig({
       // A new build waits until src/pwa.ts says it is safe to reload into it,
       // rather than taking over a match in progress.
       registerType: 'prompt',
+      // The worker is written by hand (src/sw.ts) so it can listen for
+      // rematch notifications as well as serve the shell offline.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       includeAssets: ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'logo.svg'],
       manifest: {
         id: base,
@@ -57,33 +71,11 @@ export default defineConfig({
           { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         // The link-preview card is fetched by messaging apps' servers, never
         // by the page, so it has no place in the offline shell.
         globIgnores: ['**/node_modules/**/*', 'og.png'],
-        // Every path is the app (/learn/…, /quiz/…, /versus/…), so an
-        // offline navigation to any of them gets the shell. The API is not.
-        navigateFallbackDenylist: [/^\/api\//],
-        runtimeCaching: [
-          {
-            // The Google Fonts stylesheet changes with browser support, so
-            // serve the cached copy and refresh it in the background.
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'google-fonts-stylesheets' },
-          },
-          {
-            // The font files are content-addressed and effectively immutable.
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-webfonts',
-              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
       },
     }),
   ],

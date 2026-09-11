@@ -110,6 +110,25 @@ Finished matches go into a standings table in `localStorage`, so a household bui
 running record of who beats whom. Names are remembered and pre-filled, and both the name
 and the table can be cleared from the UI. Nobody signs in.
 
+### Friends and rematch requests
+
+The result screen offers to add the other player as a friend. Friends are listed on the
+Versus menu, most recently played first, and each has a **Rematch** button: it opens a
+room with you as host and sends a push notification to the friend's phone — "Obie wants a
+rematch" — which opens the app straight into the room when tapped. The same button
+appears on the result screen when a friend has left before you could play again.
+
+Notifications are off until you turn them on, from the **Rematch requests** switch on the
+Versus menu. On iPhone and iPad they are only available once the app is on the Home
+Screen; a Safari tab is told to install first. Turning them off, or removing a friend,
+takes effect at once: removing someone cuts the link on the server, so neither of you can
+ping the other until you play again.
+
+The friends list, like the standings, lives on the device. What the server keeps is the
+minimum that makes a request safe to send: which phones can be reached, and which pairs
+of players have finished a match together — only those may ping each other, no more than
+once a minute, and a pairing nobody has renewed in three months is swept.
+
 ### How it works
 
 A room lives on the server: one row for the room, one per player, one per answer, in a
@@ -146,6 +165,14 @@ seat — mid-round if need be. Only pressing **Leave** gives a seat up: the host
 closes the room, a guest's hands the host the waiting room with the code still good.
 Rooms nobody has touched for a day are swept away by a daily cron (`api/keepalive.ts`).
 
+A rematch request is the one thing the server starts on its own initiative. The `rematch`
+action creates a room the usual way, looks up the friend's push subscriptions, and sends
+each one a small signed payload — the room code and the requester's name — through the
+phone's push service with [`web-push`](https://github.com/web-push-libs/web-push)
+(`server/push.ts`). The service worker (`src/sw.ts`) shows it as a notification and, on a
+tap, opens `/versus/CODE`, which is the same path an invite link takes. Subscriptions and
+pairings live in two more tables that the publishable key cannot read at all.
+
 Every Versus screen shows the build it is running in the fine print, so two phones on
 different builds — the first thing to rule out when something looks wrong — is visible at
 a glance. The app reloads into a new deploy on its own, at once or the moment a match
@@ -155,12 +182,13 @@ ends (`src/pwa.ts`).
 
 Two accounts, both on free tiers that this game will never come near the limits of.
 
-**Supabase.** Create a project, then run the migration in
-[`supabase/migrations/`](supabase/migrations/) against it — paste it into the SQL editor
-in the dashboard, or `supabase db push` with the CLI. It creates the three tables, lets
-the publishable key read them, and adds them to the Realtime publication. Note the
-project URL and, under **Project Settings → API**, the *publishable* key and the *secret*
-key.
+**Supabase.** Create a project, then run the migrations in
+[`supabase/migrations/`](supabase/migrations/) against it, in order — paste each into the
+SQL editor in the dashboard, or `supabase db push` with the CLI. The first creates the
+three room tables, lets the publishable key read them, and adds them to the Realtime
+publication; the second adds the two tables behind rematch requests, which nothing but
+the API can read. Note the project URL and, under **Project Settings → API**, the
+*publishable* key and the *secret* key.
 
 **Vercel.** Import the repository as a project; the defaults are right for Vite. Then
 either connect Supabase from the Vercel Marketplace, which sets the variables the app
@@ -169,6 +197,12 @@ publishable key are built into the page and are public, the secret key is read o
 the API functions and must never get a `VITE_` prefix. `vercel.json` schedules the daily
 sweep; set `CRON_SECRET` too and the function refuses anyone else. Every push to `main`
 deploys.
+
+**Rematch requests** need one more thing: a VAPID key pair, which is what signs each push
+notification. Run `npx web-push generate-vapid-keys` once and set `VITE_VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a `mailto:` for the push services to reach you).
+Without them the app simply offers no notifications. Changing the pair later invalidates
+every phone's subscription, so keep it.
 
 A free Supabase project pauses after a week without traffic. The daily cron is a query
 against the database every day, which is what keeps it awake through a quiet fortnight.

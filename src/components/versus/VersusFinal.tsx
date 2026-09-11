@@ -13,6 +13,10 @@ export function VersusFinal({ api }: { api: VersusApi }) {
   const [asked, setAsked] = useState(false);
   const { outcome } = matchResults(state);
   const them = state.them?.name || state.lastOpponent || 'Opponent';
+  // Who was played, whether or not they are still here.
+  const opponentId = state.them?.id || state.lastOpponentId;
+  const friend = api.friends.find((f) => f.id === opponentId) ?? null;
+  const gone = !state.them;
   const myColor = state.me.color;
   const theirColor = state.them?.color ?? colorOf(!state.isHost);
 
@@ -68,18 +72,33 @@ export function VersusFinal({ api }: { api: VersusApi }) {
       </section>
 
       <div className="vs-foot">
-        <button
-          type="button"
-          className={`vs-big ${asked ? 'on' : 'primary'}`}
-          disabled={!state.them}
-          onClick={() => { setAsked(true); api.rematch(); }}
-        >
-          {asked ? 'Asked for a rematch' : 'Play again'}
-        </button>
+        {gone && friend ? (
+          // They have gone, but they are a friend: the request reaches their phone.
+          <button type="button" className="vs-big primary" onClick={() => api.requestRematch(friend)}>
+            Send {them} a rematch request
+            <small>Opens a new room and pings their phone</small>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={`vs-big ${asked ? 'on' : 'primary'}`}
+            disabled={gone}
+            onClick={() => { setAsked(true); api.rematch(); }}
+          >
+            {asked ? 'Asked for a rematch' : 'Play again'}
+          </button>
+        )}
+        {opponentId && !friend && (
+          <button type="button" className="vs-big ghost" onClick={api.addFriend}>
+            Add {them} as a friend
+            <small>Send them a rematch request any time</small>
+          </button>
+        )}
         <p className="vs-foot-note" role="status">
-          {!state.them ? `${them} has left.`
+          {gone ? (friend ? '' : `${them} has left.`)
             : state.theyWantAgain ? `${them} wants another.`
-              : asked ? 'Waiting for the host to restart…' : ''}
+              : asked ? 'Waiting for the host to restart…'
+                : friend ? `${them} is on your friends list.` : ''}
         </p>
       </div>
 
