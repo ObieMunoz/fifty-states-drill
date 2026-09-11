@@ -73,10 +73,10 @@ export function VersusFinal({ api }: { api: VersusApi }) {
 
       <div className="vs-foot">
         {gone && friend ? (
-          // They have gone, but they are a friend: the request reaches their phone.
+          // They have gone, but they are a friend: the request reaches them anyway.
           <button type="button" className="vs-big primary" onClick={() => api.requestRematch(friend)}>
             Send {them} a rematch request
-            <small>Opens a new room and pings their phone</small>
+            <small>Opens a new room and notifies them</small>
           </button>
         ) : (
           <button

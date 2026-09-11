@@ -77,8 +77,8 @@ export function Friends({
         ))}
       </ul>
       <p className="vs-hint">
-        Rematch opens a room and pings their phone. Removing someone means neither of you can
-        ping the other until you play again.
+        Rematch opens a room and sends them a notification. Removing someone means neither of
+        you can notify the other until you play again.
       </p>
     </section>
   );
