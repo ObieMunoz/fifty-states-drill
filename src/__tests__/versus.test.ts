@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BY, ST } from '../data/states';
 import { DIFFS, MIXPOOL } from '../data/modes';
 import { buildAsk } from '../game/question';
@@ -9,7 +9,7 @@ import {
   isTyped, outcomeOf, roundLimitMs, scoreAnswer, streakBefore, streakBonus,
 } from '../versus/scoring';
 import {
-  CODE_LENGTH, codeFromUrl, isCompleteCode, joinUrl, matchSeed, newRoomCode, normalizeCode,
+  CODE_LENGTH, clearUrlCode, codeFromUrl, isCompleteCode, joinUrl, matchSeed, newRoomCode, normalizeCode,
 } from '../versus/room';
 import { playerId } from '../versus/player';
 import { cleanName, displayName } from '../versus/identity';
@@ -306,6 +306,28 @@ describe('room codes', () => {
     expect(codeFromUrl('/', '#versus=AC')).toBeNull();
     expect(codeFromUrl('/', '')).toBeNull();
     expect(codeFromUrl('/quiz/mixed', '#nothing')).toBeNull();
+  });
+
+  it('drops the room from the URL on the way out, but not another room’s', () => {
+    const replaced: string[] = [];
+    const location = { pathname: '/versus/ACDE', hash: '', search: '?x=1' };
+    vi.stubGlobal('window', { location });
+    vi.stubGlobal('history', {
+      replaceState: (_s: unknown, _t: string, url: string) => { replaced.push(url); },
+    });
+    // The next room's screen has already written its code: leaving the old one must not touch it.
+    clearUrlCode('FGHJ');
+    expect(replaced).toEqual([]);
+    clearUrlCode('acde');
+    expect(replaced).toEqual(['/versus?x=1']);
+    // With no room named, whatever is there goes.
+    clearUrlCode();
+    expect(replaced).toEqual(['/versus?x=1', '/versus?x=1']);
+    // Nothing to drop.
+    location.pathname = '/versus';
+    clearUrlCode('ACDE');
+    expect(replaced).toHaveLength(2);
+    vi.unstubAllGlobals();
   });
 
   it('builds the invite link on the room path', () => {

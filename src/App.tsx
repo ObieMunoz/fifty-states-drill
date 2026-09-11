@@ -91,8 +91,12 @@ export function App() {
   /* A tapped rematch notification names a room. The URL is set to it and
      Versus mounted anew, which is the same path an invite link takes: the
      screen reads the code on the way in and joins with the saved name. A
-     room already open is left by the old screen's unmount. */
+     room already open is left by the old screen's unmount. The worker says
+     the room more than one way, so the same tap can be heard twice; a room
+     the URL already names is one this app is in, or on its way into. */
   useEffect(() => onOpenRoom((code) => {
+    const here = currentRoute();
+    if (here.kind === 'versus' && here.code === code) return;
     writeRoute({ kind: 'versus', code }, true);
     setVersus(true);
     setRoomKey((k) => k + 1);

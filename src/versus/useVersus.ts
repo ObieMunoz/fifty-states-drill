@@ -117,6 +117,18 @@ export function useVersus(): VersusApi {
   const live = useRef(state);
   useEffect(() => { live.current = state; }, [state]);
 
+  /**
+   * False once this screen is gone, so a reply that lands late is let drop.
+   * A tapped notification remounts Versus for the new room while the old
+   * screen's requests may still be in flight; those must not open a channel
+   * nothing will close, or write the old room over the new one's URL.
+   */
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
   /** The room as the server pushes it, once this side has joined one. */
   const room = useRef<Live | null>(null);
   /**
@@ -219,7 +231,7 @@ export function useVersus(): VersusApi {
       const e = err instanceof ApiError ? err : new ApiError(0, OFFLINE);
       if (e.status === 404 || e.status === 409 || e.status === 410) {
         dropRoom();
-        clearUrlCode();
+        clearUrlCode(s.code);
         clearSeries();
         dispatch({ type: 'roomClosed', error: e.message });
       } else {
@@ -265,8 +277,9 @@ export function useVersus(): VersusApi {
     const snap = await call(asHost
       ? { action: 'create', name: clean, dif }
       : { action: 'join', code, name: clean, dif });
+    if (!mounted.current) return;
     if (!snap) {
-      clearUrlCode();
+      clearUrlCode(code);
       return;
     }
     // A reload should come back to this room, not to the menu.
@@ -589,11 +602,13 @@ export function useVersus(): VersusApi {
     try {
       snap = await callVersus({ action: 'rematch', playerId: s.me.id, to: friend.id, name: clean, dif: s.me.dif });
     } catch (err) {
-      clearUrlCode();
+      if (!mounted.current) return;
+      clearUrlCode(s.code);
       dispatch({ type: 'leave' });
       dispatch({ type: 'setError', error: err instanceof ApiError ? err.message : OFFLINE });
       return;
     }
+    if (!mounted.current) return;
     setUrlCode(snap.room.code);
     try {
       listen(snap.room.code);
@@ -613,7 +628,7 @@ export function useVersus(): VersusApi {
       void callVersus({ action: 'leave', code: s.code, playerId: s.me.id }).catch(() => { /* gone anyway */ });
     }
     dropRoom();
-    clearUrlCode();
+    clearUrlCode(s.code);
     clearSeries();
     setReactions([]);
     dispatch({ type: 'leave' });

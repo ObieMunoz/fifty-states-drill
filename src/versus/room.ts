@@ -71,9 +71,17 @@ export function setUrlCode(code: string): void {
   history.replaceState(null, '', `/versus/${normalizeCode(code)}${window.location.search}`);
 }
 
-/** Drop the room from the URL on the way out, so a reload does not rejoin it. */
-export function clearUrlCode(): void {
+/**
+ * Drop the room from the URL on the way out, so a reload does not rejoin
+ * it. Given the room being left, a URL naming another room is left alone:
+ * the next room's screen may already have written its own code there — a
+ * tapped notification opens the new room while the old one is still on its
+ * way out — and that has to stand.
+ */
+export function clearUrlCode(code?: string): void {
   if (!/^\/versus\//.test(window.location.pathname) && !window.location.hash) return;
+  const named = codeFromUrl();
+  if (code && named && named !== normalizeCode(code)) return;
   history.replaceState(null, '', `/versus${window.location.search}`);
 }
 

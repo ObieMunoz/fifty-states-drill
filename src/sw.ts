@@ -6,6 +6,7 @@ import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { CacheFirst, StaleWhileRevalidate } from 'workbox-strategies';
 import { noticeFor, openRoomMessage, parsePayload } from './versus/notify';
+import { rememberRoom } from './versus/pending';
 
 /**
  * The service worker: the offline shell, and the phone's ear for rematch
@@ -67,27 +68,43 @@ self.addEventListener('push', (event) => {
 });
 
 /**
- * A tap opens the room. An app already running is brought forward and told
- * which room, and moves itself there — steering its URL from here works in
- * some browsers and not others, and an installed app in the background is
- * exactly where it fails. With no window open at all, one is opened at the
- * room's own address, which joins on load like an invite link.
+ * A tap opens the room.
+ *
+ * The room is written down first, where the page can find it for itself.
+ * An installed app in the background is asleep when the tap comes, and on
+ * iOS a message posted to it then is lost as often as not, as is a
+ * navigation asked of it; the phone may even throw the page away and
+ * reload it on the way to the front. Bringing the app forward does work,
+ * and a page that starts or comes to the front looks for the note
+ * (src/pwa.ts).
+ *
+ * A running app is then told which room and brought forward: the message
+ * is the quick way in wherever it does arrive. With no window open at all,
+ * one is opened at the room's own address, which joins on load like an
+ * invite link.
  */
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = (event.notification.data ?? {}) as { url?: string; code?: string };
   const url = new URL(data.url ?? '/versus', self.location.origin).href;
   event.waitUntil((async () => {
+    if (data.code) {
+      await rememberRoom(data.code).catch(() => {
+        // No store to write to: the message and the address are the other ways in.
+      });
+    }
     const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     // The one on screen, failing that any; an app has one window in practice.
     const win = wins.find((w) => w.focused || w.visibilityState === 'visible') ?? wins[0];
     if (win && data.code) {
+      // Told before it is brought forward, so the word is queued whatever
+      // becomes of the focus call.
+      win.postMessage(openRoomMessage(data.code));
       try {
         await win.focus();
       } catch {
-        // Not every browser lets a worker focus a window; the message still lands.
+        // Not every browser lets a worker focus a window; the note still stands.
       }
-      win.postMessage(openRoomMessage(data.code));
       return;
     }
     await self.clients.openWindow(url);
