@@ -10,10 +10,11 @@ modes make no network calls at runtime beyond a Google Fonts stylesheet — the 
 geometry ships in the bundle. Versus, the two-player mode, talks to a small server; see
 [Versus](#versus).
 
-It installs as an app. On iPhone or iPad open the link in Safari and choose
-**Share → Add to Home Screen**; on Android, Chrome offers **Install app** from its
-menu; on desktop Chrome and Edge, use the install icon in the address bar. Once
-installed, every mode except Versus works offline.
+It installs as an app. On a phone, a banner offers this after a few questions: one tap
+on Android, where Chrome shows its install dialog, and on iPhone or iPad the steps —
+**Share → Add to Home Screen** — since iOS has no dialog to call. On desktop Chrome and
+Edge, use the install icon in the address bar. Once installed, every mode except Versus
+works offline.
 
 ## Modes
 
@@ -282,6 +283,13 @@ app shell and caches the Google Fonts files on first use. A new deploy is picked
 in the background and the page reloads into it at once — or, if Versus is open, the
 moment the player leaves it (`src/pwa.ts`). Without that, a phone that only ever
 brings the app back from the switcher could sit on an old build for days.
+
+The install banner (`src/install.ts`, `src/components/InstallBanner.tsx`) shows on a
+phone that is running the app in a tab, once the player has answered three questions
+or returns with progress saved. On Android it holds Chrome's `beforeinstallprompt`
+event and calls it from the **Install** button; on iOS, which has no such event, it
+gives the steps instead. **Not now** snoozes it for a month, and it goes for good once
+the app is installed.
 
 ### Deployment
 

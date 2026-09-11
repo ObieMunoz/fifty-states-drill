@@ -16,6 +16,20 @@
   font-family:"IBM Plex Mono",monospace}
 .stat.hot b{color:var(--signal)}
 
+/* ---- install banner ---- */
+/* Shown on phones only (src/install.ts): one row, the text taking what the
+   icon and the buttons leave. Sits above the rail, like a store's app banner. */
+.install{display:flex;align-items:center;gap:12px;padding:10px 12px 10px 14px;flex:none;
+  background:var(--surface);border-bottom:1px solid var(--line)}
+.install>img{width:40px;height:40px;border-radius:10px;flex:none;box-shadow:0 0 0 1px var(--line-soft)}
+.install-text{display:flex;flex-direction:column;flex:1;min-width:0;line-height:1.3}
+.install-text b{font-weight:600;font-size:14px}
+.install-text span{font-size:12.5px;color:var(--ink-2)}
+.install-text span b{font-size:inherit;color:var(--ink)}
+.install-x{background:transparent;border:0;color:var(--ink-3);cursor:pointer;flex:none;padding:0;
+  width:40px;height:40px;margin:-4px -6px -4px -4px;border-radius:8px;display:grid;place-items:center}
+.install-x svg{width:14px;height:14px;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+
 /* mode bar */
 .modebar{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--surface);
   border-bottom:1px solid var(--line);flex-wrap:wrap;max-width:100%;overflow-x:hidden;flex:none}

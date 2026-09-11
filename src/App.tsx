@@ -6,6 +6,7 @@ import { loadProgress, saveProgress } from './game/progress';
 import { asksQuestions, initialState, nextQuestion, reducer } from './game/state';
 import { ModeBar } from './components/ModeBar';
 import { MapStage } from './components/MapStage';
+import { InstallBanner } from './components/InstallBanner';
 import { Rail } from './components/Rail';
 import { Roster } from './components/Roster';
 import { CardsPanel } from './components/panels/CardsPanel';
@@ -49,8 +50,13 @@ export function App() {
   });
   const api = useMemo(() => ({ state, dispatch }), [state]);
 
-  const { mode, qm, ask, locked, scope, dif, progress } = state;
+  const { mode, qm, ask, locked, scope, dif, progress, run } = state;
   const kind = MODES[mode].kind;
+
+  /* The install offer waits until the player has answered a few questions,
+     or comes back with progress saved: a banner over an app nobody has tried
+     yet is the first thing to be dismissed. `st` only exists after an answer. */
+  const settled = run.asked >= 3 || Object.keys(progress.st ?? {}).length > 0;
 
   /* The address bar follows the app. On load the URL is corrected in place:
      an unknown path becomes home, and an old-style invite fragment becomes
@@ -167,6 +173,7 @@ export function App() {
         </Suspense>
       )}
       <div className="app">
+        <InstallBanner ready={settled} />
         <Rail onVersus={() => setVersus(true)} />
         <ModeBar />
         <div className="body">
