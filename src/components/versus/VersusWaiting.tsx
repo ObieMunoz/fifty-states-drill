@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { BUILD } from '../../build';
 import { joinUrl } from '../../versus/room';
 import { QrCode } from './QrCode';
+import type { InviteOutcome } from '../../versus/machine';
 import type { VersusApi } from '../../versus/useVersus';
 
 /**
@@ -75,9 +76,9 @@ export function VersusWaiting({ api }: { api: VersusApi }) {
               : state.invite
                 ? state.invite.sent === null
                   ? <span>Pinging {state.invite.name}…</span>
-                  : state.invite.sent
+                  : state.invite.sent === 'sent'
                     ? <span>{state.invite.name}’s phone has been pinged. Waiting for them…</span>
-                    : <span className="vs-error">{state.invite.name} couldn’t be reached: their notifications are off. Share the link instead.</span>
+                    : <span className="vs-error">{unreached(state.invite.name, state.invite.sent)}</span>
                 : state.isHost
                   ? <span>Waiting for the other player…</span>
                   : <span>Taking a seat…</span>}
@@ -90,4 +91,13 @@ export function VersusWaiting({ api }: { api: VersusApi }) {
       </p>
     </div>
   );
+}
+
+/** Why a rematch notification did not go out, in the requester's terms. */
+function unreached(name: string, why: InviteOutcome): string {
+  switch (why) {
+    case 'unconfigured': return 'This server is not set up for notifications yet. Share the link instead.';
+    case 'unsubscribed': return `${name} hasn’t turned notifications on. Share the link instead.`;
+    default: return `${name}’s phone couldn’t be reached just now. Share the link instead.`;
+  }
 }

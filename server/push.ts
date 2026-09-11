@@ -21,22 +21,40 @@ export interface Pusher {
   send(to: SubscriptionRow, payload: string, ttlSeconds: number): Promise<'sent' | 'gone' | 'failed'>;
 }
 
-/** The VAPID keys, or null when the deployment has not set them up. */
+/**
+ * The VAPID keys, or null when the deployment has not set them up. Values
+ * are trimmed, since a pasted key easily picks up a stray space, and a
+ * subject typed as a bare address gets the `mailto:` the standard wants.
+ */
 function vapid(): { subject: string; publicKey: string; privateKey: string } | null {
-  const publicKey = process.env.VAPID_PUBLIC_KEY;
-  const privateKey = process.env.VAPID_PRIVATE_KEY;
-  if (!publicKey || !privateKey) return null;
-  return { subject: process.env.VAPID_SUBJECT || 'https://fifty-states-drill.vercel.app/', publicKey, privateKey };
+  const publicKey = (process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || '').trim();
+  const privateKey = (process.env.VAPID_PRIVATE_KEY || '').trim();
+  if (!publicKey || !privateKey) {
+    console.warn('push is not configured: VITE_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY are needed');
+    return null;
+  }
+  let subject = (process.env.VAPID_SUBJECT || '').trim() || 'https://fifty-states-drill.vercel.app/';
+  if (!/^(mailto:|https?:)/i.test(subject) && subject.includes('@')) subject = `mailto:${subject}`;
+  return { subject, publicKey, privateKey };
 }
 
 let configured: Pusher | null | undefined;
 
-/** The real thing, or null when notifications are not set up on this server. */
+/**
+ * The real thing, or null when notifications are not set up on this server.
+ * A bad key or subject is a setup mistake in one feature, and is logged and
+ * treated as unconfigured rather than allowed to break every room action.
+ */
 export function webPusher(): Pusher | null {
   if (configured !== undefined) return configured;
   const keys = vapid();
   if (!keys) return (configured = null);
-  webpush.setVapidDetails(keys.subject, keys.publicKey, keys.privateKey);
+  try {
+    webpush.setVapidDetails(keys.subject, keys.publicKey, keys.privateKey);
+  } catch (err) {
+    console.error('push is misconfigured, so notifications are off:', (err as Error).message);
+    return (configured = null);
+  }
   return (configured = {
     async send(to, payload, ttlSeconds) {
       try {

@@ -202,7 +202,8 @@ deploys.
 notification. Run `npx web-push generate-vapid-keys` once and set `VITE_VAPID_PUBLIC_KEY`,
 `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a `mailto:` for the push services to reach you).
 Without them the app simply offers no notifications. Changing the pair later invalidates
-every phone's subscription, so keep it.
+every phone's subscription, so keep it. The public key is read by both the build and the
+API, so one variable under the `VITE_` name serves both.
 
 A free Supabase project pauses after a week without traffic. The daily cron is a query
 against the database every day, which is what keeps it awake through a quiet fortnight.

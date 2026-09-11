@@ -460,7 +460,7 @@ export function useVersus(): VersusApi {
     } catch (err) {
       dispatch({ type: 'setError', error: err instanceof Error ? err.message : String(err) });
     }
-    dispatch({ type: 'invited', sent: snap.notified === true });
+    dispatch({ type: 'invited', sent: snap.notified ?? 'undelivered' });
   }, [dropRoom, listen]);
 
   /* Leaving on purpose is the one thing that gives a seat up: the host's

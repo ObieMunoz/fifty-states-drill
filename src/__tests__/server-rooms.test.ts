@@ -522,7 +522,7 @@ describe('rematch requests', () => {
     const s = await ask({}, pusher, at(60_000));
     expect(s.room).toMatchObject({ host_id: 'host', status: 'waiting' });
     expect(s.players).toEqual([expect.objectContaining({ id: 'host', name: 'Obie' })]);
-    expect(s.notified).toBe(true);
+    expect(s.notified).toBe('sent');
     expect(sent.map((x) => x.endpoint).sort()).toEqual(['https://push.example/guest/1', 'https://push.example/guest/2']);
     expect(sent[0].payload).toEqual({ kind: 'rematch', code: s.room.code, from: 'Obie' });
     expect(sent[0].ttl).toBe(30 * 60);
@@ -534,13 +534,13 @@ describe('rematch requests', () => {
     const { pusher, sent } = recorder();
     const s = await ask({}, pusher);
     expect(s.room.status).toBe('waiting');
-    expect(s.notified).toBe(false);
+    expect(s.notified).toBe('unsubscribed');
     expect(sent).toEqual([]);
     // Nothing was sent, so nothing starts the cooldown.
     expect(db.pairings[0].invited_by).toBeNull();
-    // No push service configured at all reads the same way.
+    // No push service configured at all is told apart from that.
     await phone(db, sub('guest'));
-    expect((await ask({}, null)).notified).toBe(false);
+    expect((await ask({}, null)).notified).toBe('unconfigured');
   });
 
   it('drops a subscription the push service says is gone', async () => {
@@ -549,12 +549,12 @@ describe('rematch requests', () => {
     await phone(db, sub('guest', 2));
     const { pusher } = recorder((e) => (e.endsWith('/1') ? 'gone' : 'sent'));
     const s = await ask({}, pusher);
-    expect(s.notified).toBe(true);
+    expect(s.notified).toBe('sent');
     expect(db.subs.map((r) => r.endpoint)).toEqual(['https://push.example/guest/2']);
     // A transient failure keeps the row.
     const failing = recorder(() => 'failed');
     const again = await ask({}, failing.pusher, at(REMATCH_COOLDOWN_MS + 1));
-    expect(again.notified).toBe(false);
+    expect(again.notified).toBe('undelivered');
     expect(db.subs).toHaveLength(1);
   });
 
@@ -569,10 +569,10 @@ describe('rematch requests', () => {
     expect(db.rooms.size).toBe(2); // the finished room and the first request's
     // The friend answering with a request of their own is not a repeat.
     const back = await ask({ playerId: 'guest', to: 'host', name: 'Sam' }, pusher, at(1000));
-    expect(back.notified).toBe(true);
+    expect(back.notified).toBe('sent');
     expect(sent[1]).toMatchObject({ endpoint: 'https://push.example/host/1', payload: { from: 'Sam' } });
     // And after a minute, so may the first side.
-    expect((await ask({}, pusher, at(REMATCH_COOLDOWN_MS + 1))).notified).toBe(true);
+    expect((await ask({}, pusher, at(REMATCH_COOLDOWN_MS + 1))).notified).toBe('sent');
   });
 
   it('playing again clears the pending request, and forgetting cuts the link both ways', async () => {

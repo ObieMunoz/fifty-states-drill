@@ -3,9 +3,12 @@ import { outcomeOf } from './scoring';
 import { COUNTDOWN_MS } from './timing';
 import { colorOf } from './types';
 import type {
-  AnswerRow, LinkState, MatchConfig, Phase, Player, PlannedRound, RoundAnswer,
+  AnswerRow, LinkState, MatchConfig, Phase, Player, PlannedRound, RoundAnswer, Snapshot,
 } from './types';
 import type { LiveSnapshot } from './live';
+
+/** What the server said became of a rematch notification. */
+export type InviteOutcome = NonNullable<Snapshot['notified']>;
 import type { DiffKey, ModeKey, Scope } from '../types';
 
 /**
@@ -61,9 +64,9 @@ export interface VersusState {
   lastOpponentId: string;
   /**
    * Set while this room was opened by a rematch request: who was asked, and
-   * whether the notification reached them (null until the server has said).
+   * what became of the notification (null until the server has said).
    */
-  invite: { name: string; sent: boolean | null } | null;
+  invite: { name: string; sent: InviteOutcome | null } | null;
   /** Whether the room on screen has been seen from the server yet. */
   synced: boolean;
   error: string | null;
@@ -73,7 +76,7 @@ export type VersusAction =
   | { type: 'setLink'; link: LinkState }
   | { type: 'setError'; error: string | null }
   | { type: 'enter'; code: string; asHost: boolean; invite?: string }
-  | { type: 'invited'; sent: boolean }
+  | { type: 'invited'; sent: InviteOutcome }
   | { type: 'snapshot'; snap: LiveSnapshot; at: number }
   | { type: 'presence'; ids: string[] }
   | { type: 'setName'; name: string }

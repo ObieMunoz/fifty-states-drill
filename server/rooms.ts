@@ -414,7 +414,9 @@ async function forget(db: Db, input: Record<string, unknown>): Promise<Receipt> 
  * Start a room and tell someone about it. Only someone this player has
  * finished a match with, and not twice in a minute. The room is opened
  * either way — the requester is in it, code on screen, and can share the
- * link by hand — and `notified` says whether the notification got out.
+ * link by hand — and `notified` says whether the notification got out, and
+ * if not, why, so a setup problem reads differently from a friend who has
+ * simply not turned notifications on.
  */
 async function rematch(
   db: Db, input: Record<string, unknown>, now: Date, pusher: Pusher | null,
@@ -430,16 +432,15 @@ async function rematch(
   }
 
   const snap = await create(db, input, now);
+  if (!pusher) return { ...snap, notified: 'unconfigured' };
   const targets = await db.getSubscriptions(them);
-  let sent = 0;
-  if (pusher && targets.length) {
-    const payload = JSON.stringify(rematchPayload(snap.room.code, nameOf(input)));
-    const results = await Promise.all(targets.map((t) => pusher.send(t, payload, Math.round(REMATCH_TTL_MS / 1000))));
-    await Promise.all(results.map((r, i) => (r === 'gone' ? db.deleteSubscription(targets[i].endpoint) : Promise.resolve())));
-    sent = results.filter((r) => r === 'sent').length;
-  }
+  if (!targets.length) return { ...snap, notified: 'unsubscribed' };
+  const payload = JSON.stringify(rematchPayload(snap.room.code, nameOf(input)));
+  const results = await Promise.all(targets.map((t) => pusher.send(t, payload, Math.round(REMATCH_TTL_MS / 1000))));
+  await Promise.all(results.map((r, i) => (r === 'gone' ? db.deleteSubscription(targets[i].endpoint) : Promise.resolve())));
+  const sent = results.some((r) => r === 'sent');
   if (sent) await db.upsertPairing({ ...pairing, invited_by: me, invited_at: iso(now) });
-  return { ...snap, notified: sent > 0 };
+  return { ...snap, notified: sent ? 'sent' : 'undelivered' };
 }
 
 /* ---------------- dispatch ---------------- */
