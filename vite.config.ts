@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { localVersus } from './dev/local-versus';
 
 // Served from the root of its own domain on Vercel. The old GitHub Pages
 // address, which needed a path prefix, now only redirects here.
@@ -40,6 +41,9 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    // `npm run dev:local`: Versus against an in-memory room server, so a
+    // match can be played between two tabs with no Supabase project at all.
+    ...(env.VERSUS_LOCAL ? [localVersus()] : []),
     // Installable on iOS, Android and desktop, and usable offline: the map
     // geometry ships in the bundle, so once the shell is cached nothing but
     // Versus needs the network. Icons are drawn by scripts/make-icons.mjs.

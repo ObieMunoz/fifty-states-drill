@@ -1,105 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { BY } from '../data/states';
+import { memoryDb } from '../../server/memory';
 import { RoomError, expireRooms, phone, versus } from '../../server/rooms';
-import type { Db } from '../../server/rooms';
 import type { Pusher } from '../../server/push';
 import { planMatch } from '../versus/plan';
-import { roundLimitMs, scoreAnswer } from '../versus/scoring';
+import { FINAL_ROUND_MULTIPLIER, STREAK_POINTS, roundLimitMs, scoreAnswer } from '../versus/scoring';
 import {
   COUNTDOWN_MS, GRACE_MS, PAIRING_TTL_MS, REMATCH_COOLDOWN_MS, ROOM_TTL_MS,
 } from '../versus/timing';
-import type {
-  AnswerRow, PairingRow, PlayerRow, RoomRow, Snapshot, SubscriptionRow,
-} from '../versus/types';
-
-interface MemoryDb extends Db {
-  rooms: Map<string, RoomRow>;
-  players: PlayerRow[];
-  answers: AnswerRow[];
-  subs: SubscriptionRow[];
-  pairings: PairingRow[];
-}
-
-function memoryDb(): MemoryDb {
-  const rooms = new Map<string, RoomRow>();
-  let players: PlayerRow[] = [];
-  let answers: AnswerRow[] = [];
-  let subs: SubscriptionRow[] = [];
-  let pairings: PairingRow[] = [];
-  return {
-    rooms,
-    get players() { return players; },
-    get answers() { return answers; },
-    get subs() { return subs; },
-    get pairings() { return pairings; },
-    async getRoom(code) { return rooms.get(code) ?? null; },
-    async insertRoom(row) {
-      if (rooms.has(row.code)) return false;
-      rooms.set(row.code, { ...row });
-      return true;
-    },
-    async updateRoom(code, patch) {
-      const r = rooms.get(code);
-      if (r) rooms.set(code, { ...r, ...patch });
-    },
-    async getPlayers(code) { return players.filter((p) => p.room_code === code); },
-    async upsertPlayer(row) {
-      players = players.filter((p) => !(p.room_code === row.room_code && p.id === row.id));
-      players.push({ ...row });
-    },
-    async updatePlayers(code, patch) {
-      players = players.map((p) => (p.room_code === code ? { ...p, ...patch } : p));
-    },
-    async deletePlayer(code, id) {
-      players = players.filter((p) => !(p.room_code === code && p.id === id));
-    },
-    async getAnswers(code, matchNo) {
-      return answers.filter((a) => a.room_code === code && a.match_no === matchNo);
-    },
-    async insertAnswer(row) {
-      if (answers.some((a) => a.room_code === row.room_code && a.match_no === row.match_no
-        && a.round === row.round && a.player_id === row.player_id)) return false;
-      answers.push({ ...row });
-      return true;
-    },
-    async deleteRoomsBefore(before) {
-      let n = 0;
-      for (const [code, r] of rooms) {
-        if (new Date(r.updated_at) < before) {
-          rooms.delete(code);
-          players = players.filter((p) => p.room_code !== code);
-          answers = answers.filter((a) => a.room_code !== code);
-          n++;
-        }
-      }
-      return n;
-    },
-    async getWaitingRoomsHostedBy(hostId) {
-      return [...rooms.values()].filter((r) => r.host_id === hostId && r.status === 'waiting');
-    },
-    async getSubscription(endpoint) { return subs.find((r) => r.endpoint === endpoint) ?? null; },
-    async getSubscriptions(playerId) { return subs.filter((r) => r.player_id === playerId); },
-    async upsertSubscription(row) {
-      subs = [...subs.filter((r) => r.endpoint !== row.endpoint), { ...row }];
-    },
-    async deleteSubscription(endpoint, playerId) {
-      subs = subs.filter((r) => r.endpoint !== endpoint || (playerId !== undefined && r.player_id !== playerId));
-    },
-    async getPairing(aId, bId) { return pairings.find((r) => r.a_id === aId && r.b_id === bId) ?? null; },
-    async upsertPairing(row) {
-      pairings = [...pairings.filter((r) => !(r.a_id === row.a_id && r.b_id === row.b_id)), { ...row }];
-    },
-    async deletePairing(aId, bId) {
-      pairings = pairings.filter((r) => !(r.a_id === aId && r.b_id === bId));
-    },
-    async deletePairingsBefore(before) {
-      const keep = pairings.filter((r) => new Date(r.played_at) >= before);
-      const n = pairings.length - keep.length;
-      pairings = keep;
-      return n;
-    },
-  };
-}
+import type { Snapshot } from '../versus/types';
 
 const T0 = new Date('2026-09-10T12:00:00.000Z');
 const at = (ms: number) => new Date(T0.getTime() + ms);
@@ -266,6 +175,33 @@ describe('answering', () => {
       questionTime(s, 4000),
     );
     expect(wrong.answers.find((a) => a.player_id === 'guest')).toMatchObject({ correct: false, points: 0 });
+  });
+
+  it('pays a streak of right answers, and doubles the last round', async () => {
+    let s = await playing('find', 5);
+    const code = s.room.code;
+    const plan = planMatch({ seed: s.room.seed as string, mode: 'find', rounds: 5, scope: 'all' });
+    const limit = roundLimitMs('find', ['standard', 'guided']);
+    const pts = (id: string, round: number) =>
+      s.answers.find((a) => a.player_id === id && a.round === round)?.points;
+    for (let r = 0; r < 5; r++) {
+      const when = questionTime(s, 1000);
+      // The host is right every time; the guest misses the second round.
+      await call({ action: 'answer', code, playerId: 'host', round: r, pick: plan[r].abbr, ms: 1000, timeout: false }, when);
+      const guestPick = r === 1 ? 'XX' : plan[r].abbr;
+      s = await call({ action: 'answer', code, playerId: 'guest', round: r, pick: guestPick, ms: 1000, timeout: false }, when);
+      if (r < 4) s = await call({ action: 'advance', code, playerId: 'host' }, new Date(when.getTime() + 1));
+    }
+    const base = scoreAnswer(true, 1000, limit);
+    expect(pts('host', 0)).toBe(base);
+    expect(pts('host', 1)).toBe(base + STREAK_POINTS);
+    expect(pts('host', 3)).toBe(base + 3 * STREAK_POINTS);
+    expect(pts('host', 4)).toBe((base + 4 * STREAK_POINTS) * FINAL_ROUND_MULTIPLIER);
+    // The guest's miss scores nothing and starts the count over.
+    expect(pts('guest', 1)).toBe(0);
+    expect(pts('guest', 2)).toBe(base);
+    expect(pts('guest', 3)).toBe(base + STREAK_POINTS);
+    expect(pts('guest', 4)).toBe((base + 2 * STREAK_POINTS) * FINAL_ROUND_MULTIPLIER);
   });
 
   it('takes a timeout as no answer', async () => {

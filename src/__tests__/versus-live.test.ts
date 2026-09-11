@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { patchSnapshot } from '../versus/live';
+import { REACTIONS, isEmoji, parseReaction } from '../versus/reactions';
 import type { LiveSnapshot } from '../versus/live';
 import type { AnswerRow, PlayerRow, RoomRow } from '../versus/types';
 
@@ -61,5 +62,26 @@ describe('folding pushed changes into the room', () => {
     expect(patchSnapshot(s, { table: 'answers', eventType: 'INSERT', new: answer('them', 0, { match_no: 3 }), old: {} })).toBe(s);
     expect(patchSnapshot(s, { table: 'answers', eventType: 'INSERT', new: answer('them', 0, { room_code: 'XXXX' }), old: {} })).toBe(s);
     expect(patchSnapshot(s, { table: 'answers', eventType: 'UPDATE', new: answer('me', 0, { points: 999 }), old: {} })).toBe(s);
+  });
+});
+
+describe('reactions off the wire', () => {
+  it('takes a known emoji from a named sender', () => {
+    expect(parseReaction({ from: 'them', emoji: '🔥' })).toEqual({ from: 'them', emoji: '🔥' });
+  });
+
+  it('drops anything that is not one', () => {
+    expect(parseReaction(null)).toBeNull();
+    expect(parseReaction('🔥')).toBeNull();
+    expect(parseReaction({ from: 'them', emoji: '💩' })).toBeNull();
+    expect(parseReaction({ from: '', emoji: '🔥' })).toBeNull();
+    expect(parseReaction({ from: 'x'.repeat(65), emoji: '🔥' })).toBeNull();
+    expect(parseReaction({ emoji: '🔥' })).toBeNull();
+  });
+
+  it('knows its own set', () => {
+    for (const e of REACTIONS) expect(isEmoji(e)).toBe(true);
+    expect(isEmoji('👍')).toBe(false);
+    expect(isEmoji(42)).toBe(false);
   });
 });

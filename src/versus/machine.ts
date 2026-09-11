@@ -1,5 +1,6 @@
 import { planMatch } from './plan';
-import { outcomeOf } from './scoring';
+import { outcomeOf, streakBefore } from './scoring';
+import type { Outcome } from './scoring';
 import { COUNTDOWN_MS } from './timing';
 import { colorOf } from './types';
 import type {
@@ -52,6 +53,13 @@ export interface VersusState {
   theirAnswers: (RoundAnswer | null)[];
   /** How many matches this room has played; feeds the next seed. */
   matchNo: number;
+  /**
+   * How every match finished in this room, by seed, from this side. Kept
+   * across rematches so the result screen can say "you lead 2–1 tonight";
+   * the entry for a match still on the final screen is refreshed as the
+   * last rows land, so a late answer cannot leave a wrong result behind.
+   */
+  series: Record<string, Outcome>;
   /** Set when the other side asks for a rematch before this side has. */
   theyWantAgain: boolean;
   /**
@@ -92,7 +100,9 @@ export type VersusAction =
 const emptyPlayer = (id: string, name: string, dif: DiffKey): Player =>
   ({ id, name, color: colorOf(true), dif, ready: false, present: true });
 
-export function initialVersus(name: string, dif: DiffKey, code = '', id = ''): VersusState {
+export function initialVersus(
+  name: string, dif: DiffKey, code = '', id = '', series: Record<string, Outcome> = {},
+): VersusState {
   return {
     phase: 'menu',
     link: 'idle',
@@ -109,6 +119,7 @@ export function initialVersus(name: string, dif: DiffKey, code = '', id = ''): V
     myAnswers: [],
     theirAnswers: [],
     matchNo: 0,
+    series,
     theyWantAgain: false,
     lastOpponent: '',
     lastOpponentId: '',
@@ -123,20 +134,62 @@ export const totalOf = (answers: (RoundAnswer | null)[]): number =>
   answers.reduce((n, a) => n + (a?.points ?? 0), 0);
 
 /**
- * The total as it should read on screen: rounds already revealed only.
+ * How many rounds are on the table: everything before a live question, and
+ * everything once the round is revealed.
  *
- * An answer is graded the moment it goes in, so `totalOf` would move the
- * scoreline while the question is still live — telling the player they were
- * right, and telling the opponent too, before either has seen the reveal.
- * The round in play counts only once the phase has moved past the question.
+ * An answer is graded the moment it goes in, so counting every answer would
+ * move the scoreline while the question is still live — telling the player
+ * they were right, and telling the opponent too, before either has seen the
+ * reveal. The round in play counts only once the phase has moved past it.
  */
+export const settledUpTo = (s: VersusState): number =>
+  s.phase === 'question' ? s.round : s.plan.length;
+
+/** The total as it should read on screen: rounds already revealed only. */
 export function settledTotal(s: VersusState, answers: (RoundAnswer | null)[]): number {
-  const upTo = s.phase === 'question' ? s.round : answers.length;
+  const upTo = settledUpTo(s);
   return answers.reduce((n, a, i) => (i < upTo ? n + (a?.points ?? 0) : n), 0);
 }
 
 export const correctOf = (answers: (RoundAnswer | null)[]): number =>
   answers.reduce((n, a) => n + (a?.correct ? 1 : 0), 0);
+
+/** One side's verdicts by round, in the shape the streak rule reads. */
+export const verdictsOf = (answers: readonly (RoundAnswer | null)[]): (boolean | null)[] =>
+  answers.map((a) => (a ? a.correct : null));
+
+/** Right answers in a row this side carries into the round on screen. */
+export const streakInto = (s: VersusState, answers: readonly (RoundAnswer | null)[]): number =>
+  streakBefore(verdictsOf(answers), settledUpTo(s));
+
+/** Who took a round: the side with more points, or nobody when level. */
+export type Taker = 'me' | 'them' | 'split';
+
+export function roundTaker(mine: RoundAnswer | null, theirs: RoundAnswer | null): Taker {
+  const a = mine?.points ?? 0;
+  const b = theirs?.points ?? 0;
+  return a > b ? 'me' : b > a ? 'them' : 'split';
+}
+
+/** Rounds taken by each side so far, over the rounds already revealed. */
+export function roundsWon(s: VersusState): Record<Taker, number> {
+  const won: Record<Taker, number> = { me: 0, them: 0, split: 0 };
+  const upTo = settledUpTo(s);
+  for (let i = 0; i < upTo; i++) won[roundTaker(s.myAnswers[i] ?? null, s.theirAnswers[i] ?? null)]++;
+  return won;
+}
+
+/** The room's running score across rematches, from this side. */
+export function seriesOf(s: VersusState): { wins: number; losses: number; draws: number; played: number } {
+  const out = { wins: 0, losses: 0, draws: 0, played: 0 };
+  for (const o of Object.values(s.series)) {
+    out.played++;
+    if (o === 'win') out.wins++;
+    else if (o === 'loss') out.losses++;
+    else out.draws++;
+  }
+  return out;
+}
 
 /** The round currently on screen, or null outside a match. */
 export const currentRound = (s: VersusState): PlannedRound | null =>
@@ -208,6 +261,12 @@ function applySnapshot(s: VersusState, snap: LiveSnapshot, at: number): VersusSt
   const myAnswers = sheet(answers, s.me.id, plan.length, sameMatch ? s.myAnswers : []);
   const theirAnswers = sheet(answers, them?.id, plan.length, []);
 
+  // A finished match goes into the room's running score, and stays open to
+  // correction while it is on screen: a straggling row may still land.
+  const series = room.status === 'final' && cfg
+    ? { ...s.series, [cfg.seed]: outcomeOf(totalOf(myAnswers), totalOf(theirAnswers)) }
+    : s.series;
+
   let { phase, round, startedAt } = s;
   switch (room.status) {
     case 'waiting':
@@ -266,6 +325,7 @@ function applySnapshot(s: VersusState, snap: LiveSnapshot, at: number): VersusSt
     myAnswers,
     theirAnswers,
     matchNo: room.match_no,
+    series,
     theyWantAgain: themRow?.wants_again ?? false,
     lastOpponent: them?.name ?? s.lastOpponent,
     lastOpponentId: them?.id ?? s.lastOpponentId,
@@ -283,8 +343,9 @@ export function reducer(s: VersusState, a: VersusAction): VersusState {
       return { ...s, error: a.error };
 
     case 'enter':
+      // Coming back into the same room keeps the series; a new room starts one.
       return {
-        ...initialVersus(s.me.name, s.me.dif, a.code, s.me.id),
+        ...initialVersus(s.me.name, s.me.dif, a.code, s.me.id, a.code && a.code === s.code ? s.series : {}),
         phase: 'connecting', isHost: a.asHost, lastOpponent: '',
         me: { ...emptyPlayer(s.me.id, s.me.name, s.me.dif), color: colorOf(a.asHost) },
         invite: a.invite ? { name: a.invite, sent: null } : null,
@@ -341,7 +402,7 @@ export function reducer(s: VersusState, a: VersusAction): VersusState {
 export function matchResults(s: VersusState): {
   mine: { points: number; correct: number; asked: number };
   theirs: { points: number; correct: number; asked: number };
-  outcome: 'win' | 'loss' | 'draw';
+  outcome: Outcome;
 } {
   const mine = {
     points: totalOf(s.myAnswers),

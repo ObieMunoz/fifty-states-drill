@@ -97,10 +97,28 @@ header overrides it either way, and the choice is remembered.
 A head-to-head match for two people, usually in the same room, on their own phones.
 
 Both players get the **same question at the same moment** and score on speed: 100 points
-for a right answer plus up to 50 more, decaying to zero across the round's clock. Whoever
-banks more over 5, 10 or 15 rounds takes the match. It runs on the six scored quiz types
-plus Mixed; Roll Call and Name All 50 sit it out, being long-form solo sprints rather
-than one question at a time.
+for a right answer plus up to 50 more, decaying to zero across the round's clock. Right
+answers in a row build a **streak** worth 10 more each, up to 50, and the **last round
+pays double**, so nobody is out of it until the end. Whoever banks more over 5, 10 or 15
+rounds takes the match. It runs on the six scored quiz types plus Mixed; Roll Call and
+Name All 50 sit it out, being long-form solo sprints rather than one question at a time.
+
+While a question is live the screen shows what a right answer is worth that instant,
+and the moment the other player locks in, their time — which is when the clock starts
+to feel loud. Each reveal says who took the round, what both players put in and what
+each answer was worth and why, and a row of pips above the clock keeps the match's
+story so far in view. The result screen adds the margin, the numbers behind it —
+rounds won, fastest answer, average, best streak — and the awards the match earned:
+a clean sweep, a comeback, a clutch finish, a photo finish, a streak, the fastest
+finger, a buzzer beater. A rematch keeps a running series in the same room, so the
+lobby and the result can say *you lead 2–1*.
+
+Either player can send the other an emoji at any point — the lobby, the wait for the
+other answer, the result — which floats up over their card on both phones. A handful
+of short sounds mark the countdown, an answer landing, the verdict and the result; they
+are synthesised on the spot rather than shipped as files, and a switch on every screen
+mutes them for good. Phones that can buzz do so at the same moments (on iPhone only
+for the taps, since Safari offers no other way).
 
 **Each player picks their own level.** A parent on Expert typing capitals blind and a
 child on Guided picking from four options get the *same* state on the *same* round —
@@ -212,8 +230,14 @@ against the database every day, which is what keeps it awake through a quiet for
 ### Running it locally
 
 `npm run dev` serves the app alone: Versus will report that it cannot reach the server.
-For a full local run, pull the project's environment once and start Vercel's dev server,
-which serves the app and the API functions together:
+`npm run dev:local` serves Versus too, with no Supabase at all: the Vite dev server
+answers the API itself over the same room rules the tests use, and stands in for
+Realtime with a server-sent-events stream (`dev/local-versus.ts`). Two tabs on two
+origins — `http://localhost:5173` and `http://[::1]:5173` — make a match, since each
+origin keeps its own player id. Rooms live only as long as the dev server.
+
+For a run against the real services, pull the project's environment once and start
+Vercel's dev server, which serves the app and the API functions together:
 
 ```sh
 npx vercel link
@@ -252,6 +276,7 @@ npm run dev        # http://localhost:5173/
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | Vite dev server with hot reload. The study modes only; see [Running it locally](#running-it-locally) for Versus. |
+| `npm run dev:local` | The same, plus Versus against an in-memory room server — no Supabase needed. |
 | `npx vercel dev` | The app and the API functions together, as deployed. |
 | `npm run build` | Type-checks, then builds to `dist/`. |
 | `npm run preview` | Serves `dist/`. |
@@ -330,7 +355,9 @@ src/
   styles/     global CSS, split by concern and loaded in cascade order
   router.ts   the path each mode and room lives at, and the address bar
 api/          the Vercel functions: the room API, the invite page and the daily sweep
-server/       the room's rules, the invite page, and the Supabase adapter they run against
+server/       the room's rules, the invite page, the Supabase adapter they run against,
+              and the in-memory database the tests and the local dev server use
+dev/          the Vite plugin behind `npm run dev:local`
 supabase/     the database migration
 redirect/     what the old GitHub Pages address serves now
 ```

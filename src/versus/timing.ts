@@ -3,8 +3,12 @@
 /** Ticks down on screen before the first question. */
 export const COUNTDOWN_MS = 3000;
 
-/** How long both answers stay up before the next question. */
-export const REVEAL_MS = 2600;
+/**
+ * How long both answers stay up before the next question: enough for the
+ * verdict, the round's banner and the totals moving to land one after
+ * another, and still short enough that ten rounds feel like a sprint.
+ */
+export const REVEAL_MS = 3200;
 
 /** After this side has answered, how long to wait on a straggling opponent. */
 export const GRACE_MS = 1500;
