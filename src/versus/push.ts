@@ -36,6 +36,16 @@ const isInstalled = (): boolean =>
   (typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches)
   || (navigator as { standalone?: boolean }).standalone === true;
 
+/**
+ * "phone" or "browser": the word for where notifications land, as the
+ * reader would put it. A touch-first device is called a phone; anything
+ * driven by a mouse is a browser, whether or not the app is installed.
+ */
+export function deviceWord(): 'phone' | 'browser' {
+  const touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  return touch && navigator.maxTouchPoints > 0 ? 'phone' : 'browser';
+}
+
 export function pushSupport(): PushSupport {
   if (!VAPID_KEY || typeof window === 'undefined') return 'none';
   if ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window) return 'ready';

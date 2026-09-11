@@ -1,3 +1,4 @@
+import { deviceWord } from '../../versus/push';
 import type { PushApi } from '../../versus/usePush';
 
 /**
@@ -8,6 +9,7 @@ import type { PushApi } from '../../versus/usePush';
 export function Notifications({ push }: { push: PushApi }) {
   const { support, status, busy } = push;
   if (support === 'none') return null;
+  const here = deviceWord();
 
   return (
     <section className="vs-board vs-notify">
@@ -23,19 +25,20 @@ export function Notifications({ push }: { push: PushApi }) {
       {support === 'install' ? (
         <p className="vs-hint">
           Add this app to your Home Screen — Share, then <b>Add to Home Screen</b> — and friends
-          can send rematch requests to your phone.
+          can send you rematch requests.
         </p>
       ) : status === 'blocked' ? (
         <p className="vs-hint">
-          Notifications are blocked for this app. Turn them on in your phone’s Settings to get
-          rematch requests from friends.
+          {here === 'phone'
+            ? 'Notifications are blocked for this app. Turn them on in your phone’s Settings to get rematch requests from friends.'
+            : 'Notifications are blocked for this site. Allow them in your browser’s site settings to get rematch requests from friends.'}
         </p>
       ) : status === 'on' ? (
-        <p className="vs-hint">Friends can send a rematch request to this phone.</p>
+        <p className="vs-hint">Friends can send a rematch request to this {here}.</p>
       ) : (
         <button type="button" className="vs-big" disabled={busy} onClick={push.enable}>
           Turn on notifications
-          <small>Friends can send a rematch request to this phone</small>
+          <small>Friends can send a rematch request to this {here}</small>
         </button>
       )}
 

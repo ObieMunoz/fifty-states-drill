@@ -77,7 +77,7 @@ export function VersusWaiting({ api }: { api: VersusApi }) {
                 ? state.invite.sent === null
                   ? <span>Pinging {state.invite.name}…</span>
                   : state.invite.sent === 'sent'
-                    ? <span>{state.invite.name}’s phone has been pinged. Waiting for them…</span>
+                    ? <span>{state.invite.name} has been notified. Waiting for them…</span>
                     : <span className="vs-error">{unreached(state.invite.name, state.invite.sent)}</span>
                 : state.isHost
                   ? <span>Waiting for the other player…</span>
@@ -85,7 +85,7 @@ export function VersusWaiting({ api }: { api: VersusApi }) {
       </div>
 
       <p className="vs-fine">
-        Both phones need to be online to play. The room lives on the server, so a dropped
+        Both players need to be online to play. The room lives on the server, so a dropped
         connection or a reload comes straight back to it.
         <span className="vs-diag">Build {BUILD}</span>
       </p>
@@ -98,6 +98,6 @@ function unreached(name: string, why: InviteOutcome): string {
   switch (why) {
     case 'unconfigured': return 'This server is not set up for notifications yet. Share the link instead.';
     case 'unsubscribed': return `${name} hasn’t turned notifications on. Share the link instead.`;
-    default: return `${name}’s phone couldn’t be reached just now. Share the link instead.`;
+    default: return `${name} couldn’t be reached just now. Share the link instead.`;
   }
 }
