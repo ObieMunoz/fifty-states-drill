@@ -21,21 +21,48 @@ export interface Pusher {
   send(to: SubscriptionRow, payload: string, ttlSeconds: number): Promise<'sent' | 'gone' | 'failed'>;
 }
 
+/** Where the push services may write about this server, failing anything better. */
+const DEFAULT_SUBJECT = 'https://fifty-states-drill.vercel.app/';
+
+/** An environment value as typed, less the quotes and whitespace a paste picks up. */
+const setting = (name: string): string =>
+  (process.env[name] || '').trim().replace(/^(["'])(.*)\1$/, '$2').trim();
+
+/**
+ * The contact the push services are given, as the standard wants it: a
+ * `mailto:` or an `https:` URL. A bare address gets its `mailto:`. Anything
+ * else — a value pasted with its variable name, say — is only a contact
+ * detail, so it is logged and the site's own address used, rather than
+ * letting it switch notifications off.
+ */
+export function subjectOf(raw: string): string {
+  let subject = raw.trim();
+  if (!subject) return DEFAULT_SUBJECT;
+  if (!/^(mailto:|https?:)/i.test(subject) && /^[^\s/@]+@[^\s/@]+$/.test(subject)) subject = `mailto:${subject}`;
+  try {
+    const u = new URL(subject);
+    if ((u.protocol === 'mailto:' && u.pathname) || ((u.protocol === 'https:' || u.protocol === 'http:') && u.hostname)) {
+      return subject;
+    }
+  } catch {
+    // Not a URL at all: handled below.
+  }
+  console.warn(`VAPID_SUBJECT is not a mailto: or https: URL, using ${DEFAULT_SUBJECT} instead:`, raw);
+  return DEFAULT_SUBJECT;
+}
+
 /**
  * The VAPID keys, or null when the deployment has not set them up. Values
- * are trimmed, since a pasted key easily picks up a stray space, and a
- * subject typed as a bare address gets the `mailto:` the standard wants.
+ * are trimmed, since a pasted key easily picks up a stray space or quotes.
  */
 function vapid(): { subject: string; publicKey: string; privateKey: string } | null {
-  const publicKey = (process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || '').trim();
-  const privateKey = (process.env.VAPID_PRIVATE_KEY || '').trim();
+  const publicKey = setting('VAPID_PUBLIC_KEY') || setting('VITE_VAPID_PUBLIC_KEY');
+  const privateKey = setting('VAPID_PRIVATE_KEY');
   if (!publicKey || !privateKey) {
     console.warn('push is not configured: VITE_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY are needed');
     return null;
   }
-  let subject = (process.env.VAPID_SUBJECT || '').trim() || 'https://fifty-states-drill.vercel.app/';
-  if (!/^(mailto:|https?:)/i.test(subject) && subject.includes('@')) subject = `mailto:${subject}`;
-  return { subject, publicKey, privateKey };
+  return { subject: subjectOf(setting('VAPID_SUBJECT')), publicKey, privateKey };
 }
 
 let configured: Pusher | null | undefined;
