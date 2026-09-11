@@ -162,8 +162,12 @@ export interface Snapshot {
   answers: AnswerRow[];
   /** The server's clock when this was taken, for recovering a round's timing. */
   now: string;
-  /** On a rematch request: whether a notification reached the other phone. */
-  notified?: boolean;
+  /**
+   * On a rematch request: whether a notification got out, and if not, why —
+   * the server has no push keys, the friend has no phone subscribed, or the
+   * push service refused every send.
+   */
+  notified?: 'sent' | 'unconfigured' | 'unsubscribed' | 'undelivered';
 }
 
 /** What the API answers to a call that is about a phone rather than a room. */

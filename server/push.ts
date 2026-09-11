@@ -23,9 +23,13 @@ export interface Pusher {
 
 /** The VAPID keys, or null when the deployment has not set them up. */
 function vapid(): { subject: string; publicKey: string; privateKey: string } | null {
-  const publicKey = process.env.VAPID_PUBLIC_KEY;
+  // The public key is set under the name the build reads, so either works.
+  const publicKey = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
-  if (!publicKey || !privateKey) return null;
+  if (!publicKey || !privateKey) {
+    console.warn('push is not configured: VITE_VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY are needed');
+    return null;
+  }
   return { subject: process.env.VAPID_SUBJECT || 'https://fifty-states-drill.vercel.app/', publicKey, privateKey };
 }
 
