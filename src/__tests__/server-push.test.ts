@@ -42,12 +42,34 @@ describe('the push configuration', () => {
     expect(await load()).not.toBeNull();
   });
 
-  it('forgives a pasted space and a subject typed as a bare address', async () => {
-    process.env.VITE_VAPID_PUBLIC_KEY = ` ${keys.publicKey}\n`;
-    process.env.VAPID_PRIVATE_KEY = `${keys.privateKey} `;
+  it('forgives a pasted space, quotes, and a subject typed as a bare address', async () => {
+    process.env.VITE_VAPID_PUBLIC_KEY = ` "${keys.publicKey}"\n`;
+    process.env.VAPID_PRIVATE_KEY = `'${keys.privateKey}' `;
     process.env.VAPID_SUBJECT = 'you@example.com';
     expect(await load()).not.toBeNull();
     expect(console.error).not.toHaveBeenCalled();
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it('keeps notifications on with a subject it cannot use, and says so', async () => {
+    process.env.VITE_VAPID_PUBLIC_KEY = keys.publicKey;
+    process.env.VAPID_PRIVATE_KEY = keys.privateKey;
+    process.env.VAPID_SUBJECT = 'VAPID_SUBJECT=https://fifty-states-drill.vercel.app/';
+    expect(await load()).not.toBeNull();
+    expect(console.warn).toHaveBeenCalledOnce();
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it('reads the subject the way the push services want it', async () => {
+    const { subjectOf } = await import('../../server/push');
+    expect(subjectOf('https://fifty-states-drill.vercel.app/')).toBe('https://fifty-states-drill.vercel.app/');
+    expect(subjectOf('mailto:you@example.com')).toBe('mailto:you@example.com');
+    expect(subjectOf('you@example.com')).toBe('mailto:you@example.com');
+    expect(subjectOf('')).toBe('https://fifty-states-drill.vercel.app/');
+    for (const bad of ['fifty-states-drill.vercel.app', 'VAPID_SUBJECT=https://x.y/', '"https://x.y/"', 'mailto:']) {
+      expect(subjectOf(bad)).toBe('https://fifty-states-drill.vercel.app/');
+    }
+    expect(console.warn).toHaveBeenCalledTimes(4);
   });
 
   it('treats a key the library rejects as unconfigured rather than throwing', async () => {
