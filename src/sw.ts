@@ -5,7 +5,7 @@ import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { CacheFirst, StaleWhileRevalidate } from 'workbox-strategies';
-import { noticeFor, parsePayload } from './versus/notify';
+import { noticeFor, openRoomMessage, parsePayload } from './versus/notify';
 
 /**
  * The service worker: the offline shell, and the phone's ear for rematch
@@ -62,25 +62,33 @@ self.addEventListener('push', (event) => {
     tag: n.tag,
     icon: '/icon-192.png',
     badge: '/icon-192.png',
-    data: { url: n.url },
+    data: { url: n.url, code: payload.code },
   }));
 });
 
-/** A tap opens the room: in the app if it is open, else in a new window. */
+/**
+ * A tap opens the room. An app already running is brought forward and told
+ * which room, and moves itself there — steering its URL from here works in
+ * some browsers and not others, and an installed app in the background is
+ * exactly where it fails. With no window open at all, one is opened at the
+ * room's own address, which joins on load like an invite link.
+ */
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = new URL((event.notification.data as { url?: string } | undefined)?.url ?? '/versus', self.location.origin).href;
+  const data = (event.notification.data ?? {}) as { url?: string; code?: string };
+  const url = new URL(data.url ?? '/versus', self.location.origin).href;
   event.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    const win = wins.find((w) => 'navigate' in w);
-    if (win) {
+    // The one on screen, failing that any; an app has one window in practice.
+    const win = wins.find((w) => w.focused || w.visibilityState === 'visible') ?? wins[0];
+    if (win && data.code) {
       try {
         await win.focus();
-        await win.navigate(url);
-        return;
       } catch {
-        // A window this worker may not steer: open a fresh one instead.
+        // Not every browser lets a worker focus a window; the message still lands.
       }
+      win.postMessage(openRoomMessage(data.code));
+      return;
     }
     await self.clients.openWindow(url);
   })());

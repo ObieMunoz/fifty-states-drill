@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyPendingUpdate, installUpdates } from '../pwa';
+import { applyPendingUpdate, installUpdates, onOpenRoom } from '../pwa';
 
 const sw = vi.hoisted(() => {
   const state: { onNeedRefresh?: () => void; update: ReturnType<typeof vi.fn> } = { update: vi.fn() };
@@ -42,5 +42,30 @@ describe('app updates', () => {
     installUpdates(() => false);
     applyPendingUpdate();
     expect(sw.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('a tapped notification', () => {
+  it('hands the room code to the app, and releases messages sent before it listened', () => {
+    const target = new EventTarget();
+    const started = vi.fn();
+    vi.stubGlobal('navigator', { serviceWorker: Object.assign(target, { startMessages: started }) });
+    const opened = vi.fn();
+    const stop = onOpenRoom(opened);
+    expect(started).toHaveBeenCalledOnce();
+    target.dispatchEvent(new MessageEvent('message', { data: { type: 'OPEN_ROOM', code: 'ACDE' } }));
+    target.dispatchEvent(new MessageEvent('message', { data: { type: 'SKIP_WAITING' } }));
+    expect(opened).toHaveBeenCalledTimes(1);
+    expect(opened).toHaveBeenCalledWith('ACDE');
+    stop();
+    target.dispatchEvent(new MessageEvent('message', { data: { type: 'OPEN_ROOM', code: 'FGHJ' } }));
+    expect(opened).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
+
+  it('is inert where there is no service worker', () => {
+    vi.stubGlobal('navigator', {});
+    expect(() => onOpenRoom(() => {})()).not.toThrow();
+    vi.unstubAllGlobals();
   });
 });
