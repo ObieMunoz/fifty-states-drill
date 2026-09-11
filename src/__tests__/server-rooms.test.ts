@@ -74,6 +74,9 @@ function memoryDb(): MemoryDb {
       }
       return n;
     },
+    async getWaitingRoomsHostedBy(hostId) {
+      return [...rooms.values()].filter((r) => r.host_id === hostId && r.status === 'waiting');
+    },
     async getSubscription(endpoint) { return subs.find((r) => r.endpoint === endpoint) ?? null; },
     async getSubscriptions(playerId) { return subs.filter((r) => r.player_id === playerId); },
     async upsertSubscription(row) {
@@ -558,7 +561,7 @@ describe('rematch requests', () => {
     expect(db.subs).toHaveLength(1);
   });
 
-  it('will not ping the same friend twice in a minute, but the other side may', async () => {
+  it('will not ping the same friend twice in a minute while the first room waits, but the other side may', async () => {
     await finished();
     await phone(db, sub('guest'));
     await phone(db, sub('host'));
@@ -573,6 +576,29 @@ describe('rematch requests', () => {
     expect(sent[1]).toMatchObject({ endpoint: 'https://push.example/host/1', payload: { from: 'Sam' } });
     // And after a minute, so may the first side.
     expect((await ask({}, pusher, at(REMATCH_COOLDOWN_MS + 1))).notified).toBe('sent');
+  });
+
+  it('lets a request go again the moment the requester has left the room it opened', async () => {
+    await finished();
+    await phone(db, sub('guest'));
+    const { pusher, sent } = recorder();
+    const first = await ask({}, pusher, T0);
+    await call({ action: 'leave', code: first.room.code, playerId: 'host' }, at(1000));
+    const second = await ask({}, pusher, at(2000));
+    expect(second.notified).toBe('sent');
+    expect(second.room.code).not.toBe(first.room.code);
+    expect(sent).toHaveLength(2);
+  });
+
+  it('lets a request go again once the friend has joined the room it opened', async () => {
+    await finished();
+    await phone(db, sub('guest'));
+    const { pusher, sent } = recorder();
+    const first = await ask({}, pusher, T0);
+    await call({ action: 'join', code: first.room.code, playerId: 'guest', name: 'Sam', dif: 'guided' }, at(1000));
+    // The room is a lobby now, not a wait: the request was answered.
+    expect((await ask({}, pusher, at(2000))).notified).toBe('sent');
+    expect(sent).toHaveLength(2);
   });
 
   it('playing again clears the pending request, and forgetting cuts the link both ways', async () => {

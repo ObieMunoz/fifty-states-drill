@@ -48,6 +48,8 @@ export interface Db {
   insertAnswer(row: AnswerRow): Promise<boolean>;
   /** Rooms untouched since `before`, with everything in them. Returns how many. */
   deleteRoomsBefore(before: Date): Promise<number>;
+  /** Rooms this player hosts that are still waiting for a second player. */
+  getWaitingRoomsHostedBy(hostId: string): Promise<RoomRow[]>;
 
   /* Phones that can be reached, and who may reach whom. */
   getSubscription(endpoint: string): Promise<SubscriptionRow | null>;
@@ -427,7 +429,8 @@ async function rematch(
   const pairing = await db.getPairing(a_id, b_id);
   if (!pairing) throw new RoomError(403, 'You can only send a rematch request to someone you have finished a match with.');
   if (pairing.invited_by === me && pairing.invited_at
-    && now.getTime() - Date.parse(pairing.invited_at) < REMATCH_COOLDOWN_MS) {
+    && now.getTime() - Date.parse(pairing.invited_at) < REMATCH_COOLDOWN_MS
+    && await stillWaitingSince(db, me, pairing.invited_at)) {
     throw new RoomError(429, 'You sent them a request a moment ago. Give them a minute.');
   }
 
@@ -441,6 +444,17 @@ async function rematch(
   const sent = results.some((r) => r === 'sent');
   if (sent) await db.upsertPairing({ ...pairing, invited_by: me, invited_at: iso(now) });
   return { ...snap, notified: sent ? 'sent' : 'undelivered' };
+}
+
+/**
+ * Whether the room a request opened is still sitting there waiting. A second
+ * request while it is would only ping the same phone about a second room;
+ * once the requester has left it, or the friend has joined it, the request
+ * has been answered one way or the other and a new one is fair.
+ */
+async function stillWaitingSince(db: Db, hostId: string, invitedAt: string): Promise<boolean> {
+  const since = Date.parse(invitedAt);
+  return (await db.getWaitingRoomsHostedBy(hostId)).some((r) => Date.parse(r.updated_at) >= since);
 }
 
 /* ---------------- dispatch ---------------- */
