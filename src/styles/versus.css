@@ -2,8 +2,8 @@
 
    Written phone-first: every base rule here assumes a screen about 360px
    across held in one hand, and the wider breakpoints at the bottom only relax
-   things. Targets are 52px and up, the primary action sits in the thumb zone
-   at the bottom of the screen, and nothing depends on hover.
+   things. Targets are 52px and up, the lobby's one big button sits in the
+   thumb zone at the foot of the screen, and nothing depends on hover.
 
    Colour carries the head-to-head read. Each seat has a colour that is the
    same on both phones — the host is teal, the guest coral — so a coral pin
@@ -234,11 +234,13 @@ body[data-versus="1"] .app{display:none}
 .vs-ask.code{font-family:"IBM Plex Mono",monospace;letter-spacing:.2em;font-weight:500}
 .vs-sub{margin:0;color:var(--ink-2);font-size:13.5px;flex:none}
 
-/* The map takes its height from its own aspect rather than stretching, and is
-   pushed to the bottom of whatever space is left: on a phone the thumb is
-   already down there, and a race is decided by how fast it can land. */
-.vs-stage{flex:none;margin-top:auto;display:flex;align-items:center;justify-content:center;
-  min-height:0}
+/* The map takes its height from its own aspect rather than stretching, and
+   sits right under the question, with the answers right under it. Nothing in
+   the play sheet is pushed to the foot of the screen: an auto margin that once
+   put the map and the answers down in the thumb zone opened a screen's worth
+   of nothing between the question and the map on any tall phone or desktop
+   window, and the eye had to cross it every round. */
+.vs-stage{flex:none;display:flex;align-items:center;justify-content:center;min-height:0}
 svg.vs-map{width:100%;height:auto;max-height:50dvh;
   touch-action:manipulation;background:var(--water);
   border:1px solid var(--line-soft);border-radius:12px}
@@ -252,13 +254,6 @@ svg.vs-map .st.pick{fill:var(--pc);stroke:var(--pc)}
   animation:vs-pin-drop .28s cubic-bezier(.2,.8,.3,1.2)}
 .vs-pin .vs-pin-dot{fill:var(--ground);stroke:none;animation:none}
 @keyframes vs-pin-drop{from{transform:scale(0)}to{transform:scale(1)}}
-/* With a map on screen the answers sit right under it, not adrift. */
-.vs-play .vs-stage+.vs-choices,
-.vs-play .vs-stage+.vs-entry,
-.vs-play .vs-stage+.vs-locked,
-.vs-play .vs-stage+.vs-reveal,
-.vs-play .vs-stage+.vs-tap{margin-top:0}
-
 .vs-choices{display:grid;grid-template-columns:1fr;gap:8px;flex:none}
 .vs-choices button{background:var(--surface);border:1px solid var(--line);border-radius:13px;
   padding:15px 16px;font-size:16.5px;text-align:left;cursor:pointer;min-height:58px;
@@ -274,11 +269,6 @@ svg.vs-map .st.pick{fill:var(--pc);stroke:var(--pc)}
   padding:0 22px;font-size:16px;font-weight:500;cursor:pointer;min-height:58px;flex:none}
 .vs-send:disabled{opacity:.4}
 .vs-tap{margin:0;color:var(--ink-3);font-size:13px;text-align:center;flex:none}
-/* Without a map (typed or multiple-choice rounds) the answers take the slack,
-   so they still sit in the thumb zone rather than floating mid-screen. */
-.vs-play .vs-choices,.vs-play .vs-entry,.vs-play .vs-locked{margin-top:auto}
-.vs-play .vs-stage~.vs-choices,.vs-play .vs-stage~.vs-entry,
-.vs-play .vs-stage~.vs-locked,.vs-play .vs-stage~.vs-reveal{margin-top:0}
 
 .vs-locked{display:flex;flex-direction:column;align-items:center;gap:3px;flex:none;
   background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:15px;
