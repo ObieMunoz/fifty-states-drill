@@ -490,10 +490,19 @@ svg.vs-map .st.pick{fill:var(--pc);stroke:var(--pc)}
 .vs-round-line .vs-sound{width:30px;height:30px;border-radius:8px}
 .vs-round-line .vs-sound svg{width:15px;height:15px}
 
-/* They are in and you are not. */
+/* They are in and you are not.
+
+   The row holds its line whether or not there is anything to say, and only
+   its contents come and go: Find It is answered by tapping the map directly
+   below it, and a row that appeared the moment their answer landed slid the
+   map down under a thumb already aiming at it, so the tap went to whichever
+   state had moved into its place. */
 .vs-pressure{margin:0;flex:none;font-size:12.5px;color:var(--ink-2);padding:6px 10px;border-radius:9px;
-  background:color-mix(in srgb,var(--pc) 10%,var(--surface));border-left:3px solid var(--pc);
-  animation:vs-rise .25s ease-out}
+  border-left:3px solid transparent;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vs-pressure:not([data-in])::before{content:"\00a0"}
+.vs-pressure[data-in]{background:color-mix(in srgb,var(--pc) 10%,var(--surface));
+  border-left-color:var(--pc);animation:vs-rise .25s ease-out}
 .vs-pressure b{color:var(--pc);font-weight:600}
 
 .vs-locked .vs-tray{margin-top:8px}
@@ -572,7 +581,7 @@ svg.vs-map .st.pick{fill:var(--pc);stroke:var(--pc)}
 }
 
 @media (prefers-reduced-motion:reduce){
-  .vs-bubble,.vs-flame,.vs-call,.vs-answers .vs-chip,.vs-chip-pts em,.vs-award,.vs-pressure,
-  .vs-pips li.live{animation:none}
+  .vs-bubble,.vs-flame,.vs-call,.vs-answers .vs-chip,.vs-chip-pts em,.vs-award,
+  .vs-pressure[data-in],.vs-pips li.live{animation:none}
   .vs-tray button:active{transform:none}
 }
