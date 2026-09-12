@@ -86,11 +86,10 @@ export function VersusPlay({ api }: { api: VersusApi }) {
         </span>
       </div>
 
-      {pressure && (
-        <p className="vs-pressure" role="status" data-pc={theirColor(api)}>
-          <b>{theirName(api)}</b> is in · {secs(theirs.ms)}
-        </p>
-      )}
+      {/* Always in the flow, empty or not — see .vs-pressure. */}
+      <p className="vs-pressure" role="status" data-pc={theirColor(api)} data-in={pressure || undefined}>
+        {pressure && <><b>{theirName(api)}</b> is in · {secs(theirs.ms)}</>}
+      </p>
 
       <Question
         key={state.round}
