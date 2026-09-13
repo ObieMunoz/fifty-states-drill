@@ -54,8 +54,6 @@ export function VersusPlay({ api }: { api: VersusApi }) {
   const frac = limitMs > 0 && msLeft !== null ? msLeft / limitMs : 1;
   const low = frac < 0.25;
   const finalRound = isFinalRound(state.round, state.plan.length);
-  // They are in and this side is not: the clock just got louder.
-  const pressure = !!theirs && !theirs.timeout && !answered && !revealing;
 
   return (
     <div className="vs-sheet vs-play">
@@ -86,11 +84,6 @@ export function VersusPlay({ api }: { api: VersusApi }) {
         </span>
       </div>
 
-      {/* Always in the flow, empty or not — see .vs-pressure. */}
-      <p className="vs-pressure" role="status" data-pc={theirColor(api)} data-in={pressure || undefined}>
-        {pressure && <><b>{theirName(api)}</b> is in · {secs(theirs.ms)}</>}
-      </p>
-
       <Question
         key={state.round}
         api={api}
@@ -111,6 +104,10 @@ export function VersusPlay({ api }: { api: VersusApi }) {
  * They count revealed rounds only, and roll up a beat after the reveal so
  * the verdict lands first. The dot says an answer is in; the flame says how
  * many in a row. Reactions float up from each player's side of it.
+ *
+ * The opponent landing is said here rather than in a row of its own: this
+ * one is on screen from the first round to the last, so nothing below it —
+ * the map among it — is moved by the news arriving mid-round.
  */
 function ScoreBar({ api }: { api: VersusApi }) {
   const { state, myTotal, theirTotal, myStreak, theirStreak, reactions } = api;
@@ -118,7 +115,12 @@ function ScoreBar({ api }: { api: VersusApi }) {
   const theirs = useCountUp(theirTotal, { delay: TOTAL_DELAY_MS });
   const lead = myTotal === theirTotal ? 'tie' : myTotal > theirTotal ? 'me' : 'them';
   const done = state.myAnswers[state.round] != null;
-  const theyDone = state.theirAnswers[state.round] != null;
+  const theirAnswer = state.theirAnswers[state.round];
+  const theyDone = theirAnswer != null;
+  // Their time takes the dot's place while the question is live; a round they
+  // let run out has no time to show, so the dot stands.
+  const theirClock = state.phase === 'question' && theirAnswer && !theirAnswer.timeout
+    ? secs(theirAnswer.ms) : null;
 
   return (
     <div className="vs-scores" data-lead={lead}>
@@ -128,12 +130,17 @@ function ScoreBar({ api }: { api: VersusApi }) {
         <b className="mono">{mine}</b>
         <i className={done ? 'in' : undefined} aria-label={done ? 'Answered' : 'Thinking'} />
       </div>
-      <div className="vs-score them" data-pc={theirColor(api)}>
+      <div className="vs-score them" data-pc={theirColor(api)} data-in={theirClock ? true : undefined}>
         <span className="vs-score-name">{theirName(api)}</span>
         <Flame n={theirStreak} />
         <b className="mono">{theirs}</b>
-        <i className={theyDone ? 'in' : undefined} aria-label={theyDone ? 'Answered' : 'Thinking'} />
+        {theirClock
+          ? <span className="vs-score-in mono" aria-label={`In at ${theirClock}`}>{theirClock}</span>
+          : <i className={theyDone ? 'in' : undefined} aria-label={theyDone ? 'Answered' : 'Thinking'} />}
       </div>
+      {theirClock && !done && (
+        <span className="sr" role="status">{theirName(api)} is in.</span>
+      )}
       <ReactionBubbles reactions={reactions} them={theirName(api)} />
     </div>
   );

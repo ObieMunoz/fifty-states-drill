@@ -215,6 +215,13 @@ body[data-versus="1"] .app{display:none}
 .vs-score i{width:7px;height:7px;border-radius:50%;background:var(--line);flex:none;
   align-self:center;transition:background .2s}
 .vs-score i.in{background:var(--pc)}
+/* They are in and you may not be. It stands where the dot stands, sized well
+   under the total that sets this row's height, so the news costs no height:
+   the map is below this row, and a thumb already aiming at it must not have
+   it move. */
+.vs-score-in{font-size:11.5px;font-weight:600;color:var(--pc);flex:none;align-self:center;line-height:1}
+.vs-score[data-in]{animation:vs-nudge .25s ease-out}
+@keyframes vs-nudge{from{background:color-mix(in srgb,var(--pc) 26%,var(--surface))}}
 .vs-scores[data-lead="me"] .vs-score.me,
 .vs-scores[data-lead="them"] .vs-score.them{background:color-mix(in srgb,var(--pc) 10%,var(--surface))}
 
@@ -381,6 +388,16 @@ svg.vs-map .st.pick{fill:var(--pc);stroke:var(--pc)}
   svg.vs-map{max-height:50dvh}
 }
 
+/* A short phone still has to fit four answers under the map without
+   scrolling. They pair up rather than shrink: stacked they are 256px of a
+   667px screen, while a third of the width goes spare beside them. Neither
+   the map — which is what a highlighted Rhode Island is read from — nor the
+   58px a thumb needs is what gives way. */
+@media (max-height:800px) and (max-width:619px){
+  .vs-choices{grid-template-columns:1fr 1fr;gap:6px}
+  .vs-choices button{padding-left:12px;padding-right:12px}
+}
+
 /* A short landscape phone has no room for the map plus everything else. */
 @media (max-height:520px) and (orientation:landscape){
   .vs-count-ring{width:min(30vh,150px)}
@@ -490,21 +507,6 @@ svg.vs-map .st.pick{fill:var(--pc);stroke:var(--pc)}
 .vs-round-line .vs-sound{width:30px;height:30px;border-radius:8px}
 .vs-round-line .vs-sound svg{width:15px;height:15px}
 
-/* They are in and you are not.
-
-   The row holds its line whether or not there is anything to say, and only
-   its contents come and go: Find It is answered by tapping the map directly
-   below it, and a row that appeared the moment their answer landed slid the
-   map down under a thumb already aiming at it, so the tap went to whichever
-   state had moved into its place. */
-.vs-pressure{margin:0;flex:none;font-size:12.5px;color:var(--ink-2);padding:6px 10px;border-radius:9px;
-  border-left:3px solid transparent;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.vs-pressure:not([data-in])::before{content:"\00a0"}
-.vs-pressure[data-in]{background:color-mix(in srgb,var(--pc) 10%,var(--surface));
-  border-left-color:var(--pc);animation:vs-rise .25s ease-out}
-.vs-pressure b{color:var(--pc);font-weight:600}
-
 .vs-locked .vs-tray{margin-top:8px}
 
 /* Keyboard hints on the options, hidden where there is no keyboard. */
@@ -582,6 +584,6 @@ svg.vs-map .st.pick{fill:var(--pc);stroke:var(--pc)}
 
 @media (prefers-reduced-motion:reduce){
   .vs-bubble,.vs-flame,.vs-call,.vs-answers .vs-chip,.vs-chip-pts em,.vs-award,
-  .vs-pressure[data-in],.vs-pips li.live{animation:none}
+  .vs-score[data-in],.vs-pips li.live{animation:none}
   .vs-tray button:active{transform:none}
 }
