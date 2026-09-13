@@ -77,6 +77,8 @@ function rowsAboveMap(container: HTMLElement): string[] {
 
 afterEach(cleanup);
 
+const theirTile = (c: HTMLElement) => c.querySelector('.vs-score.them')!;
+
 describe('Versus play, Find It', () => {
   it('leaves the rows above the map untouched when the opponent locks in', () => {
     const { container, rerender } = render(<VersusPlay api={playing(null)} />);
@@ -87,15 +89,39 @@ describe('Versus play, Find It', () => {
     expect(rowsAboveMap(container)).toEqual(before);
   });
 
-  it('holds the opponent notice row empty until they are in', () => {
-    const { container } = render(<VersusPlay api={playing(null)} />);
+  it('swaps one mark for another on the opponent tile, never adding to it', () => {
+    const { container, rerender } = render(<VersusPlay api={playing(null)} />);
+    const before = theirTile(container).children.length;
 
-    expect(container.querySelector('.vs-pressure')?.textContent).toBe('');
+    rerender(<VersusPlay api={playing(THEY_ARE_IN)} />);
+
+    expect(theirTile(container).children.length).toBe(before);
   });
 
-  it('names the opponent and their time once they are in', () => {
+  it('shows nothing but the thinking dot while the opponent is still out', () => {
+    const { container } = render(<VersusPlay api={playing(null)} />);
+
+    expect(container.querySelector('.vs-score-in')).toBeNull();
+    expect(theirTile(container).querySelector('i')).not.toBeNull();
+  });
+
+  it('puts the opponent time on their tile once they are in', () => {
     const { container } = render(<VersusPlay api={playing(THEY_ARE_IN)} />);
 
-    expect(container.querySelector('.vs-pressure')?.textContent).toBe('Alex is in · 2.3s');
+    expect(theirTile(container).querySelector('.vs-score-in')?.textContent).toBe('2.3s');
+  });
+
+  it('keeps the thinking dot when the opponent ran out of clock', () => {
+    const timedOut: RoundAnswer = { correct: false, ms: 12000, points: 0, pick: null, timeout: true };
+    const { container } = render(<VersusPlay api={playing(timedOut)} />);
+
+    expect(container.querySelector('.vs-score-in')).toBeNull();
+    expect(theirTile(container).querySelector('i')?.className).toBe('in');
+  });
+
+  it('announces the opponent landing to a screen reader', () => {
+    const { container } = render(<VersusPlay api={playing(THEY_ARE_IN)} />);
+
+    expect(container.querySelector('.sr[role="status"]')?.textContent).toBe('Alex is in.');
   });
 });
