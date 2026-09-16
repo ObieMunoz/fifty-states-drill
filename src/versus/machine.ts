@@ -142,8 +142,16 @@ export const totalOf = (answers: (RoundAnswer | null)[]): number =>
  * they were right, and telling the opponent too, before either has seen the
  * reveal. The round in play counts only once the phase has moved past it.
  */
-export const settledUpTo = (s: VersusState): number =>
-  s.phase === 'question' ? s.round : s.plan.length;
+export const settledUpTo = (s: VersusState): number => {
+  if (s.phase === 'countdown') return 0;
+  if (s.phase === 'question') return s.round;
+  // The reveal settles the round it is showing, and nothing beyond it.
+  // Counting the whole plan here made every round still to play read as a
+  // drawn one: the pips greyed, and the streak walked back from a trailing
+  // blank and went out on the very reveal that had just earned it.
+  if (s.phase === 'reveal') return Math.min(s.plan.length, s.round + 1);
+  return s.plan.length;
+};
 
 /** The total as it should read on screen: rounds already revealed only. */
 export function settledTotal(s: VersusState, answers: (RoundAnswer | null)[]): number {
@@ -266,7 +274,12 @@ function applySnapshot(s: VersusState, snap: LiveSnapshot, at: number): VersusSt
   const sameMatch = cfg !== null && s.cfg?.seed === cfg.seed;
   const plan = cfg ? (sameMatch ? s.plan : planMatch(cfg)) : [];
   const myAnswers = sheet(answers, s.me.id, plan.length, sameMatch ? s.myAnswers : []);
-  const theirAnswers = sheet(answers, them?.id, plan.length, []);
+  // Their rows keep the same footing as this side's own. Answers are only
+  // ever added within a match — the only write the room has is an insert —
+  // so a reply carrying fewer of them than are already held is behind, and
+  // dropping one would lose the reveal it should have triggered and leave
+  // the round to run its clock out instead.
+  const theirAnswers = sheet(answers, them?.id, plan.length, sameMatch ? s.theirAnswers : []);
 
   // The running score belongs to the pairing, not to the room: somebody new
   // in the other seat starts one of their own, rather than inheriting a lead
@@ -295,7 +308,11 @@ function applySnapshot(s: VersusState, snap: LiveSnapshot, at: number): VersusSt
     case 'playing':
       if (sameMatch && inMatch(s.phase)) {
         // Live: the host moved the match on. The clock starts at this paint.
-        if (room.round !== s.round) {
+        // Only ever forwards: a reply that overtakes a newer one would
+        // otherwise put a played round back on screen and restart its clock.
+        // Within a match the round only ever climbs; a rematch changes the
+        // seed, which the other branch handles.
+        if (room.round > s.round) {
           phase = 'question';
           round = room.round;
           startedAt = at;
