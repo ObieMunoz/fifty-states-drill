@@ -1,8 +1,9 @@
 import { planMatch } from './plan';
+import { trialOutcome } from './trial';
 import { outcomeOf, streakBefore } from './scoring';
 import type { Outcome } from './scoring';
 import { COUNTDOWN_MS } from './timing';
-import { colorOf } from './types';
+import { colorOf, isRace } from './types';
 import type {
   AnswerRow, LinkState, MatchConfig, Phase, Player, PlannedRound, RoundAnswer, Snapshot,
 } from './types';
@@ -428,6 +429,10 @@ export function reducer(s: VersusState, a: VersusAction): VersusState {
   }
 }
 
+/** When one side's last name landed, for separating two equal lists. */
+export const finishedAt = (answers: readonly (RoundAnswer | null)[]): number =>
+  answers.reduce((n, a) => (a ? Math.max(n, a.ms) : n), 0);
+
 /** The finished match, in the shape the leaderboard wants. */
 export function matchResults(s: VersusState): {
   mine: { points: number; correct: number; asked: number };
@@ -444,5 +449,14 @@ export function matchResults(s: VersusState): {
     correct: correctOf(s.theirAnswers),
     asked: s.plan.length,
   };
-  return { mine, theirs, outcome: outcomeOf(mine.points, theirs.points) };
+  // A race is won on names in, and a tie on those is separated by who got
+  // there first — which is the only thing left between two equal lists, and
+  // what makes the last minute of a close trial worth typing through.
+  const outcome = s.cfg && isRace(s.cfg.mode)
+    ? trialOutcome(
+      { count: mine.correct, ms: finishedAt(s.myAnswers) },
+      { count: theirs.correct, ms: finishedAt(s.theirAnswers) },
+    )
+    : outcomeOf(mine.points, theirs.points);
+  return { mine, theirs, outcome };
 }

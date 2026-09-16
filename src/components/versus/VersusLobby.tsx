@@ -6,7 +6,7 @@ import {
   BASE_POINTS, FINAL_ROUND_MULTIPLIER, SPEED_POINTS, STREAK_POINTS,
 } from '../../versus/scoring';
 import { roundsForMode } from '../../versus/plan';
-import { COLOR_LABEL, FILLS_THE_MAP, ROUND_CHOICES, VERSUS_MODES, colorOf } from '../../versus/types';
+import { COLOR_LABEL, FILLS_THE_MAP, ROUND_CHOICES, VERSUS_MODES, colorOf, isRace } from '../../versus/types';
 import type { PlayerColor } from '../../versus/types';
 import { ReactionBubbles, ReactionTray } from './Reactions';
 import { SoundToggle } from './SoundToggle';
@@ -129,6 +129,7 @@ function HostRules({ draft, setDraft }: {
   setDraft: (d: Partial<Draft>) => void;
 }) {
   const fillsMap = FILLS_THE_MAP.includes(draft.mode);
+  const racing = isRace(draft.mode);
   return (
     <>
       <span className="eyebrow">Your rules</span>
@@ -150,12 +151,14 @@ function HostRules({ draft, setDraft }: {
       </div>
 
       <div className="vs-pick">
-        <span className="vs-pick-lab">Rounds</span>
+        <span className="vs-pick-lab">{racing ? 'Clock' : 'Rounds'}</span>
         {fillsMap ? (
           // Place It runs the map out, so there is no count to choose: the
           // States row below is what decides how long the match is.
           <p className="vs-pick-fixed">
-            {roundsForMode(draft.mode, draft.scope)} — the whole map
+            {racing
+              ? `4:00 — name all ${roundsForMode(draft.mode, draft.scope)}`
+              : `${roundsForMode(draft.mode, draft.scope)} — the whole map`}
           </p>
         ) : (
           <div className="vs-chips">

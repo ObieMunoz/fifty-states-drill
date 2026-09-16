@@ -76,6 +76,7 @@ function api(over: Partial<VersusState> = {}, extra: Partial<VersusApi> = {}): V
     setDraft: noop,
     answerChoice: noop,
     answerText: noop,
+    answerName: noop,
     answerMap: noop,
     rematch: noop,
     leave: noop,

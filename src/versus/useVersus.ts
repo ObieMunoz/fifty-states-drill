@@ -8,6 +8,7 @@ import {
   currentRound, initialVersus, matchResults, reducer, settledTotal, settledUpTo, streakInto, verdictsOf,
 } from './machine';
 import { studyRound } from './learning';
+import { TRIAL_MS } from './trial';
 import type { VersusState } from './machine';
 import { cleanName, displayName, loadName, saveName } from './identity';
 import { loadBoard, rankBoard, recordMatch } from './leaderboard';
@@ -26,6 +27,7 @@ import { haptic } from './haptics';
 import { play, unlockAudio } from './sound';
 import { COUNTDOWN_MS, GRACE_MS, REVEAL_MS } from './timing';
 import { outcomeOf } from './scoring';
+import { isRace } from './types';
 import type { RoundAnswer, Snapshot } from './types';
 import type { Abbr, Ask, DiffKey, ModeKey, Scope, Track } from '../types';
 
@@ -107,10 +109,16 @@ export interface VersusApi {
   setDraft: (draft: { mode?: ModeKey; rounds?: number; scope?: Scope }) => void;
   answerChoice: (abbr: Abbr) => void;
   answerText: (text: string) => void;
+  /** Offer a state name in a Time Trial. The server keeps the list. */
+  answerName: (text: string) => void;
   answerMap: (abbr: Abbr) => void;
   rematch: () => void;
   leave: () => void;
 }
+
+/** How many names one side has in, for a race. */
+const countOf = (answers: (RoundAnswer | null)[]): number =>
+  answers.reduce((n, a) => n + (a ? 1 : 0), 0);
 
 /** Sum one player's rows in a snapshot, for the standings. */
 function tally(snap: Snapshot, id: string | undefined): { points: number; correct: number } {
@@ -397,7 +405,11 @@ export function useVersus(): VersusApi {
     return askFor(state.cfg.seed, state.round, round, dif);
   }, [round, state.cfg, state.difs, state.them, state.round]);
 
+  /** Time Trial is one long race rather than a run of rounds. */
+  const racing = !!state.cfg && isRace(state.cfg.mode);
+
   const limitMs = useMemo(() => {
+    if (racing) return TRIAL_MS;
     if (!round) return 0;
     // Levels are locked at kick-off; before then, use what the lobby shows.
     const locked = Object.values(state.difs);
@@ -405,7 +417,7 @@ export function useVersus(): VersusApi {
       ? locked
       : [state.me.dif, ...(state.them ? [state.them.dif] : [])];
     return roundLimitMs(round.qm, difs);
-  }, [round, state.difs, state.me.dif, state.them]);
+  }, [racing, round, state.difs, state.me.dif, state.them]);
 
   /* Sample the clock while one is on screen. */
   useEffect(() => {
@@ -424,7 +436,7 @@ export function useVersus(): VersusApi {
     ? Math.max(0, COUNTDOWN_MS - elapsed)
     : COUNTDOWN_MS;
 
-  const answered = state.myAnswers[state.round] != null;
+  const answered = racing ? false : state.myAnswers[state.round] != null;
   const myStreak = streakInto(state, state.myAnswers);
   const theirStreak = streakInto(state, state.theirAnswers);
   const finalRound = isFinalRound(state.round, state.plan.length);
@@ -481,6 +493,24 @@ export function useVersus(): VersusApi {
     }
   }, [limitMs, deliver]);
 
+  /**
+   * A name typed into a Time Trial.
+   *
+   * Nothing is graded on the phone. A round's answer is graded here for an
+   * instant reveal, but a trial has no reveal to be instant for — and the
+   * server already owns the list, since it is the only thing that knows
+   * whether a name is already on it. So the name goes up and whatever the
+   * room now holds comes back.
+   */
+  const answerName = useCallback((text: string) => {
+    const s = live.current;
+    const v = text.trim();
+    if (!v || s.phase !== 'question' || !s.cfg || !isRace(s.cfg.mode)) return;
+    haptic('tap');
+    play('lock');
+    void call({ action: 'answer', pick: v });
+  }, [call]);
+
   const answerChoice = useCallback((abbr: Abbr) => {
     if (ask) submit(abbr, abbr === ask.answer, false);
   }, [ask, submit]);
@@ -495,19 +525,20 @@ export function useVersus(): VersusApi {
     if (v) submit(v, grade(ask, round.qm, v), false);
   }, [ask, round, submit]);
 
-  /* The clock running out counts as an answer, so the round can end. */
+  /* The clock running out counts as an answer, so the round can end. A race
+     has no answer to give up on: running out of time is simply the end. */
   useEffect(() => {
-    if (state.phase !== 'question' || msLeft === null) return;
+    if (racing || state.phase !== 'question' || msLeft === null) return;
     if (msLeft > 0 || state.myAnswers[state.round] != null) return;
     submit(null, false, true);
-  }, [state.phase, state.round, state.myAnswers, msLeft, submit]);
+  }, [racing, state.phase, state.round, state.myAnswers, msLeft, submit]);
 
   /* ---------------- round and match flow ---------------- */
 
   /* Both answers in ends the round at once. One answer in starts a grace
      period, so an opponent who has gone quiet cannot stall the match. */
   useEffect(() => {
-    if (state.phase !== 'question') return;
+    if (racing || state.phase !== 'question') return;
     const mine = state.myAnswers[state.round];
     const theirs = state.theirAnswers[state.round];
     if (mine && theirs) {
@@ -520,7 +551,7 @@ export function useVersus(): VersusApi {
     // `msLeft` is deliberately excluded: it changes ten times a second, and
     // restarting this timer on every tick would push the deadline forever.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.phase, state.round, state.myAnswers, state.theirAnswers]);
+  }, [racing, state.phase, state.round, state.myAnswers, state.theirAnswers]);
 
   /* The verdict lands with the reveal: a short buzz and a rising note for
      right, a stutter and a low one for wrong, and a cheer at a streak worth
@@ -596,6 +627,32 @@ export function useVersus(): VersusApi {
     id = setTimeout(() => { void attempt(); }, REVEAL_MS);
     return () => { cancelled = true; clearTimeout(id); };
   }, [state.phase, state.round, state.isHost, state.link, takeSnapshot, dropRoom]);
+
+  /* A race ends on its own clock. The host closes it the moment the four
+     minutes are up — the server will not take it before then, and refuses
+     until its own clock agrees, so this is retried on the same footing as
+     moving a round on. A player naming them all closes it from the answer
+     path instead, on either phone. */
+  const raceDone = racing && msLeft !== null && msLeft <= 0;
+  useEffect(() => {
+    if (!raceDone || !state.isHost || state.phase !== 'question') return;
+    let cancelled = false;
+    let wait = ADVANCE_RETRY_MS;
+    let id: ReturnType<typeof setTimeout>;
+    const attempt = async () => {
+      const s = live.current;
+      if (cancelled || s.phase !== 'question') return;
+      try {
+        takeSnapshot(await callVersus({ action: 'advance', code: s.code, playerId: s.me.id }));
+      } catch {
+        if (cancelled) return;
+        id = setTimeout(() => { void attempt(); }, wait);
+        wait = Math.min(ADVANCE_MAX_RETRY_MS, wait * 2);
+      }
+    };
+    void attempt();
+    return () => { cancelled = true; clearTimeout(id); };
+  }, [raceDone, state.isHost, state.phase, takeSnapshot]);
 
   /* The countdown hands off to the first question. */
   useEffect(() => {
@@ -731,8 +788,8 @@ export function useVersus(): VersusApi {
     msLeft,
     limitMs,
     countdownMs,
-    myTotal: settledTotal(state, state.myAnswers),
-    theirTotal: settledTotal(state, state.theirAnswers),
+    myTotal: racing ? countOf(state.myAnswers) : settledTotal(state, state.myAnswers),
+    theirTotal: racing ? countOf(state.theirAnswers) : settledTotal(state, state.theirAnswers),
     myStreak,
     theirStreak,
     worth,
@@ -744,6 +801,6 @@ export function useVersus(): VersusApi {
     friends, addFriend, removeFriend,
     requestRematch: (friend, name) => { void requestRematch(friend, name); },
     host, join, setName, setDif, setReady, setDraft,
-    answerChoice, answerText, answerMap, rematch, leave,
+    answerChoice, answerText, answerName, answerMap, rematch, leave,
   };
 }

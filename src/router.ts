@@ -32,6 +32,7 @@ export const MODE_PATHS: Record<ModeKey, string> = {
   mixed:   '/quiz/mixed',
   // Played only head to head; the path exists so the map is total.
   place:   '/quiz/place-it',
+  trial:   '/quiz/time-trial',
 };
 
 export const HOME: Route = { kind: 'mode', mode: 'map' };

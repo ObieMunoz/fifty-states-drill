@@ -292,6 +292,10 @@ svg.vs-map .st.done{fill:color-mix(in srgb,var(--hydro) 38%,var(--paper));
 .vs-send:disabled{opacity:.4}
 .vs-tap{margin:0;color:var(--ink-3);font-size:13px;text-align:center;flex:none}
 .vs-pick-fixed{margin:0;color:var(--ink-2);font-size:14px;align-self:center}
+/* The trial sheet is the play sheet without a question: the entry box sits
+   under the map and keeps the keyboard up for the whole four minutes. */
+.vs-trial .vs-stage{flex:1 1 auto}
+.vs-trial .vs-entry{margin-top:8px}
 
 .vs-locked{display:flex;flex-direction:column;align-items:center;gap:3px;flex:none;
   background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:15px;

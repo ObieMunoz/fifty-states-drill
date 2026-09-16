@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { BY } from '../../data/states';
+import { fmtTime } from '../../lib/text';
 import { useCountUp } from '../../hooks/useCountUp';
-import { correctOf, matchResults, roundTaker, seriesOf } from '../../versus/machine';
+import { correctOf, finishedAt, matchResults, roundTaker, seriesOf } from '../../versus/machine';
 import { isFinalRound, roundLimitMs } from '../../versus/scoring';
 import { awardsFor, sideStats } from '../../versus/stats';
 import type { Award, SideStats } from '../../versus/stats';
-import { colorOf } from '../../versus/types';
+import { colorOf, isRace } from '../../versus/types';
+import { trialTarget } from '../../versus/trial';
 import type { PlayerColor } from '../../versus/types';
 import { Confetti } from './Confetti';
 import { Leaderboard } from './Leaderboard';
@@ -51,10 +53,22 @@ export function VersusFinal({ api }: { api: VersusApi }) {
     return awardsFor(state.plan, state.myAnswers, state.theirAnswers, limits).slice(0, MAX_AWARDS);
   }, [state.plan, state.myAnswers, state.theirAnswers, state.difs]);
 
+  // A trial is counted in states named, not points, and a clean sweep is
+  // worth saying out loud: naming all fifty is the thing the mode is for.
+  const racing = !!state.cfg && isRace(state.cfg.mode);
+  const target = racing ? trialTarget(state.cfg?.scope ?? 'all') : 0;
+  const swept = racing && myTotal >= target;
+
   const headline = outcome === 'win' ? 'You win' : outcome === 'loss' ? `${them} wins` : 'Dead heat';
-  const byLine = outcome === 'draw'
-    ? 'Level on points.'
-    : <>By <b>{margin}</b> {margin === 1 ? 'point' : 'points'}.</>;
+  const byLine = racing
+    ? (outcome === 'draw'
+      ? <>Level on <b>{myTotal}</b> states.</>
+      : swept
+        ? <>All <b>{target}</b> in <b>{fmtTime(finishedAt(state.myAnswers))}</b>.</>
+        : <>By <b>{margin}</b> {margin === 1 ? 'state' : 'states'}.</>)
+    : outcome === 'draw'
+      ? 'Level on points.'
+      : <>By <b>{margin}</b> {margin === 1 ? 'point' : 'points'}.</>;
   const seriesLine = series.played < 2 ? null
     : series.wins > series.losses ? `You lead the series ${series.wins}–${series.losses}`
       : series.losses > series.wins ? `${them} leads the series ${series.losses}–${series.wins}`

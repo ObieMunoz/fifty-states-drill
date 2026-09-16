@@ -61,6 +61,7 @@ function playing(theirs: RoundAnswer | null): VersusApi {
     setDraft: noop,
     answerChoice: noop,
     answerText: noop,
+    answerName: noop,
     answerMap: noop,
     rematch: noop,
     leave: noop,
