@@ -137,6 +137,38 @@ describe('getting into a room', () => {
   });
 });
 
+describe('the level a match is actually played at', () => {
+  it('takes the locked level over the player row once a match is on', () => {
+    const s = reducer(entered(false), {
+      type: 'snapshot',
+      snap: snap(
+        playingRoom({ difs: { me: 'expert', them: 'guided' } }),
+        [player('me', { dif: 'standard' }), player('them', { dif: 'guided' })],
+      ),
+      at: T,
+    });
+    expect(s.me.dif).toBe('expert');
+  });
+
+  it('keeps the locked level when a mid-match snapshot echoes a stale row', () => {
+    const mid = reducer(playing(), {
+      type: 'snapshot',
+      snap: snap(
+        playingRoom({ difs: { me: 'expert', them: 'guided' } }),
+        [player('me', { dif: 'standard' }), player('them', { dif: 'guided' })],
+      ),
+      at: T + 1000,
+    });
+    expect(mid.me.dif).toBe('expert');
+  });
+
+  it('leaves the lobby’s own level alone, where nothing is locked yet', () => {
+    const s = run(lobby(), { type: 'setDif', dif: 'expert' });
+    const echoed = reducer(s, { type: 'snapshot', snap: snap({ status: 'lobby' }, both()), at: T });
+    expect(echoed.me.dif).toBe('expert');
+  });
+});
+
 describe('the lobby', () => {
   it('lets the host keep editing the rules while the server catches up', () => {
     const s = run(

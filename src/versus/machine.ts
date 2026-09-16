@@ -235,11 +235,18 @@ function applySnapshot(s: VersusState, snap: LiveSnapshot, at: number): VersusSt
   // only ever echoes them — except at a rematch or a reset, which clears
   // readiness on both sides. On arrival, the server's word is all there is.
   const reset = room.status === 'waiting' || (s.synced && s.matchNo !== room.match_no);
+  // Once a match is on, the level locked at kick-off is the one the server
+  // grades against, so it is the one the question has to be built from. The
+  // player row is no use for this: a reload re-joins and posts whatever level
+  // this phone happens to hold, which is Standard on a fresh load. Taking the
+  // row would then hand an Expert or Guided player a question the server is
+  // not marking, and their right answers would come back wrong.
+  const locked = room.difs?.[s.me.id];
   const me: Player = {
     ...s.me,
     name: meRow?.name ?? s.me.name,
     color: colorOf(isHost),
-    dif: s.synced ? s.me.dif : (meRow?.dif ?? s.me.dif),
+    dif: locked ?? (s.synced ? s.me.dif : (meRow?.dif ?? s.me.dif)),
     ready: !s.synced ? (meRow?.ready ?? false) : reset ? false : s.me.ready,
   };
   const them: Player | null = themRow ? {

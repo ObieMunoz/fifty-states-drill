@@ -165,8 +165,12 @@ async function join(db: Db, input: Record<string, unknown>, now: Date): Promise<
   const seated = players.some((p) => p.id === playerId);
   if (!seated && players.length >= 2) throw new RoomError(409, 'That room is full.');
   const existing = players.find((p) => p.id === playerId);
+  // A level locked at kick-off is not the phone's to change: a reload
+  // re-joins with whatever it happens to hold, which is the default on a
+  // fresh load, and the row would then disagree with what is being graded.
+  const locked = room.difs?.[playerId];
   await db.upsertPlayer({
-    room_code: code, id: playerId, name, dif,
+    room_code: code, id: playerId, name, dif: locked ?? dif,
     ready: existing?.ready ?? false, wants_again: existing?.wants_again ?? false,
   });
   // A second player opens the lobby; anything short of a full pair waits.

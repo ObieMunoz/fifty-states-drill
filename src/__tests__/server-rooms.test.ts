@@ -337,6 +337,18 @@ describe('rematch and leaving', () => {
     expect(joined.room.status).toBe('lobby');
   });
 
+  it('leaves a seated player’s level alone when their phone re-joins mid-match', async () => {
+    const s = await playing();
+    const code = s.room.code;
+    expect(s.room.difs).toMatchObject({ guest: 'guided' });
+
+    const back = await call({ action: 'join', code, playerId: 'guest', name: 'Sam', dif: 'standard' });
+
+    expect(back.players.find((p) => p.id === 'guest')?.dif).toBe('guided');
+    expect(back.room.difs).toMatchObject({ guest: 'guided' });
+    expect(back.room.status).toBe('playing');
+  });
+
   it('starts a fresh match when the room is reused after a guest leaves', async () => {
     const s = await playing();
     const code = s.room.code;
