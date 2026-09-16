@@ -151,6 +151,40 @@ describe('Versus play, Find It', () => {
   });
 });
 
+describe('saying when the room is out of reach', () => {
+  const withTrouble = (over: Partial<VersusApi['state']>): VersusApi => {
+    const base = playing(null);
+    return { ...base, state: { ...base.state, ...over } };
+  };
+
+  it('says nothing while the room is reachable', () => {
+    const { container } = render(<VersusPlay api={playing(null)} />);
+
+    expect(container.querySelector('.vs-notice')).toBeNull();
+  });
+
+  it('shows a failed call on the screen the match is played on', () => {
+    const { container } = render(<VersusPlay api={withTrouble({ error: 'Could not reach the server.' })} />);
+
+    expect(container.querySelector('.vs-notice')?.textContent).toBe('Could not reach the server.');
+  });
+
+  it('shows a dropped channel', () => {
+    const { container } = render(<VersusPlay api={withTrouble({ link: 'lost' })} />);
+
+    expect(container.querySelector('.vs-notice')?.textContent).toMatch(/Connection lost/);
+  });
+
+  it('leaves the rows above the map alone when it appears', () => {
+    const { container, rerender } = render(<VersusPlay api={playing(null)} />);
+    const before = rowsAboveMap(container);
+
+    rerender(<VersusPlay api={withTrouble({ link: 'lost' })} />);
+
+    expect(rowsAboveMap(container)).toEqual(before);
+  });
+});
+
 describe('questions whose prompt is the map itself', () => {
   const levels: DiffKey[] = ['guided', 'standard', 'expert'];
   const shown: ModeKey[] = ['find', 'name', 'shape'];
