@@ -53,7 +53,7 @@ export type Track = 'find' | 'name' | 'shape' | 'capital' | 'code' | 'border';
 export type ModeKey =
   | 'map' | 'letter' | 'cards' | 'hooks' | 'weak'
   | 'find' | 'name' | 'shape' | 'roll' | 'all50'
-  | 'capital' | 'code' | 'border' | 'mixed' | 'place';
+  | 'capital' | 'code' | 'border' | 'mixed' | 'place' | 'trial';
 
 export type ModeKind =
   | 'explore' | 'letters' | 'cards' | 'hooks' | 'weak'

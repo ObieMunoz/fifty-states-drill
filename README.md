@@ -51,6 +51,7 @@ sequence of questions. See [Versus](#versus) below.
 | Versus-only mode | What it does |
 | --- | --- |
 | Place It | The map starts blank. States are called one at a time and you put each one where it goes; every state you get right stays filled, so the map builds up under you. A match runs the scope out — all fifty, or just the region you picked. |
+| Time Trial | Four minutes, no questions: both players race their own list to name every state, and each name fills it in on their own map. First to the full set takes it; if the clock runs out first, whoever named more. |
 
 ## Difficulty
 
@@ -106,6 +107,20 @@ answers in a row build a **streak** worth 10 more each, up to 50, and the **last
 pays double**, so nobody is out of it until the end. Whoever banks more over 5, 10 or 15
 rounds takes the match. It runs on the six scored quiz types plus Mixed; Roll Call and
 Name All 50 sit it out, being long-form solo sprints rather than one question at a time.
+
+**Time Trial** is the one mode that is not a run of shared rounds at all. Both players
+get the same four minutes and race, independently, to type the name of every state; each
+name that lands fills that state in on the typing player's own map. There is no question
+on screen, no reveal, and no waiting for the other player — the only thing their half of
+the score line tells you is how far ahead or behind you are. Naming them all ends the
+match there and then, for both phones; otherwise the clock decides it, and whoever named
+more takes it. Two equal lists are separated by who got there first. Spelling is
+forgiving on Enter, as everywhere else.
+
+Because the two sides move independently, a trial records each player's entries at their
+*own* indices — their first name is round 0, their second round 1 — so the two lists sit
+side by side without either constraining the other. The server owns the list, since it is
+the only thing that knows whether a name is already on it.
 
 **Place It** is head-to-head only, and sets its own length: the map starts blank, states
 are called one at a time for both players to place, and every state a player gets right

@@ -3,13 +3,14 @@ import { DIFF_KEYS } from '../src/data/modes';
 import { askFor, grade } from '../src/versus/grade';
 import { cleanName, displayName } from '../src/versus/identity';
 import { planMatch, roundsForMode } from '../src/versus/plan';
+import { TRIAL_MS, findTrialHit, trialTarget } from '../src/versus/trial';
 import { CODE_LENGTH, matchSeed, newRoomCode, normalizeCode } from '../src/versus/room';
 import { isFinalRound, roundLimitMs, scoreAnswer, streakBefore } from '../src/versus/scoring';
 import { rematchPayload } from '../src/versus/notify';
 import {
   COUNTDOWN_MS, GRACE_MS, PAIRING_TTL_MS, REMATCH_COOLDOWN_MS, REMATCH_TTL_MS, ROOM_TTL_MS,
 } from '../src/versus/timing';
-import { ROUND_CHOICES, VERSUS_MODES } from '../src/versus/types';
+import { ROUND_CHOICES, VERSUS_MODES, isRace } from '../src/versus/types';
 import type {
   AnswerRow, PairingRow, PlayerRow, Receipt, RoomRow, Snapshot, SubscriptionRow,
 } from '../src/versus/types';
@@ -274,11 +275,54 @@ function limitFor(room: RoomRow): { qm: ModeKey; limit: number; abbr: string } {
   return { qm: planned.qm, abbr: planned.abbr, limit: roundLimitMs(planned.qm, difs) };
 }
 
+/**
+ * One name in a Time Trial.
+ *
+ * There is no shared round to check against: each player is working through
+ * their own list, so an entry is stored at the next index *that player* has
+ * free. A name that is not a state, or one they already have, is not an
+ * error — it is a typo or a repeat, and the room comes back unchanged so the
+ * phone can show what it actually holds.
+ *
+ * The clock is the server's here, unlike a round, because there is only one
+ * of them for the whole match and both phones started it together.
+ */
+async function race(db: Db, input: Record<string, unknown>, room: RoomRow, now: Date): Promise<Snapshot> {
+  const code = room.code;
+  const playerId = playerIdOf(input);
+  const started = Date.parse(room.round_started_at as string);
+  const elapsed = now.getTime() - started;
+  if (elapsed < 0) throw new RoomError(422, 'The trial has not started yet.');
+  if (elapsed > TRIAL_MS) throw new RoomError(422, 'The trial is over.');
+
+  const rows = await db.getAnswers(code, room.match_no);
+  const mine = rows.filter((a) => a.player_id === playerId);
+  const got = new Set(mine.map((a) => a.pick).filter((p): p is string => !!p));
+  const typed = typeof input.pick === 'string' ? input.pick.slice(0, 80) : '';
+  const hit = findTrialHit(typed, room.scope, got, true);
+  if (!hit) return snapshot(db, code, now);
+
+  await db.insertAnswer({
+    room_code: code, match_no: room.match_no, round: mine.length, player_id: playerId,
+    correct: true, ms: Math.max(0, Math.round(elapsed)), points: 1, pick: hit.a, timeout: false,
+  });
+
+  // Naming them all ends it there and then, for both phones.
+  if (mine.length + 1 >= trialTarget(room.scope)) {
+    await touch(db, code, { status: 'final', round_started_at: null }, now);
+    await notePairing(db, room, now);
+  } else {
+    await touch(db, code, {}, now);
+  }
+  return snapshot(db, code, now);
+}
+
 async function answer(db: Db, input: Record<string, unknown>, now: Date): Promise<Snapshot> {
   const code = codeOf(input);
   const playerId = playerIdOf(input);
   const room = await openRoom(db, code);
   if (room.status !== 'playing' || !room.seed || !room.difs) throw new RoomError(422, 'No question is on.');
+  if (isRace(room.mode)) return race(db, input, room, now);
   if (input.round !== room.round) throw new RoomError(422, 'That round is not the one on screen.');
   const dif = room.difs[playerId];
   if (!dif) throw new RoomError(403, 'You are not in this match.');
@@ -330,6 +374,17 @@ async function advance(db: Db, input: Record<string, unknown>, now: Date): Promi
   const room = await openRoom(db, code);
   if (room.host_id !== playerId) throw new RoomError(403, 'Only the host moves the match on.');
   if (room.status !== 'playing' || !room.round_started_at) throw new RoomError(422, 'No round is on.');
+
+  // A race has no rounds to move between: it ends when the clock does, and
+  // the naming-them-all case has already closed it from the answer path.
+  if (isRace(room.mode)) {
+    if (now.getTime() - Date.parse(room.round_started_at) < TRIAL_MS) {
+      throw new RoomError(422, 'The trial is still running.');
+    }
+    await touch(db, code, { status: 'final', round_started_at: null }, now);
+    await notePairing(db, room, now);
+    return snapshot(db, code, now);
+  }
 
   // Either both answers are in, or the clock and the grace after it have run out.
   const answers = await db.getAnswers(code, room.match_no);

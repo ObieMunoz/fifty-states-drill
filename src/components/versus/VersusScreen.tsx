@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { useWakeLock } from '../../hooks/useWakeLock';
 import { useVersus } from '../../versus/useVersus';
+import { isRace } from '../../versus/types';
 import { VersusMenu } from './VersusMenu';
 import { VersusWaiting } from './VersusWaiting';
 import { VersusLobby } from './VersusLobby';
 import { VersusCountdown } from './VersusCountdown';
 import { VersusPlay } from './VersusPlay';
+import { VersusTrial } from './VersusTrial';
 import { VersusFinal } from './VersusFinal';
 
 /**
@@ -50,8 +52,12 @@ export function VersusScreen({ onExit }: { onExit: () => void }) {
       case 'connecting': return <VersusWaiting api={api} />;
       case 'lobby':     return <VersusLobby api={api} />;
       case 'countdown': return <VersusCountdown api={api} />;
+      // A race has no rounds and no reveal, so it gets a screen of its own
+      // rather than a play screen with half its furniture switched off.
       case 'question':
-      case 'reveal':    return <VersusPlay api={api} />;
+      case 'reveal':    return api.state.cfg && isRace(api.state.cfg.mode)
+        ? <VersusTrial api={api} />
+        : <VersusPlay api={api} />;
       case 'final':     return <VersusFinal key={api.state.matchNo} api={api} />;
     }
   }

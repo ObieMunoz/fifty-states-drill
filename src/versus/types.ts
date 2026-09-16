@@ -5,7 +5,19 @@ import type { Abbr, DiffKey, ModeKey, Scope } from '../types';
  * which shuffles between them. Roll Call and Name All 50 are long-form solo
  * sprints rather than one-question-at-a-time, so they sit this out.
  */
-export const VERSUS_MODES: ModeKey[] = ['mixed', 'find', 'name', 'shape', 'capital', 'code', 'border', 'place'];
+export const VERSUS_MODES: ModeKey[] = [
+  'mixed', 'find', 'name', 'shape', 'capital', 'code', 'border', 'place', 'trial',
+];
+
+/**
+ * Time Trial is not a sequence of shared rounds at all: both players race on
+ * their own clock to name every state, and the room ends when one of them has
+ * them all or the four minutes are up.
+ */
+export const SOLO_RACE: ModeKey[] = ['trial'];
+
+/** Whether a mode is the free-for-all race rather than a run of rounds. */
+export const isRace = (mode: ModeKey): boolean => SOLO_RACE.includes(mode);
 
 /**
  * Place It runs the map out: one round per state in the scope, so a match
@@ -13,7 +25,7 @@ export const VERSUS_MODES: ModeKey[] = ['mixed', 'find', 'name', 'shape', 'capit
  * do not apply to it — "how much of the map" is the scope's question, and
  * answering it twice would let a 5-round match claim to fill fifty states.
  */
-export const FILLS_THE_MAP: ModeKey[] = ['place'];
+export const FILLS_THE_MAP: ModeKey[] = ['place', 'trial'];
 
 export const ROUND_CHOICES = [5, 10, 15] as const;
 
