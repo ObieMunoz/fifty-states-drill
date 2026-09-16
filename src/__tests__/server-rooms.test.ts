@@ -337,6 +337,30 @@ describe('rematch and leaving', () => {
     expect(joined.room.status).toBe('lobby');
   });
 
+  it('starts a fresh match when the room is reused after a guest leaves', async () => {
+    const s = await playing();
+    const code = s.room.code;
+    const first = s.room.seed;
+    const when = questionTime(s, 1000);
+    await call({ action: 'answer', code, playerId: 'host', round: 0, pick: 'CA', ms: 500, timeout: false }, when);
+    await call({ action: 'answer', code, playerId: 'guest', round: 0, pick: 'CA', ms: 600, timeout: false }, when);
+
+    await call({ action: 'leave', code, playerId: 'guest' }, when);
+    await call({ action: 'join', code, playerId: 'other', name: 'Kim', dif: 'standard' }, when);
+    await call({ action: 'player', code, playerId: 'other', ready: true }, when);
+    const restarted = await call({ action: 'player', code, playerId: 'host', ready: true }, when);
+
+    expect(restarted.room.match_no).toBe(1);
+    expect(restarted.room.seed).not.toBe(first);
+    expect(restarted.answers).toEqual([]);
+
+    const next = questionTime(restarted, 1000);
+    const answered = await call(
+      { action: 'answer', code, playerId: 'host', round: 0, pick: 'OH', ms: 900, timeout: false }, next,
+    );
+    expect(answered.answers.find((a) => a.player_id === 'host' && a.round === 0)).toMatchObject({ pick: 'OH', ms: 900 });
+  });
+
   it('closes the room for good when the host leaves', async () => {
     const s = await playing();
     const code = s.room.code;

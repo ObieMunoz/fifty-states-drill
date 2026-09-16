@@ -367,6 +367,25 @@ describe('the series', () => {
     expect(reducer(finished(), { type: 'leave' }).series).toEqual({});
   });
 
+  it('starts over when somebody else takes the seat, and survives the same player returning', () => {
+    const done = finished();
+    expect(done.series).toEqual({ 'ACDE:0': 'win' });
+    const alone = reducer(done, { type: 'snapshot', snap: snap({ status: 'waiting', match_no: 1 }, [player('me')]), at: T + 70000 });
+    const stranger = reducer(alone, {
+      type: 'snapshot',
+      snap: snap({ status: 'lobby', match_no: 1 }, [player('me'), player('other')]),
+      at: T + 71000,
+    });
+    expect(stranger.series).toEqual({});
+
+    const sameAgain = reducer(alone, {
+      type: 'snapshot',
+      snap: snap({ status: 'lobby', match_no: 1 }, both()),
+      at: T + 71000,
+    });
+    expect(sameAgain.series).toEqual({ 'ACDE:0': 'win' });
+  });
+
   it('comes back with a phone returning to the same room, and not to another', () => {
     const kept = { 'ACDE:0': 'win' as const, 'ACDE:1': 'loss' as const };
     const back = initialVersus('Obie', 'standard', 'ACDE', 'me', kept);
