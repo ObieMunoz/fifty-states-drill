@@ -416,7 +416,7 @@ describe('leaderboard', () => {
   });
 
   it('records both players from one match', () => {
-    const rows = recordMatch([
+    const rows = recordMatch('ACDE:0', [
       { name: 'Obie', points: 900, correct: 8, asked: 10, outcome: 'win' },
       { name: 'Sam', points: 700, correct: 6, asked: 10, outcome: 'loss' },
     ]);
@@ -427,11 +427,11 @@ describe('leaderboard', () => {
   });
 
   it('accumulates across matches', () => {
-    recordMatch([
+    recordMatch('ACDE:0', [
       { name: 'Obie', points: 900, correct: 8, asked: 10, outcome: 'win' },
       { name: 'Sam', points: 700, correct: 6, asked: 10, outcome: 'loss' },
     ]);
-    const rows = recordMatch([
+    const rows = recordMatch('ACDE:1', [
       { name: 'Obie', points: 500, correct: 4, asked: 10, outcome: 'loss' },
       { name: 'Sam', points: 800, correct: 9, asked: 10, outcome: 'win' },
     ]);
@@ -445,23 +445,46 @@ describe('leaderboard', () => {
   });
 
   it('treats names case-insensitively but keeps the latest spelling', () => {
-    recordMatch([{ name: 'obie', points: 100, correct: 1, asked: 1, outcome: 'win' }]);
-    const rows = recordMatch([{ name: 'Obie', points: 100, correct: 1, asked: 1, outcome: 'win' }]);
+    recordMatch('ACDE:0', [{ name: 'obie', points: 100, correct: 1, asked: 1, outcome: 'win' }]);
+    const rows = recordMatch('ACDE:1', [{ name: 'Obie', points: 100, correct: 1, asked: 1, outcome: 'win' }]);
     expect(rows).toHaveLength(1);
     expect(rows[0].name).toBe('Obie');
     expect(rows[0].wins).toBe(2);
   });
 
   it('counts draws separately', () => {
-    const rows = recordMatch([
+    const rows = recordMatch('ACDE:0', [
       { name: 'Obie', points: 500, correct: 5, asked: 10, outcome: 'draw' },
       { name: 'Sam', points: 500, correct: 5, asked: 10, outcome: 'draw' },
     ]);
     expect(rows.every((r) => r.draws === 1 && r.wins === 0 && r.losses === 0)).toBe(true);
   });
 
+  it('folds a match in once, however many times it is recorded', () => {
+    const results = [
+      { name: 'Obie', points: 900, correct: 8, asked: 10, outcome: 'win' as const },
+      { name: 'Sam', points: 700, correct: 6, asked: 10, outcome: 'loss' as const },
+    ];
+    recordMatch('ACDE:0', results);
+    const rows = recordMatch('ACDE:0', results);
+
+    const obie = rows.find((r) => r.name === 'Obie')!;
+    expect(obie.matches).toBe(1);
+    expect(obie.wins).toBe(1);
+    expect(obie.points).toBe(900);
+  });
+
+  it('still counts the next match in the same room', () => {
+    recordMatch('ACDE:0', [{ name: 'Obie', points: 900, correct: 8, asked: 10, outcome: 'win' }]);
+    recordMatch('ACDE:0', [{ name: 'Obie', points: 900, correct: 8, asked: 10, outcome: 'win' }]);
+    const rows = recordMatch('ACDE:1', [{ name: 'Obie', points: 300, correct: 3, asked: 10, outcome: 'loss' }]);
+
+    expect(rows[0].matches).toBe(2);
+    expect(rows[0].points).toBe(1200);
+  });
+
   it('skips a blank name rather than creating an empty row', () => {
-    const rows = recordMatch([{ name: '  ', points: 100, correct: 1, asked: 1, outcome: 'win' }]);
+    const rows = recordMatch('ACDE:0', [{ name: '  ', points: 100, correct: 1, asked: 1, outcome: 'win' }]);
     expect(rows).toEqual([]);
   });
 
@@ -487,7 +510,7 @@ describe('leaderboard', () => {
   });
 
   it('clears on reset', () => {
-    recordMatch([{ name: 'Obie', points: 100, correct: 1, asked: 1, outcome: 'win' }]);
+    recordMatch('ACDE:0', [{ name: 'Obie', points: 100, correct: 1, asked: 1, outcome: 'win' }]);
     resetBoard();
     expect(loadBoard()).toEqual([]);
   });

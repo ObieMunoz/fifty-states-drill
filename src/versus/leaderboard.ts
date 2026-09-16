@@ -9,8 +9,40 @@ import { cleanName } from './identity';
  */
 const LB_KEY = 'fiftyStatesDrill.versus.leaderboard.v1';
 
+/**
+ * The matches already folded in, by seed.
+ *
+ * The room code stays in the URL and a reload re-joins it, so a phone left on
+ * a result screen comes back to the same finished match and offers it to the
+ * standings again. A guard held in memory does not survive that, and the one
+ * number this app keeps about a household would gain a win and a match every
+ * time somebody reloaded.
+ */
+const SEEN_KEY = 'fiftyStatesDrill.versus.recorded.v1';
+
 /** Keep the table honest without letting it grow without bound. */
 const MAX_ROWS = 40;
+
+/** Enough to outlast any one evening's rematches. */
+const MAX_SEEN = 60;
+
+function loadSeen(): string[] {
+  try {
+    const raw = localStorage.getItem(SEEN_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function noteSeen(seed: string): void {
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify([seed, ...loadSeen().filter((s) => s !== seed)].slice(0, MAX_SEEN)));
+  } catch {
+    // Storage unavailable: the guard holds for this page load only.
+  }
+}
 
 export interface LeaderRow {
   name: string;
@@ -85,8 +117,14 @@ export function rankBoard(rows: LeaderRow[]): LeaderRow[] {
 /**
  * Fold one finished match into the standings. Both players are recorded: this
  * device saw the whole match, so it knows both scores.
+ *
+ * The match's seed is its identity, and one already folded in is left alone,
+ * so offering the same match twice — a reload, a second snapshot, a phone
+ * brought back to a result still on screen — cannot count it twice.
  */
-export function recordMatch(results: MatchResult[], now = Date.now()): LeaderRow[] {
+export function recordMatch(seed: string, results: MatchResult[], now = Date.now()): LeaderRow[] {
+  if (seed && loadSeen().includes(seed)) return rankBoard(loadBoard());
+  if (seed) noteSeen(seed);
   const rows = loadBoard();
   const byKey = new Map(rows.map((r) => [key(r.name), r]));
 
@@ -116,6 +154,9 @@ export function recordMatch(results: MatchResult[], now = Date.now()): LeaderRow
 export function resetBoard(): void {
   try {
     localStorage.removeItem(LB_KEY);
+    // The guard goes with the table: clearing the standings and playing the
+    // evening's matches back should fill them in again.
+    localStorage.removeItem(SEEN_KEY);
   } catch {
     // Ignored, as above.
   }

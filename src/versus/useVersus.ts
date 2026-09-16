@@ -37,6 +37,15 @@ const ADVANCE_RETRY_MS = 400;
  */
 const ADVANCE_MAX_RETRY_MS = 4000;
 
+/** How long before an answer that did not land is offered again. */
+const ANSWER_RETRY_MS = 300;
+
+/** And the longest it waits between tries. */
+const ANSWER_MAX_RETRY_MS = 2000;
+
+/** How many times, before the round it belongs to is gone anyway. */
+const ANSWER_TRIES = 5;
+
 /** The streaks that get a cue of their own at the reveal. */
 const STREAK_CHEERS = new Set([3, 5]);
 
@@ -189,12 +198,13 @@ export function useVersus(): VersusApi {
     const { room: r, players } = snap;
     if (r.status !== 'final' || !r.seed || recorded.current === r.seed) return;
     recorded.current = r.seed;
+    const seed = r.seed;
     const myId = live.current.me.id;
     const them = players.find((p) => p.id !== myId);
     const mine = tally(snap, myId);
     const theirs = tally(snap, them?.id);
     const outcome = outcomeOf(mine.points, theirs.points);
-    setBoard(recordMatch([
+    setBoard(recordMatch(seed, [
       { name: displayName(live.current.me.name), ...mine, asked: r.rounds, outcome },
       {
         name: displayName(them?.name ?? live.current.lastOpponent, 'Opponent'),
@@ -406,6 +416,30 @@ export function useVersus(): VersusApi {
 
   /* ---------------- answering ---------------- */
 
+  /**
+   * Put an answer on the server, and keep trying while the round it belongs
+   * to is still the one on screen.
+   *
+   * The screen says "locked in" the moment the tap lands, and the points that
+   * count are the server's — so an answer whose one call was dropped left the
+   * player looking answered and scoring nothing, and the result screen
+   * disagreeing with the standings ever after. The round's own primary key
+   * makes the write idempotent, so a retry of a call that did land is
+   * harmless: the first answer stands either way.
+   */
+  const deliver = useCallback(async (round: number, body: Record<string, unknown>) => {
+    let wait = ANSWER_RETRY_MS;
+    for (let tries = 0; tries < ANSWER_TRIES; tries++) {
+      if (await call(body)) return;
+      // Once the match has moved past it, the round is settled without us.
+      const s = live.current;
+      if (s.round !== round || s.phase === 'final' || s.phase === 'menu') return;
+      await new Promise((resolve) => { setTimeout(resolve, wait); });
+      wait = Math.min(ANSWER_MAX_RETRY_MS, wait * 2);
+      if (live.current.round !== round) return;
+    }
+  }, [call]);
+
   const submit = useCallback((value: string | null, correct: boolean, timeout: boolean) => {
     const s = live.current;
     if (s.phase !== 'question' || s.myAnswers[s.round] != null) return;
@@ -418,14 +452,14 @@ export function useVersus(): VersusApi {
     });
     const answer: RoundAnswer = { correct, ms, points, pick: value, timeout };
     dispatch({ type: 'answer', round: s.round, answer });
-    void call({ action: 'answer', round: s.round, pick: value, ms, timeout });
+    void deliver(s.round, { action: 'answer', round: s.round, pick: value, ms, timeout });
     // One short tick to say the tap landed. Right or wrong waits for the
     // reveal, like everything else about the round. Silent where unsupported.
     if (!timeout) {
       haptic('tap');
       play('lock');
     }
-  }, [limitMs, call]);
+  }, [limitMs, deliver]);
 
   const answerChoice = useCallback((abbr: Abbr) => {
     if (ask) submit(abbr, abbr === ask.answer, false);
