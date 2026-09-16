@@ -1,11 +1,13 @@
 import {
   useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState,
 } from 'react';
+import { DIFFS, TRACKS } from '../data/modes';
 import { askFor, grade } from './grade';
 import { isFinalRound, roundLimitMs, scoreAnswer, streakBefore } from './scoring';
 import {
-  currentRound, initialVersus, matchResults, reducer, settledTotal, streakInto, verdictsOf,
+  currentRound, initialVersus, matchResults, reducer, settledTotal, settledUpTo, streakInto, verdictsOf,
 } from './machine';
+import { studyRound } from './learning';
 import type { VersusState } from './machine';
 import { cleanName, displayName, loadName, saveName } from './identity';
 import { loadBoard, rankBoard, recordMatch } from './leaderboard';
@@ -25,7 +27,7 @@ import { play, unlockAudio } from './sound';
 import { COUNTDOWN_MS, GRACE_MS, REVEAL_MS } from './timing';
 import { outcomeOf } from './scoring';
 import type { RoundAnswer, Snapshot } from './types';
-import type { Abbr, Ask, DiffKey, ModeKey, Scope } from '../types';
+import type { Abbr, Ask, DiffKey, ModeKey, Scope, Track } from '../types';
 
 /** How long the host waits before asking the server again to move on. */
 const ADVANCE_RETRY_MS = 400;
@@ -340,6 +342,24 @@ export function useVersus(): VersusApi {
 
   /* Going away without leaving keeps the seat: a reload comes back to it. */
   useEffect(() => () => { dropRoom(); }, [dropRoom]);
+
+  /* Every round that has settled goes into this device's study record, so a
+     household that plays nothing but Versus still builds a weak list and a
+     map that deepens. Driven off the settled count rather than the reveal:
+     a phone that slept through a round comes back with the match already
+     past it, and those rounds are owed to the record too. */
+  useEffect(() => {
+    if (!state.cfg) return;
+    const cap = DIFFS[state.difs[state.me.id] ?? state.me.dif].cap;
+    const upTo = settledUpTo(state);
+    for (let i = 0; i < upTo; i++) {
+      const mine = state.myAnswers[i];
+      const planned = state.plan[i];
+      if (!mine || !planned) continue;
+      const track = TRACKS.includes(planned.qm as Track) ? (planned.qm as Track) : null;
+      if (track) studyRound(state.cfg.seed, i, planned.abbr, track, mine.correct, cap);
+    }
+  }, [state]);
 
   /* And the series comes back with it. */
   useEffect(() => {

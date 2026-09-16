@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { ApiError, OFFLINE } from '../versus/client';
+import { loadProgress } from '../game/progress';
+import { planMatch } from '../versus/plan';
 import { COUNTDOWN_MS, GRACE_MS, REVEAL_MS } from '../versus/timing';
 import type { LiveEvents, LiveSnapshot } from '../versus/live';
 import type { AnswerRow, PlayerRow, RoomRow, Snapshot } from '../versus/types';
@@ -338,6 +340,47 @@ describe('folding a finished match into the standings', () => {
     expect(obie?.matches).toBe(1);
     expect(obie?.wins).toBe(1);
     expect(obie?.points).toBe(500);
+  });
+});
+
+describe('what a match teaches the device', () => {
+  const firstRound = () => planMatch({ seed: `${CODE}:0`, mode: 'find', rounds: 5, scope: 'all' })[0];
+
+  it('waits for the reveal before counting the round', async () => {
+    callVersus.mockResolvedValueOnce(snapshot({ status: 'waiting' }, [player('me')]));
+    const hook = renderHook(() => useVersus());
+    await act(async () => { hook.result.current.host('Obie'); });
+    await act(async () => {
+      events.onSnapshot({
+        ...snapshot(midMatch({ round_started_at: iso(T + COUNTDOWN_MS) }), [player('me'), player('them')]),
+        receivedAt: Date.now(),
+      } as LiveSnapshot);
+    });
+    await act(async () => { vi.advanceTimersByTime(COUNTDOWN_MS + 20); });
+    callVersus.mockResolvedValue(snapshot(midMatch(), [player('me'), player('them')], [row('me', 0)]));
+    await act(async () => { hook.result.current.answerMap('OH'); });
+
+    expect(hook.result.current.state.phase).toBe('question');
+    expect(loadProgress().st ?? {}).toEqual({});
+  });
+
+  it('counts the revealed round as an attempt on its own track', async () => {
+    await hostOnReveal();
+
+    const { abbr, qm } = firstRound();
+
+    expect(loadProgress().st?.[abbr]?.[qm as 'find']).toEqual({ a: 1, c: 1 });
+  });
+
+  it('does not count the same round twice across a reload', async () => {
+    const first = await hostOnReveal();
+    first.unmount();
+
+    await hostOnReveal();
+
+    const { abbr, qm } = firstRound();
+
+    expect(loadProgress().st?.[abbr]?.[qm as 'find']).toEqual({ a: 1, c: 1 });
   });
 });
 
