@@ -240,9 +240,14 @@ function Question({ api, ask, qm, revealing, answered, mine, theirs }: QuestionP
     return fullBox();
   }, [qm, s, state.me.dif, revealing]);
 
+  // `ask.show` already carries the level's word on whether the target is
+  // given away: `buildAsk` leaves it null wherever the level withholds it.
+  // Name It is the exception — the map *is* the question there, so it is set
+  // at every level, and gating on the level as well left Expert with nothing
+  // to read the question from.
   const showsMap = qm === 'find' || qm === 'shape'
     || ((qm === 'name' || qm === 'border' || qm === 'capital' || qm === 'code')
-      && DIFFS[state.me.dif].showTarget && ask.show !== null);
+      && ask.show !== null);
 
   const head = prompt(ask, qm);
   const twoLetter = qm === 'code' && !ask.rev;
