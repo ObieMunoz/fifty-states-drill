@@ -22,7 +22,7 @@ export const askFor = (seed: string, round: number, planned: PlannedRound, dif: 
 
 /** Grade one answer exactly the way the solo game does. */
 export function grade(ask: Ask, qm: ModeKey, value: string): boolean {
-  if (ask.choices || qm === 'find') return value === ask.answer;
+  if (ask.choices || qm === 'find' || qm === 'place') return value === ask.answer;
   const expect = expectedText(ask, qm);
   // A two-letter code has no near-misses: one edit is a different state.
   if (qm === 'code' && !ask.rev) return norm(value) === norm(expect);
@@ -39,7 +39,7 @@ export function grade(ask: Ask, qm: ModeKey, value: string): boolean {
  */
 export function pickLabel(ask: Ask, qm: ModeKey, pick: string | null): string | null {
   if (pick === null) return null;
-  if (ask.choices || qm === 'find') {
+  if (ask.choices || qm === 'find' || qm === 'place') {
     const s = BY[pick as Abbr];
     return s ? choiceLabel(ask, s.a) : pick;
   }

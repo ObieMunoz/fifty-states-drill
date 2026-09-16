@@ -4,6 +4,7 @@ import { hashSeed, mulberry32, pickRnd, shuffle } from '../lib/random';
 import type { Rng } from '../lib/random';
 import { inScope } from '../game/scope';
 import { emptyProgress } from '../game/progress';
+import { FILLS_THE_MAP } from './types';
 import type { MatchConfig, PlannedRound } from './types';
 import type { ModeKey, Scope, State } from '../types';
 
@@ -96,3 +97,14 @@ export function planMatch(cfg: MatchConfig): PlannedRound[] {
  */
 export const askRng = (seed: string, round: number): Rng =>
   mulberry32(hashSeed(`${seed}!ask!${round}`));
+
+/**
+ * How many rounds a match should run.
+ *
+ * Every mode but Place It takes the count the lobby offers. Place It runs the
+ * map out instead — one round per state in the scope — so a match ends with
+ * the board full, and a regional match fills that region exactly.
+ */
+export function roundsForMode(mode: ModeKey, scope: Scope, requested = 10): number {
+  return FILLS_THE_MAP.includes(mode) ? matchPool(scope).length : requested;
+}

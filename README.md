@@ -48,6 +48,10 @@ Two phones, the same questions, one clock. One player starts a room and reads ou
 four-character code — or lets the other scan the QR — and both race through the same
 sequence of questions. See [Versus](#versus) below.
 
+| Versus-only mode | What it does |
+| --- | --- |
+| Place It | The map starts blank. States are called one at a time and you put each one where it goes; every state you get right stays filled, so the map builds up under you. A match runs the scope out — all fifty, or just the region you picked. |
+
 ## Difficulty
 
 A **Level** control sits beside the mode tabs and changes how much scaffolding you get.
@@ -102,6 +106,13 @@ answers in a row build a **streak** worth 10 more each, up to 50, and the **last
 pays double**, so nobody is out of it until the end. Whoever banks more over 5, 10 or 15
 rounds takes the match. It runs on the six scored quiz types plus Mixed; Roll Call and
 Name All 50 sit it out, being long-form solo sprints rather than one question at a time.
+
+**Place It** is head-to-head only, and sets its own length: the map starts blank, states
+are called one at a time for both players to place, and every state a player gets right
+stays filled on their own map. A match runs one round per state in the scope, so it ends
+with the board full — fifty rounds across the whole country, or nine if the pair picked
+New England. The rounds control steps aside for it, since the scope is what decides how
+long the match is.
 
 While a question is live the screen shows what a right answer is worth that instant,
 and the moment the other player locks in, their time — which is when the clock starts

@@ -31,7 +31,7 @@ export type Outcome = 'win' | 'loss' | 'draw';
 /** Whether this player types their answer rather than picking one. */
 export function isTyped(qm: ModeKey, dif: DiffKey): boolean {
   const d = DIFFS[dif];
-  if (qm === 'find') return false;
+  if (qm === 'find' || qm === 'place') return false;
   if (qm === 'name' || qm === 'shape') return d.typeNames;
   if (qm === 'capital' || qm === 'code') return !d.forceChoice;
   return false;
@@ -39,7 +39,8 @@ export function isTyped(qm: ModeKey, dif: DiffKey): boolean {
 
 /** The window one player would need on their own. */
 function playerLimitMs(qm: ModeKey, dif: DiffKey): number {
-  if (qm === 'find') return FIND_MS;
+  // Place It is the same act as Find It: the eye travels to the map and back.
+  if (qm === 'find' || qm === 'place') return FIND_MS;
   return isTyped(qm, dif) ? TYPED_MS : CHOICE_MS;
 }
 

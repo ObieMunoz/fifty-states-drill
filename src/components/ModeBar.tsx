@@ -5,7 +5,7 @@ import { MODE_PATHS } from '../router';
 import type { ModeKey } from '../types';
 
 const LEARN = MODE_KEYS.filter((k) => MODES[k].g === 'learn');
-const QUIZ = MODE_KEYS.filter((k) => MODES[k].g === 'quiz');
+const QUIZ = MODE_KEYS.filter((k) => MODES[k].g === 'quiz' && !MODES[k].versusOnly);
 
 interface GroupProps {
   keys: ModeKey[];

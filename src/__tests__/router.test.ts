@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { MODE_KEYS } from '../data/modes';
+import { MODES, MODE_KEYS } from '../data/modes';
 import { HOME, MODE_PATHS, modeRoute, parseRoute, pathOf } from '../router';
 
 describe('routes', () => {
-  it('gives every mode a path of its own, and reads each one back', () => {
+  it('gives every mode a path of its own, and reads each solo one back', () => {
     const paths = new Set(MODE_KEYS.map((k) => MODE_PATHS[k]));
     expect(paths.size).toBe(MODE_KEYS.length);
-    for (const k of MODE_KEYS) {
+    for (const k of MODE_KEYS.filter((m) => !MODES[m].versusOnly)) {
       expect(parseRoute(MODE_PATHS[k])).toEqual(modeRoute(k));
       expect(parseRoute(pathOf(modeRoute(k)))).toEqual(modeRoute(k));
     }
@@ -38,5 +38,11 @@ describe('routes', () => {
     expect(parseRoute('/', '#versus=ACDE')).toEqual({ kind: 'versus', code: 'ACDE' });
     expect(parseRoute('/', '#import=abc&versus=ACDE')).toEqual({ kind: 'versus', code: 'ACDE' });
     expect(parseRoute('/', '#import=abc')).toEqual(HOME);
+  });
+});
+
+describe('modes played only head to head', () => {
+  it('sends a typed Place It path home rather than half-way into the solo app', () => {
+    expect(parseRoute('/quiz/place-it', '')).toEqual({ kind: 'mode', mode: 'map' });
   });
 });

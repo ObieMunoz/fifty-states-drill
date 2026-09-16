@@ -21,6 +21,11 @@ export interface MapMarks {
   theirPick?: Abbr | null;
   answer?: Abbr | null;
   revealed?: boolean;
+  /**
+   * States this player has already put on the board, in Place It. They stay
+   * filled behind every later round, which is what makes the map fill up.
+   */
+  placed?: ReadonlySet<Abbr>;
 }
 
 /** The fill state for one state, as a class list. */
@@ -32,6 +37,7 @@ export function stateClass(s: State, m: MapMarks): string {
     // painted, so a state both got wrong reads wrong once, not twice.
     if (s.a === m.answer) c.push('ok');
     else if (s.a === m.picked || s.a === m.theirPick) c.push('bad');
+    else if (m.placed?.has(s.a)) c.push('done');
   } else if (s.a === m.picked) {
     // Your own tap, held on screen until the round is graded. It is local: the
     // opponent renders their own pick from their own answer, never this one.
@@ -40,6 +46,9 @@ export function stateClass(s: State, m: MapMarks): string {
     c.push('pick');
   } else if (s.a === m.highlight) {
     c.push('target');
+  } else if (m.placed?.has(s.a)) {
+    // Earlier rounds, still on the board. The round in play speaks over it.
+    c.push('done');
   }
   // Guided dims everything outside the target's division while live — but
   // never the state you just tapped, which has to stay legible.

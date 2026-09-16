@@ -2,7 +2,7 @@ import { REGS } from '../src/data/states';
 import { DIFF_KEYS } from '../src/data/modes';
 import { askFor, grade } from '../src/versus/grade';
 import { cleanName, displayName } from '../src/versus/identity';
-import { planMatch } from '../src/versus/plan';
+import { planMatch, roundsForMode } from '../src/versus/plan';
 import { CODE_LENGTH, matchSeed, newRoomCode, normalizeCode } from '../src/versus/room';
 import { isFinalRound, roundLimitMs, scoreAnswer, streakBefore } from '../src/versus/scoring';
 import { rematchPayload } from '../src/versus/notify';
@@ -78,6 +78,9 @@ export class RoomError extends Error {
 
 const bad = (message: string) => new RoomError(400, message);
 
+/** What a new room offers until the host says otherwise. */
+const DEFAULT_ROUNDS = 10;
+
 /** How many codes to try before giving up on an unlucky draw. */
 const CODE_TRIES = 5;
 
@@ -145,7 +148,7 @@ async function create(db: Db, input: Record<string, unknown>, now: Date): Promis
     const code = newRoomCode();
     const row: RoomRow = {
       code, host_id: playerId, status: 'waiting',
-      mode: 'mixed', rounds: 10, scope: 'all',
+      mode: 'mixed', rounds: DEFAULT_ROUNDS, scope: 'all',
       match_no: 0, ...unstarted, updated_at: iso(now),
     } as RoomRow;
     if (!(await db.insertRoom(row))) continue;
@@ -214,6 +217,13 @@ async function settings(db: Db, input: Record<string, unknown>, now: Date): Prom
     if (!isScope(input.scope)) throw bad('scope must be all or a region');
     patch.scope = input.scope;
   }
+  // Place It runs the map out, so its length follows the mode and the scope
+  // rather than the lobby's choice — and switching back to a mode that does
+  // take one falls to the default rather than keeping a count nobody offers.
+  const mode = patch.mode ?? room.mode;
+  const scope = patch.scope ?? room.scope;
+  const asked = patch.rounds ?? room.rounds;
+  patch.rounds = roundsForMode(mode, scope, isRounds(asked) ? asked : DEFAULT_ROUNDS);
   await touch(db, code, patch, now);
   return snapshot(db, code, now);
 }

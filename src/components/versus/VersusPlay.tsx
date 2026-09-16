@@ -235,6 +235,9 @@ function Question({ api, ask, qm, revealing, answered, mine, theirs }: QuestionP
     return () => window.removeEventListener('keydown', onKey);
   }, [choices, answered, revealing, answerChoice]);
 
+  // Find It and Place It are both answered by tapping the map.
+  const onMap = qm === 'find' || qm === 'place';
+
   const zoom = useMemo(() => {
     if (qm === 'shape') return fitBox([s], 0.06);
     if (qm === 'find' && DIFFS[state.me.dif].regionHint && !revealing) {
@@ -248,17 +251,30 @@ function Question({ api, ask, qm, revealing, answered, mine, theirs }: QuestionP
   // Name It is the exception — the map *is* the question there, so it is set
   // at every level, and gating on the level as well left Expert with nothing
   // to read the question from.
-  const showsMap = qm === 'find' || qm === 'shape'
+  const showsMap = onMap || qm === 'shape'
     || ((qm === 'name' || qm === 'border' || qm === 'capital' || qm === 'code')
       && ask.show !== null);
 
   const head = prompt(ask, qm);
   const twoLetter = qm === 'code' && !ask.rev;
-  // Only Find It answers *on* the map. Everywhere else the map is the prompt,
-  // so lighting up a pick made on a button would mark the wrong state.
-  const myPick = qm === 'find' ? ((mine?.pick ?? null) as Abbr | null) : null;
-  const theirPick = qm === 'find' && revealing ? ((theirs?.pick ?? null) as Abbr | null) : null;
+  // Only Find It and Place It answer *on* the map. Everywhere else the map is
+  // the prompt, so lighting up a pick made on a button would mark the wrong
+  // state.
+  const myPick = onMap ? ((mine?.pick ?? null) as Abbr | null) : null;
+  const theirPick = onMap && revealing ? ((theirs?.pick ?? null) as Abbr | null) : null;
   const colors = { mine: state.me.color, theirs: theirColor(api) };
+
+  /* Place It keeps every state this player has got right on the board, so the
+     map fills in as the match runs. Only the rounds already settled: the one
+     in play is not on it until the reveal, or the map would answer itself. */
+  const placed = useMemo(() => {
+    const out = new Set<Abbr>();
+    if (qm !== 'place') return out;
+    for (let i = 0; i < state.round; i++) {
+      if (state.myAnswers[i]?.correct && state.plan[i]) out.add(state.plan[i].abbr);
+    }
+    return out;
+  }, [qm, state.round, state.myAnswers, state.plan]);
 
   return (
     <>
@@ -272,14 +288,15 @@ function Question({ api, ask, qm, revealing, answered, mine, theirs }: QuestionP
           <VersusMap
             zoom={zoom}
             solo={qm === 'shape' ? s.a : null}
-            highlight={qm === 'find' ? null : ask.show}
+            highlight={onMap ? null : ask.show}
             divisionHint={qm === 'find' && DIFFS[state.me.dif].regionHint ? s.div : null}
             picked={myPick}
             theirPick={theirPick}
-            answer={qm === 'find' ? s.a : null}
-            revealed={revealing && qm === 'find'}
+            placed={placed}
+            answer={onMap ? s.a : null}
+            revealed={revealing && onMap}
             colors={colors}
-            onPick={qm === 'find' ? api.answerMap : undefined}
+            onPick={onMap ? api.answerMap : undefined}
             disabled={answered || revealing}
           />
         </div>
@@ -323,7 +340,7 @@ function Question({ api, ask, qm, revealing, answered, mine, theirs }: QuestionP
           />
           <button type="submit" className="vs-send" disabled={!text.trim()}>Go</button>
         </form>
-      ) : qm === 'find' ? (
+      ) : onMap ? (
         <p className="vs-tap">Tap it on the map. One shot.</p>
       ) : null}
     </>
@@ -426,7 +443,8 @@ function AnswerChip({ who, color, answer, pick, bonus, you = false }: {
 function prompt(ask: Ask, qm: ModeKey): string {
   const s = ask.s;
   switch (qm) {
-    case 'find': return s.n;
+    case 'find':
+    case 'place': return s.n;
     case 'name':
     case 'shape': return 'Which state is this?';
     case 'border': return `Which one borders ${s.n}?`;
@@ -440,6 +458,7 @@ function subtitle(qm: ModeKey, dif: DiffKey, ask: Ask): string {
   const d = DIFFS[dif];
   switch (qm) {
     case 'find': return d.regionHint ? 'Tap it — only its division is lit.' : 'Tap it on the map.';
+    case 'place': return 'Put it on the map.';
     case 'name': return d.typeNames ? 'Type its name.' : 'Pick the highlighted one.';
     case 'shape': return d.typeNames ? 'Shape only. Type its name.' : 'Shape only — no map, no neighbours.';
     case 'border': return d.showTarget ? 'It is highlighted on the map.' : 'No anchor on the map.';

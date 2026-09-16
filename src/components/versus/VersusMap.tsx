@@ -35,6 +35,8 @@ export interface VersusMapProps {
   picked?: Abbr | null;
   /** What the opponent tapped. Painted only once revealed. */
   theirPick?: Abbr | null;
+  /** States this player has already placed, in Place It: the map filling up. */
+  placed?: ReadonlySet<Abbr>;
   /** The right answer, revealed once the round is graded. */
   answer?: Abbr | null;
   revealed?: boolean;
@@ -48,7 +50,7 @@ const DEFAULT_COLORS = { mine: 'teal', theirs: 'coral' } as const;
 
 export function VersusMap({
   zoom, highlight = null, divisionHint = null, solo = null,
-  picked = null, theirPick = null, answer = null, revealed = false,
+  picked = null, theirPick = null, placed, answer = null, revealed = false,
   colors = DEFAULT_COLORS, onPick, disabled = false,
 }: VersusMapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -74,7 +76,7 @@ export function VersusMap({
 
   const live = !disabled && !!onPick && !revealed;
   // One object for the whole map rather than one per state.
-  const marks: MapMarks = { solo, highlight, divisionHint, picked, theirPick, answer, revealed };
+  const marks: MapMarks = { solo, highlight, divisionHint, picked, theirPick, placed, answer, revealed };
   const pins = pinsFor(marks, colors);
 
   return (

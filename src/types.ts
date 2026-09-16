@@ -53,7 +53,7 @@ export type Track = 'find' | 'name' | 'shape' | 'capital' | 'code' | 'border';
 export type ModeKey =
   | 'map' | 'letter' | 'cards' | 'hooks' | 'weak'
   | 'find' | 'name' | 'shape' | 'roll' | 'all50'
-  | 'capital' | 'code' | 'border' | 'mixed';
+  | 'capital' | 'code' | 'border' | 'mixed' | 'place';
 
 export type ModeKind =
   | 'explore' | 'letters' | 'cards' | 'hooks' | 'weak'
@@ -66,6 +66,8 @@ export interface Mode {
   kind: ModeKind;
   /** Modes that hide the map entirely and centre the control card. */
   nomap?: boolean;
+  /** Played only head to head, so the solo quiz bar leaves it out. */
+  versusOnly?: boolean;
   /**
    * Reference modes: the panel is a list that drives the map rather than a
    * question. They give the roster's column over to the panel, and on phones

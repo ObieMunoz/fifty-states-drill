@@ -1,4 +1,4 @@
-import { MODE_KEYS } from './data/modes';
+import { MODES, MODE_KEYS } from './data/modes';
 import type { ModeKey } from './types';
 import { CODE_LENGTH, normalizeCode } from './versus/room';
 
@@ -30,6 +30,8 @@ export const MODE_PATHS: Record<ModeKey, string> = {
   code:    '/quiz/postal-codes',
   border:  '/quiz/borders',
   mixed:   '/quiz/mixed',
+  // Played only head to head; the path exists so the map is total.
+  place:   '/quiz/place-it',
 };
 
 export const HOME: Route = { kind: 'mode', mode: 'map' };
@@ -61,7 +63,9 @@ export function parseRoute(pathname: string, hash = ''): Route {
     return { kind: 'versus', code: code.length === CODE_LENGTH ? code : null };
   }
   if (path === '/') return HOME;
-  const mode = MODE_KEYS.find((k) => MODE_PATHS[k] === path);
+  // A versus-only mode has a path so the table is total, but it is not a
+  // screen the solo app can show: a typed URL goes home rather than half-way in.
+  const mode = MODE_KEYS.find((k) => MODE_PATHS[k] === path && !MODES[k].versusOnly);
   return mode ? modeRoute(mode) : HOME;
 }
 

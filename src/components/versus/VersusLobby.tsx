@@ -5,7 +5,8 @@ import { seriesOf } from '../../versus/machine';
 import {
   BASE_POINTS, FINAL_ROUND_MULTIPLIER, SPEED_POINTS, STREAK_POINTS,
 } from '../../versus/scoring';
-import { COLOR_LABEL, ROUND_CHOICES, VERSUS_MODES, colorOf } from '../../versus/types';
+import { roundsForMode } from '../../versus/plan';
+import { COLOR_LABEL, FILLS_THE_MAP, ROUND_CHOICES, VERSUS_MODES, colorOf } from '../../versus/types';
 import type { PlayerColor } from '../../versus/types';
 import { ReactionBubbles, ReactionTray } from './Reactions';
 import { SoundToggle } from './SoundToggle';
@@ -127,6 +128,7 @@ function HostRules({ draft, setDraft }: {
   draft: Draft;
   setDraft: (d: Partial<Draft>) => void;
 }) {
+  const fillsMap = FILLS_THE_MAP.includes(draft.mode);
   return (
     <>
       <span className="eyebrow">Your rules</span>
@@ -149,18 +151,26 @@ function HostRules({ draft, setDraft }: {
 
       <div className="vs-pick">
         <span className="vs-pick-lab">Rounds</span>
-        <div className="vs-chips">
-          {ROUND_CHOICES.map((n) => (
-            <button
-              key={n}
-              type="button"
-              aria-pressed={draft.rounds === n}
-              onClick={() => setDraft({ rounds: n })}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
+        {fillsMap ? (
+          // Place It runs the map out, so there is no count to choose: the
+          // States row below is what decides how long the match is.
+          <p className="vs-pick-fixed">
+            {roundsForMode(draft.mode, draft.scope)} — the whole map
+          </p>
+        ) : (
+          <div className="vs-chips">
+            {ROUND_CHOICES.map((n) => (
+              <button
+                key={n}
+                type="button"
+                aria-pressed={draft.rounds === n}
+                onClick={() => setDraft({ rounds: n })}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="vs-pick">
