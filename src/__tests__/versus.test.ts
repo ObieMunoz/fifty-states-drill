@@ -115,6 +115,46 @@ describe('match planning', () => {
     expect(new Set(plan.map((r) => r.qm)).size).toBeGreaterThan(1);
   });
 
+  describe('Mixed deals each track its turn', () => {
+    const seeds = Array.from({ length: 300 }, (_, i) => `SEED${i}:0`);
+    const typesFor = (seed: string, rounds: number) =>
+      planMatch(cfg({ seed, mode: 'mixed', rounds })).map((r) => r.qm);
+
+    it('covers all six tracks over ten rounds, every time', () => {
+      for (const seed of seeds) {
+        expect(new Set(typesFor(seed, 10)).size).toBe(MIXPOOL.length);
+      }
+    });
+
+    it('gives five distinct tracks over five rounds, every time', () => {
+      for (const seed of seeds) {
+        expect(new Set(typesFor(seed, 5)).size).toBe(5);
+      }
+    });
+
+    it('never lets one track take more than its share', () => {
+      for (const seed of seeds) {
+        const counts = new Map<string, number>();
+        for (const qm of typesFor(seed, 10)) counts.set(qm, (counts.get(qm) ?? 0) + 1);
+        expect(Math.max(...counts.values())).toBeLessThanOrEqual(2);
+      }
+    });
+
+    it('gives every track at least two of fifteen rounds', () => {
+      for (const seed of seeds) {
+        const counts = new Map<string, number>();
+        for (const qm of typesFor(seed, 15)) counts.set(qm, (counts.get(qm) ?? 0) + 1);
+        expect(counts.size).toBe(MIXPOOL.length);
+        expect(Math.min(...counts.values())).toBeGreaterThanOrEqual(2);
+      }
+    });
+
+    it('still varies the order from seed to seed', () => {
+      const orders = new Set(seeds.map((s) => typesFor(s, 10).join(',')));
+      expect(orders.size).toBeGreaterThan(seeds.length / 2);
+    });
+  });
+
   it('stays inside a regional scope', () => {
     const plan = planMatch(cfg({ scope: 'r:West', rounds: 10 }));
     for (const r of plan) expect(BY[r.abbr].reg).toBe('West');
