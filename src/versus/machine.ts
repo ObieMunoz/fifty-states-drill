@@ -261,11 +261,17 @@ function applySnapshot(s: VersusState, snap: LiveSnapshot, at: number): VersusSt
   const myAnswers = sheet(answers, s.me.id, plan.length, sameMatch ? s.myAnswers : []);
   const theirAnswers = sheet(answers, them?.id, plan.length, []);
 
+  // The running score belongs to the pairing, not to the room: somebody new
+  // in the other seat starts one of their own, rather than inheriting a lead
+  // built against whoever was here before.
+  const swapped = !!them && !!s.lastOpponentId && them.id !== s.lastOpponentId;
+  const carried = swapped ? {} : s.series;
+
   // A finished match goes into the room's running score, and stays open to
   // correction while it is on screen: a straggling row may still land.
   const series = room.status === 'final' && cfg
-    ? { ...s.series, [cfg.seed]: outcomeOf(totalOf(myAnswers), totalOf(theirAnswers)) }
-    : s.series;
+    ? { ...carried, [cfg.seed]: outcomeOf(totalOf(myAnswers), totalOf(theirAnswers)) }
+    : carried;
 
   let { phase, round, startedAt } = s;
   switch (room.status) {

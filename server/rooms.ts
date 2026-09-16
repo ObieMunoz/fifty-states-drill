@@ -339,8 +339,11 @@ async function leave(db: Db, input: Record<string, unknown>, now: Date): Promise
     await touch(db, code, { status: 'closed' }, now);
   } else if ((await db.getPlayers(code)).some((p) => p.id === playerId)) {
     // A guest going hands the host the waiting room, with the code still good.
+    // The match number moves on with them: answer rows are keyed by it, so a
+    // room played in again would otherwise draw the same seed and find the
+    // last match's answers already sitting in the new one's sheet.
     await db.deletePlayer(code, playerId);
-    await touch(db, code, { status: 'waiting', ...unstarted }, now);
+    await touch(db, code, { status: 'waiting', match_no: room.match_no + 1, ...unstarted }, now);
     await db.updatePlayers(code, { ready: false, wants_again: false });
   }
   return snapshot(db, code, now);
