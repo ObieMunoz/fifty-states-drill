@@ -71,7 +71,11 @@ export function buildAsk(s: State, qm: ModeKey, d: Difficulty, rnd: Rng = Math.r
     s, show: null, won: false, hit: null, choices: null, answer: null, labelBy: 'n', rev: false,
   };
 
-  if (qm === 'name' || qm === 'shape') {
+  if (qm === 'place') {
+    // The name is the question and the map is the answer sheet; nothing is
+    // lit, or the round would answer itself.
+    ask.answer = s.a;
+  } else if (qm === 'name' || qm === 'shape') {
     ask.show = s.a;
     ask.answer = s.a;
     if (!d.typeNames) ask.choices = choicesFor(s, d.easyDistractors, rnd);

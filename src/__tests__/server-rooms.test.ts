@@ -3,11 +3,12 @@ import { BY } from '../data/states';
 import { memoryDb } from '../../server/memory';
 import { RoomError, expireRooms, phone, versus } from '../../server/rooms';
 import type { Pusher } from '../../server/push';
-import { planMatch } from '../versus/plan';
+import { matchPool, planMatch } from '../versus/plan';
 import { FINAL_ROUND_MULTIPLIER, STREAK_POINTS, roundLimitMs, scoreAnswer } from '../versus/scoring';
 import {
   COUNTDOWN_MS, GRACE_MS, PAIRING_TTL_MS, REMATCH_COOLDOWN_MS, ROOM_TTL_MS,
 } from '../versus/timing';
+import { ROUND_CHOICES } from '../versus/types';
 import type { Snapshot } from '../versus/types';
 
 const T0 = new Date('2026-09-10T12:00:00.000Z');
@@ -308,6 +309,63 @@ async function finished(): Promise<Snapshot> {
   }
   return s;
 }
+
+describe('sizing a Place It match to the map', () => {
+  it('runs one round per state when the host picks it', async () => {
+    const s = await lobby();
+    const code = s.room.code;
+
+    const set = await call({ action: 'settings', code, playerId: 'host', mode: 'place' });
+
+    expect(set.room.rounds).toBe(50);
+  });
+
+  it('follows the scope down to a region', async () => {
+    const s = await lobby();
+    const code = s.room.code;
+    await call({ action: 'settings', code, playerId: 'host', mode: 'place' });
+
+    const set = await call({ action: 'settings', code, playerId: 'host', scope: 'r:Northeast' });
+
+    expect(set.room.rounds).toBe(matchPool('r:Northeast').length);
+  });
+
+  it('ignores a round count offered for it', async () => {
+    const s = await lobby();
+    const code = s.room.code;
+
+    const set = await call({ action: 'settings', code, playerId: 'host', mode: 'place', rounds: 5 });
+
+    expect(set.room.rounds).toBe(50);
+  });
+
+  it('comes back to an offered count when the host leaves it', async () => {
+    const s = await lobby();
+    const code = s.room.code;
+    await call({ action: 'settings', code, playerId: 'host', mode: 'place' });
+
+    const back = await call({ action: 'settings', code, playerId: 'host', mode: 'find' });
+
+    expect(ROUND_CHOICES).toContain(back.room.rounds as 5 | 10 | 15);
+  });
+
+  it('plans every state in the scope exactly once', async () => {
+    const s = await lobby();
+    const code = s.room.code;
+    await call({ action: 'settings', code, playerId: 'host', mode: 'place' });
+    await call({ action: 'player', code, playerId: 'guest', ready: true });
+    const started = await call({ action: 'player', code, playerId: 'host', ready: true });
+
+    const plan = planMatch({
+      seed: started.room.seed as string,
+      mode: started.room.mode,
+      rounds: started.room.rounds,
+      scope: started.room.scope,
+    });
+
+    expect(new Set(plan.map((r) => r.abbr)).size).toBe(50);
+  });
+});
 
 describe('what an answer is worth', () => {
   const answerOf = (s: Snapshot, id = 'host') =>

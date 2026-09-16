@@ -18,6 +18,7 @@ export const MODES: Record<ModeKey, Mode> = {
   code:    { g: 'quiz',  label: 'Codes',      kind: 'type' },
   border:  { g: 'quiz',  label: 'Borders',    kind: 'choice' },
   mixed:   { g: 'quiz',  label: 'Mixed',      kind: 'choice' },
+  place:   { g: 'quiz',  label: 'Place It',   kind: 'click', versusOnly: true },
 };
 
 export const MODE_KEYS = Object.keys(MODES) as ModeKey[];

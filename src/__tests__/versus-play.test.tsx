@@ -185,6 +185,70 @@ describe('saying when the room is out of reach', () => {
   });
 });
 
+describe('a Place It round', () => {
+  const placing = (round: number, mine: (RoundAnswer | null)[]): VersusApi => {
+    const plan: PlannedRound[] = [
+      { qm: 'place', abbr: 'OH' }, { qm: 'place', abbr: 'NV' }, { qm: 'place', abbr: 'TX' },
+    ];
+    const base = playing(null);
+    return {
+      ...base,
+      state: {
+        ...base.state,
+        cfg: { seed: SEED, mode: 'place', rounds: plan.length, scope: 'all' },
+        plan,
+        round,
+        myAnswers: mine,
+        theirAnswers: [null, null, null],
+      },
+      ask: askFor(SEED, round, plan[round], 'standard'),
+      theirAsk: askFor(SEED, round, plan[round], 'standard'),
+      limitMs: roundLimitMs('place', ['standard', 'standard']),
+    };
+  };
+
+  const hit = (pick: string): RoundAnswer =>
+    ({ correct: true, ms: 1200, points: 140, pick, timeout: false });
+  const miss = (pick: string): RoundAnswer =>
+    ({ correct: false, ms: 1200, points: 0, pick, timeout: false });
+
+  const filled = (c: HTMLElement) => [...c.querySelectorAll('.st.done')].length;
+
+  it('asks for the state by name and answers on the map', () => {
+    const { container } = render(<VersusPlay api={placing(0, [null, null, null])} />);
+
+    expect(container.querySelector('.vs-ask')?.textContent).toBe('Ohio');
+    expect(container.querySelector('.vs-stage')).not.toBeNull();
+    expect(container.querySelector('.vs-choices')).toBeNull();
+    expect(container.querySelector('.vs-entry')).toBeNull();
+  });
+
+  it('starts from a blank map', () => {
+    const { container } = render(<VersusPlay api={placing(0, [null, null, null])} />);
+
+    expect(filled(container)).toBe(0);
+  });
+
+  it('keeps every state already placed on the board', () => {
+    const { container } = render(<VersusPlay api={placing(2, [hit('OH'), hit('NV'), null])} />);
+
+    expect(filled(container)).toBe(2);
+  });
+
+  it('leaves a state the player got wrong off the board', () => {
+    const { container } = render(<VersusPlay api={placing(2, [hit('OH'), miss('CA'), null])} />);
+
+    expect(filled(container)).toBe(1);
+  });
+
+  it('does not give away the round in play', () => {
+    const { container } = render(<VersusPlay api={placing(1, [hit('OH'), null, null])} />);
+
+    expect(container.querySelector('.st.target')).toBeNull();
+    expect(filled(container)).toBe(1);
+  });
+});
+
 describe('questions whose prompt is the map itself', () => {
   const levels: DiffKey[] = ['guided', 'standard', 'expert'];
   const shown: ModeKey[] = ['find', 'name', 'shape'];

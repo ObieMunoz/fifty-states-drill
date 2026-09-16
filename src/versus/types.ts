@@ -5,7 +5,15 @@ import type { Abbr, DiffKey, ModeKey, Scope } from '../types';
  * which shuffles between them. Roll Call and Name All 50 are long-form solo
  * sprints rather than one-question-at-a-time, so they sit this out.
  */
-export const VERSUS_MODES: ModeKey[] = ['mixed', 'find', 'name', 'shape', 'capital', 'code', 'border'];
+export const VERSUS_MODES: ModeKey[] = ['mixed', 'find', 'name', 'shape', 'capital', 'code', 'border', 'place'];
+
+/**
+ * Place It runs the map out: one round per state in the scope, so a match
+ * ends with every state on the board filled in. The lobby's round choices
+ * do not apply to it — "how much of the map" is the scope's question, and
+ * answering it twice would let a 5-round match claim to fill fifty states.
+ */
+export const FILLS_THE_MAP: ModeKey[] = ['place'];
 
 export const ROUND_CHOICES = [5, 10, 15] as const;
 

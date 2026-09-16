@@ -265,6 +265,11 @@ svg.vs-map.solo{background:transparent;border-color:transparent;max-height:38dvh
   width:auto;max-width:100%}
 /* A live tap is painted in the tapper's own seat colour, not a fixed one. */
 svg.vs-map .st.pick{fill:var(--pc);stroke:var(--pc)}
+/* Place It: a state already on the board, held behind every later round. Set
+   well back from a live tap, so the map reads as filling in rather than as
+   fifty answers all shouting at once. */
+svg.vs-map .st.done{fill:color-mix(in srgb,var(--hydro) 38%,var(--paper));
+  stroke:color-mix(in srgb,var(--hydro) 55%,var(--line))}
 /* At the reveal each player's tap gets a pin in their colour, on top of the
    right/wrong fill, so "who tapped what" and "was it right" read separately. */
 .vs-pin circle{fill:var(--pc);stroke:var(--ground);stroke-width:2;
@@ -286,6 +291,7 @@ svg.vs-map .st.pick{fill:var(--pc);stroke:var(--pc)}
   padding:0 22px;font-size:16px;font-weight:500;cursor:pointer;min-height:58px;flex:none}
 .vs-send:disabled{opacity:.4}
 .vs-tap{margin:0;color:var(--ink-3);font-size:13px;text-align:center;flex:none}
+.vs-pick-fixed{margin:0;color:var(--ink-2);font-size:14px;align-self:center}
 
 .vs-locked{display:flex;flex-direction:column;align-items:center;gap:3px;flex:none;
   background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:15px;
