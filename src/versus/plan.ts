@@ -1,6 +1,6 @@
 import { ST } from '../data/states';
 import { MIXPOOL } from '../data/modes';
-import { hashSeed, mulberry32, pickRnd } from '../lib/random';
+import { hashSeed, mulberry32, pickRnd, shuffle } from '../lib/random';
 import type { Rng } from '../lib/random';
 import { inScope } from '../game/scope';
 import { emptyProgress } from '../game/progress';
@@ -25,6 +25,32 @@ export function matchPool(scope: Scope): State[] {
 const roundRng = (seed: string, round: number): Rng =>
   mulberry32(hashSeed(`${seed}#${round}`));
 
+/** A generator private to one bagful, for the same reason. */
+const bagRng = (seed: string, bag: number): Rng =>
+  mulberry32(hashSeed(`${seed}#bag#${bag}`));
+
+/**
+ * The question types a Mixed match asks, dealt from a shuffled bag rather
+ * than drawn independently each round.
+ *
+ * Drawing each round on its own left the flagship mode quietly lopsided: over
+ * 2000 seeds at the default ten rounds, a match missed at least one of the
+ * six tracks 73% of the time and gave one track four or more rounds about 40%
+ * of the time. Four Capitals rounds out of ten tilts a match decided by a few
+ * hundred points toward whoever is strong at capitals.
+ *
+ * A bag of all six, reshuffled once empty, spends the variance on order and
+ * pairing instead of on which tracks turn up: five rounds give five distinct
+ * types, ten cover all six, fifteen give each at least two.
+ */
+function mixedTypes(seed: string, rounds: number): ModeKey[] {
+  const out: ModeKey[] = [];
+  for (let bag = 0; out.length < rounds; bag++) {
+    out.push(...shuffle([...MIXPOOL], bagRng(seed, bag)));
+  }
+  return out.slice(0, rounds);
+}
+
 /**
  * The whole question sequence for a match, derived from the seed alone.
  *
@@ -34,13 +60,14 @@ const roundRng = (seed: string, round: number): Rng =>
  */
 export function planMatch(cfg: MatchConfig): PlannedRound[] {
   const pool = matchPool(cfg.scope);
+  const types = cfg.mode === 'mixed' ? mixedTypes(cfg.seed, cfg.rounds) : null;
   const out: PlannedRound[] = [];
   // States already asked this match, so a short match never repeats itself.
   const used = new Set<string>();
 
   for (let i = 0; i < cfg.rounds; i++) {
     const rnd = roundRng(cfg.seed, i);
-    const qm: ModeKey = cfg.mode === 'mixed' ? pickRnd(MIXPOOL, rnd) : cfg.mode;
+    const qm: ModeKey = types ? types[i] : cfg.mode;
 
     // Borders needs a state that actually has one.
     const eligible = pool.filter((s) => qm !== 'border' || s.nb.length > 0);
