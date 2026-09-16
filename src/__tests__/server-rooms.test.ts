@@ -309,6 +309,60 @@ async function finished(): Promise<Snapshot> {
   return s;
 }
 
+describe('what an answer is worth', () => {
+  const answerOf = (s: Snapshot, id = 'host') =>
+    s.answers.find((a) => a.player_id === id && a.round === s.room.round);
+
+  it('treats an answer that claims no time as the slowest one, not the fastest', async () => {
+    const s = await playing();
+    const code = s.room.code;
+    const when = questionTime(s, 1000);
+    const target = planMatch({ seed: s.room.seed as string, mode: 'find', rounds: 5, scope: 'all' })[0].abbr;
+
+    const sent = await call({ action: 'answer', code, playerId: 'host', round: 0, pick: target }, when);
+
+    const row = answerOf(sent);
+    expect(row?.correct).toBe(true);
+    expect(row?.ms).toBe(roundLimitMs('find', ['standard', 'guided']));
+    expect(row?.points).toBe(100);
+  });
+
+  it('still pays a fast answer that reports its time', async () => {
+    const s = await playing();
+    const code = s.room.code;
+    const when = questionTime(s, 1000);
+    const target = planMatch({ seed: s.room.seed as string, mode: 'find', rounds: 5, scope: 'all' })[0].abbr;
+
+    const sent = await call({ action: 'answer', code, playerId: 'host', round: 0, pick: target, ms: 1000 }, when);
+
+    expect(answerOf(sent)?.points).toBeGreaterThan(100);
+  });
+
+  it('refuses an answer sent before the question is up', async () => {
+    const s = await playing();
+    const code = s.room.code;
+    const target = planMatch({ seed: s.room.seed as string, mode: 'find', rounds: 5, scope: 'all' })[0].abbr;
+
+    await fail(
+      { action: 'answer', code, playerId: 'host', round: 0, pick: target, ms: 0 },
+      422,
+      questionTime(s, -1000),
+    );
+  });
+
+  it('lets the first answer of a round stand', async () => {
+    const s = await playing();
+    const code = s.room.code;
+    const when = questionTime(s, 1000);
+    await call({ action: 'answer', code, playerId: 'host', round: 0, pick: 'CA', ms: 900 }, when);
+
+    const again = await call({ action: 'answer', code, playerId: 'host', round: 0, pick: 'OH', ms: 10 }, when);
+
+    expect(again.answers.filter((a) => a.player_id === 'host' && a.round === 0)).toHaveLength(1);
+    expect(answerOf(again)).toMatchObject({ pick: 'CA', ms: 900 });
+  });
+});
+
 describe('two callers at once', () => {
   it('kicks off exactly once when both players tap ready together', async () => {
     const s = await lobby();

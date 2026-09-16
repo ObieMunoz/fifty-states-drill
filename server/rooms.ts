@@ -272,11 +272,23 @@ async function answer(db: Db, input: Record<string, unknown>, now: Date): Promis
   if (input.round !== room.round) throw new RoomError(422, 'That round is not the one on screen.');
   const dif = room.difs[playerId];
   if (!dif) throw new RoomError(403, 'You are not in this match.');
+  if (!room.round_started_at) throw new RoomError(422, 'No question is on.');
+  // Nothing can be answered before it is on screen. The first round is due a
+  // countdown after kick-off, so this also closes those three seconds, where
+  // an answer used to land early and still take the full speed bonus.
+  if (now.getTime() < Date.parse(room.round_started_at)) {
+    throw new RoomError(422, 'That question is not up yet.');
+  }
   const timeout = input.timeout === true;
   const pick = !timeout && typeof input.pick === 'string' ? input.pick.slice(0, 80) : null;
-  const claimed = typeof input.ms === 'number' && Number.isFinite(input.ms) ? input.ms : 0;
 
   const { qm, limit, abbr } = limitFor(room);
+  // How long an answer took is the phone's to report: a question is timed
+  // from its own paint, so a slow link costs a player nothing. What it may
+  // not do is report nothing and be paid as though it were instant — taken
+  // as zero, leaving the field out was the cheapest way to win a round. An
+  // answer that says nothing about its time is worth what the slowest one is.
+  const claimed = typeof input.ms === 'number' && Number.isFinite(input.ms) ? input.ms : limit;
   const ms = Math.min(limit, Math.max(0, Math.round(claimed)));
   const planned = { qm, abbr } as Parameters<typeof askFor>[2];
   const correct = pick !== null && grade(askFor(room.seed, room.round, planned, dif), qm, pick);
@@ -290,6 +302,10 @@ async function answer(db: Db, input: Record<string, unknown>, now: Date): Promis
     final: isFinalRound(room.round, room.rounds),
   });
 
+  // A refused insert is this player answering the same round twice: the first
+  // answer stands, and the snapshot below carries it back, so the phone is
+  // told what the round actually holds rather than what it just sent. Not an
+  // error — a duplicate reaches here on a retry of a call that did land.
   await db.insertAnswer({
     room_code: code, match_no: room.match_no, round: room.round, player_id: playerId,
     correct, ms, points, pick, timeout,
