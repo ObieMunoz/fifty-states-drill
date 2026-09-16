@@ -23,7 +23,11 @@ vi.mock('../versus/live', async () => {
 });
 
 vi.mock('../versus/sound', () => ({
-  play: vi.fn(), unlockAudio: vi.fn(), setMuted: vi.fn(), isMuted: () => true,
+  play: vi.fn(),
+  unlockAudio: vi.fn(),
+  soundOn: () => false,
+  setSoundOn: vi.fn(),
+  onSoundChange: () => () => {},
 }));
 
 vi.mock('../versus/haptics', () => ({ haptic: vi.fn() }));
@@ -166,6 +170,94 @@ describe('the host moving the match on', () => {
 
     expect(callVersus.mock.calls.length).toBeGreaterThan(1);
     expect(hook.result.current.state.error).toBeNull();
+  });
+});
+
+describe('the clock driving the round', () => {
+  async function kickedOff() {
+    callVersus.mockResolvedValueOnce(snapshot({ status: 'waiting' }, [player('me')]));
+    const hook = renderHook(() => useVersus());
+    await act(async () => { hook.result.current.host('Obie'); });
+    callVersus.mockResolvedValue(snapshot(midMatch(), [player('me'), player('them')]));
+    await act(async () => {
+      events.onSnapshot({
+        ...snapshot(midMatch({ round_started_at: iso(T + COUNTDOWN_MS) }), [player('me'), player('them')]),
+        receivedAt: Date.now(),
+      } as LiveSnapshot);
+    });
+    return hook;
+  }
+
+  it('counts down before the first question', async () => {
+    const hook = await kickedOff();
+
+    expect(hook.result.current.state.phase).toBe('countdown');
+
+    await act(async () => { vi.advanceTimersByTime(COUNTDOWN_MS + 20); });
+
+    expect(hook.result.current.state.phase).toBe('question');
+    expect(hook.result.current.state.round).toBe(0);
+  });
+
+  it('submits nothing of its own when the clock runs out', async () => {
+    const hook = await kickedOff();
+    await act(async () => { vi.advanceTimersByTime(COUNTDOWN_MS + 20); });
+    const limit = hook.result.current.limitMs;
+    callVersus.mockClear();
+
+    await act(async () => { vi.advanceTimersByTime(limit + 100); });
+
+    await waitFor(() => expect(hook.result.current.state.myAnswers[0]?.timeout).toBe(true));
+    expect(hook.result.current.state.myAnswers[0]?.points).toBe(0);
+    expect(callVersus).toHaveBeenCalledWith(expect.objectContaining({ action: 'answer', timeout: true }));
+  });
+
+  it('reveals at once when both answers are in', async () => {
+    const hook = await kickedOff();
+    await act(async () => { vi.advanceTimersByTime(COUNTDOWN_MS + 20); });
+
+    await act(async () => { hook.result.current.answerMap('OH'); });
+    expect(hook.result.current.state.phase).toBe('question');
+
+    await act(async () => {
+      events.onSnapshot({
+        ...snapshot(midMatch(), [player('me'), player('them')], [row('me', 0), row('them', 0)]),
+        receivedAt: Date.now(),
+      } as LiveSnapshot);
+    });
+
+    expect(hook.result.current.state.phase).toBe('reveal');
+  });
+
+  it('waits out the grace on an opponent who has gone quiet', async () => {
+    const hook = await kickedOff();
+    await act(async () => { vi.advanceTimersByTime(COUNTDOWN_MS + 20); });
+    const limit = hook.result.current.limitMs;
+
+    await act(async () => { hook.result.current.answerMap('OH'); });
+    await act(async () => { vi.advanceTimersByTime(limit + GRACE_MS + 50); });
+
+    expect(hook.result.current.state.phase).toBe('reveal');
+  });
+
+  it('asks where things stand when the phone comes back to the foreground', async () => {
+    await kickedOff();
+    await act(async () => { vi.advanceTimersByTime(COUNTDOWN_MS + 20); });
+    callVersus.mockClear();
+
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+
+    expect(callVersus).toHaveBeenCalledWith(expect.objectContaining({ action: 'sync' }));
+  });
+
+  it('asks again after the channel comes back', async () => {
+    await kickedOff();
+    callVersus.mockClear();
+
+    await act(async () => { events.onLink('lost'); });
+    await act(async () => { events.onLink('linked'); });
+
+    expect(callVersus).toHaveBeenCalledWith(expect.objectContaining({ action: 'sync' }));
   });
 });
 
