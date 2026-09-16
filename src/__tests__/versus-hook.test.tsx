@@ -261,6 +261,86 @@ describe('the clock driving the round', () => {
   });
 });
 
+describe('getting an answer onto the server', () => {
+  async function onQuestion() {
+    callVersus.mockResolvedValueOnce(snapshot({ status: 'waiting' }, [player('me')]));
+    const hook = renderHook(() => useVersus());
+    await act(async () => { hook.result.current.host('Obie'); });
+    await act(async () => {
+      events.onSnapshot({
+        ...snapshot(midMatch({ round_started_at: iso(T + COUNTDOWN_MS) }), [player('me'), player('them')]),
+        receivedAt: Date.now(),
+      } as LiveSnapshot);
+    });
+    await act(async () => { vi.advanceTimersByTime(COUNTDOWN_MS + 20); });
+    return hook;
+  }
+
+  it('offers the answer again when the first call is dropped', async () => {
+    const hook = await onQuestion();
+    callVersus.mockReset();
+    callVersus.mockRejectedValueOnce(new ApiError(0, OFFLINE));
+    callVersus.mockResolvedValue(snapshot(midMatch(), [player('me'), player('them')], [row('me', 0)]));
+
+    await act(async () => { hook.result.current.answerMap('OH'); });
+    await act(async () => { vi.advanceTimersByTime(1000); });
+
+    const sent = callVersus.mock.calls.filter((c) => c[0]?.action === 'answer');
+    expect(sent.length).toBeGreaterThan(1);
+    expect(sent[0][0]).toMatchObject({ round: 0, pick: 'OH' });
+  });
+
+  it('sends it once when the first call lands', async () => {
+    const hook = await onQuestion();
+    callVersus.mockReset();
+    callVersus.mockResolvedValue(snapshot(midMatch(), [player('me'), player('them')], [row('me', 0)]));
+
+    await act(async () => { hook.result.current.answerMap('OH'); });
+    await act(async () => { vi.advanceTimersByTime(2000); });
+
+    expect(callVersus.mock.calls.filter((c) => c[0]?.action === 'answer')).toHaveLength(1);
+  });
+});
+
+describe('folding a finished match into the standings', () => {
+  const finalSnap = () => snapshot(
+    midMatch({ status: 'final', round: 4, round_started_at: null }),
+    [player('me'), player('them')],
+    [row('me', 0, { points: 500 }), row('them', 0, { points: 100 })],
+  );
+
+  async function finish() {
+    callVersus.mockResolvedValueOnce(snapshot({ status: 'waiting' }, [player('me')]));
+    const hook = renderHook(() => useVersus());
+    await act(async () => { hook.result.current.host('Obie'); });
+    await act(async () => {
+      events.onSnapshot({ ...finalSnap(), receivedAt: Date.now() } as LiveSnapshot);
+    });
+    return hook;
+  }
+
+  it('records the match once', async () => {
+    const hook = await finish();
+
+    const obie = hook.result.current.board.find((r) => r.name === 'Obie');
+    expect(obie?.matches).toBe(1);
+    expect(obie?.wins).toBe(1);
+  });
+
+  it('does not count it again when the phone comes back to the same result', async () => {
+    const first = await finish();
+    expect(first.result.current.board.find((r) => r.name === 'Obie')?.matches).toBe(1);
+    first.unmount();
+
+    const again = await finish();
+
+    const obie = again.result.current.board.find((r) => r.name === 'Obie');
+    expect(obie?.matches).toBe(1);
+    expect(obie?.wins).toBe(1);
+    expect(obie?.points).toBe(500);
+  });
+});
+
 describe('the lobby telling the truth about what the server took', () => {
   async function inLobby() {
     callVersus.mockResolvedValueOnce(snapshot({ status: 'waiting' }, [player('me')]));
