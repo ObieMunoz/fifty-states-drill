@@ -309,6 +309,38 @@ async function finished(): Promise<Snapshot> {
   return s;
 }
 
+describe('two callers at once', () => {
+  it('kicks off exactly once when both players tap ready together', async () => {
+    const s = await lobby();
+    const code = s.room.code;
+
+    const [a, b] = await Promise.all([
+      call({ action: 'player', code, playerId: 'host', ready: true }),
+      call({ action: 'player', code, playerId: 'guest', ready: true }),
+    ]);
+
+    const after = await call({ action: 'sync', code, playerId: 'host' });
+    expect(after.room.status).toBe('playing');
+    expect(after.room.seed).toBe(`${code}:0`);
+    expect(after.players.every((p) => p.ready)).toBe(true);
+    expect([a.room.code, b.room.code]).toEqual([code, code]);
+  });
+
+  it('seats only two when two guests open the same link together', async () => {
+    const created = await call({ action: 'create', playerId: 'host', name: 'Obie', dif: 'standard' });
+    const code = created.room.code;
+
+    const results = await Promise.allSettled([
+      call({ action: 'join', code, playerId: 'g1', name: 'Sam', dif: 'standard' }),
+      call({ action: 'join', code, playerId: 'g2', name: 'Kim', dif: 'standard' }),
+    ]);
+
+    const after = await call({ action: 'sync', code, playerId: 'host' });
+    expect(after.players).toHaveLength(2);
+    expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+  });
+});
+
 describe('rematch and leaving', () => {
   it('notes a guest asking again, and lets the host restart on a fresh seed', async () => {
     const s = await finished();

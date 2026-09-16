@@ -173,6 +173,20 @@ async function join(db: Db, input: Record<string, unknown>, now: Date): Promise<
     room_code: code, id: playerId, name, dif: locked ?? dif,
     ready: existing?.ready ?? false, wants_again: existing?.wants_again ?? false,
   });
+  // Two phones opening the same link at once both read the seat as free, so
+  // the check above lets them both through. A room that seats three can never
+  // start, and only a guest leaving would clear it, so the extra row goes
+  // back now. Which one goes is settled by id rather than by who noticed:
+  // both callers see the same rows and so reach the same answer, where
+  // "whoever finds itself third" would have them both stand down.
+  const after = await db.getPlayers(code);
+  if (!seated && after.length > 2) {
+    const guests = after.filter((p) => p.id !== room.host_id).map((p) => p.id).sort();
+    if (guests.indexOf(playerId) > 0) {
+      await db.deletePlayer(code, playerId);
+      throw new RoomError(409, 'That room is full.');
+    }
+  }
   // A second player opens the lobby; anything short of a full pair waits.
   if (!seated && room.status !== 'lobby') {
     await touch(db, code, { status: 'lobby', ...unstarted }, now);
@@ -224,7 +238,11 @@ async function player(db: Db, input: Record<string, unknown>, now: Date): Promis
 
   // Both ready in the lobby: kick off. The seed fixes the questions, the
   // levels are locked, and the first question is due once the countdown ends.
-  const all = players.map((p) => (p.id === playerId ? next : p));
+  // Read back rather than patching the list this call started with: two
+  // players tapping Ready in the same instant each read the other as not
+  // ready, and nothing would ever re-judge it — both phones would sit on
+  // "Starting…" against a room that had everything it needed to begin.
+  const all = await db.getPlayers(code);
   if (room.status === 'lobby' && all.length === 2 && all.every((p) => p.ready)) {
     const difs = Object.fromEntries(all.map((p) => [p.id, p.dif])) as Record<string, DiffKey>;
     await touch(db, code, {
