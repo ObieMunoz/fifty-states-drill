@@ -1,6 +1,6 @@
 import { lev, norm } from '../lib/text';
 import { matchPool } from './plan';
-import type { Abbr, Scope, State } from '../types';
+import type { Scope, State } from '../types';
 
 /**
  * Time Trial: both players race, on their own, to name every state.
@@ -18,13 +18,6 @@ import type { Abbr, Scope, State } from '../types';
 
 /** How long a trial runs before the count decides it. */
 export const TRIAL_MS = 4 * 60 * 1000;
-
-/** A name that landed, and the state it landed on. */
-export interface TrialHit {
-  state: State;
-  /** How far into the trial it was typed, on the typing phone's clock. */
-  ms: number;
-}
 
 /**
  * Match typed text against the states this player has not yet named.
@@ -52,11 +45,6 @@ export function findTrialHit(
 /** How many states a trial in this scope is asking for. */
 export const trialTarget = (scope: Scope): number => matchPool(scope).length;
 
-/** Whether a trial is over: somebody has them all, or the clock has run out. */
-export function trialOver(counts: number[], scope: Scope, elapsedMs: number): boolean {
-  return elapsedMs >= TRIAL_MS || counts.some((n) => n >= trialTarget(scope));
-}
-
 /**
  * Who won, from the two lists.
  *
@@ -71,7 +59,3 @@ export function trialOutcome(
   if (mine.ms === theirs.ms) return 'draw';
   return mine.ms < theirs.ms ? 'win' : 'loss';
 }
-
-/** The states one player has named, in the order they named them. */
-export const namedOf = (picks: readonly (string | null)[]): Abbr[] =>
-  picks.filter((p): p is string => !!p) as Abbr[];

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { memoryDb } from '../../server/memory';
 import { versus } from '../../server/rooms';
 import { matchPool } from '../versus/plan';
-import { TRIAL_MS, findTrialHit, trialOutcome, trialOver, trialTarget } from '../versus/trial';
+import { TRIAL_MS, findTrialHit, trialOutcome, trialTarget } from '../versus/trial';
 import { VERSUS_MODES, isRace } from '../versus/types';
 import type { Snapshot } from '../versus/types';
 
@@ -49,16 +49,7 @@ describe('matching a typed name', () => {
   });
 });
 
-describe('when a trial is over and who takes it', () => {
-  it('ends when the clock runs out', () => {
-    expect(trialOver([10, 12], 'all', TRIAL_MS - 1)).toBe(false);
-    expect(trialOver([10, 12], 'all', TRIAL_MS)).toBe(true);
-  });
-
-  it('ends the moment somebody has them all', () => {
-    expect(trialOver([50, 12], 'all', 1000)).toBe(true);
-  });
-
+describe('who takes a trial', () => {
   it('gives it to whoever named more', () => {
     expect(trialOutcome({ count: 31, ms: 1 }, { count: 30, ms: 1 })).toBe('win');
     expect(trialOutcome({ count: 29, ms: 1 }, { count: 30, ms: 1 })).toBe('loss');
