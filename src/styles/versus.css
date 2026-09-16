@@ -56,6 +56,16 @@ body[data-versus="1"] .app{display:none}
   border:1px solid color-mix(in srgb,var(--wrong) 40%,transparent);
   border-radius:var(--r);padding:10px 12px}
 
+/* Floats clear of the flow: nothing above the map may change height mid-round. */
+.vs-notice{position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(12px + env(safe-area-inset-bottom));z-index:6;
+  margin:0;max-width:min(420px,calc(100vw - 24px));text-align:center;
+  color:var(--wrong);font-size:13px;line-height:1.4;
+  background:color-mix(in srgb,var(--wrong) 12%,var(--surface));
+  border:1px solid color-mix(in srgb,var(--wrong) 40%,transparent);
+  border-radius:var(--r);padding:9px 14px;
+  box-shadow:0 6px 20px color-mix(in srgb,var(--ink-1) 18%,transparent)}
+
 /* ================= controls ================= */
 .vs-field{display:flex;flex-direction:column;gap:6px;flex:none}
 .vs-field input{background:var(--surface);border:1px solid var(--line);border-radius:12px;

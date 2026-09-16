@@ -10,6 +10,7 @@ import type { VersusState } from '../../versus/machine';
 import { breakdown, isFinalRound, isTyped, streakBefore } from '../../versus/scoring';
 import type { Bonus } from '../../versus/scoring';
 import { colorOf } from '../../versus/types';
+import { LinkNotice } from './LinkNotice';
 import { ReactionBubbles, ReactionTray } from './Reactions';
 import { SoundToggle } from './SoundToggle';
 import { VersusMap } from './VersusMap';
@@ -94,6 +95,8 @@ export function VersusPlay({ api }: { api: VersusApi }) {
         mine={mine}
         theirs={theirs}
       />
+
+      <LinkNotice state={state} />
     </div>
   );
 }

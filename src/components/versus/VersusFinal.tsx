@@ -9,6 +9,7 @@ import { colorOf } from '../../versus/types';
 import type { PlayerColor } from '../../versus/types';
 import { Confetti } from './Confetti';
 import { Leaderboard } from './Leaderboard';
+import { LinkNotice } from './LinkNotice';
 import { ReactionBubbles, ReactionTray } from './Reactions';
 import { SoundToggle } from './SoundToggle';
 import type { VersusApi } from '../../versus/useVersus';
@@ -61,6 +62,7 @@ export function VersusFinal({ api }: { api: VersusApi }) {
 
   return (
     <div className="vs-sheet vs-final">
+      <LinkNotice state={state} />
       <Confetti on={outcome === 'win'} />
       <header className="vs-top">
         <button type="button" className="vs-back" onClick={api.leave}>← Leave</button>

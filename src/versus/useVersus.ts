@@ -30,8 +30,12 @@ import type { Abbr, Ask, DiffKey, ModeKey, Scope } from '../types';
 /** How long the host waits before asking the server again to move on. */
 const ADVANCE_RETRY_MS = 400;
 
-/** How many times it asks: the server holds a round open a little longer than this phone. */
-const ADVANCE_TRIES = 5;
+/**
+ * The longest it waits between asks. A refusal is usually the server's clock
+ * running a beat behind this phone's, which the first retry clears; a request
+ * that never landed wants backing off from instead.
+ */
+const ADVANCE_MAX_RETRY_MS = 4000;
 
 /** The streaks that get a cue of their own at the reveal. */
 const STREAK_CHEERS = new Set([3, 5]);
@@ -499,11 +503,19 @@ export function useVersus(): VersusApi {
 
   /* Only the host moves the match on, so the two screens stay in step. The
      server has the last word on whether the round is over, and its clock
-     started a beat before this one did, so a refusal is asked again shortly. */
+     started a beat before this one did, so a refusal is asked again shortly.
+
+     It keeps asking for as long as the reveal is up. A refusal is the round
+     genuinely still being open, which the clock settles on its own; a request
+     that never landed is a blip that the next one gets through. Giving up on
+     either would leave both phones on a reveal that never ends, with nothing
+     left to move them — so the only way out of this effect is the round
+     changing, which tears it down. */
   useEffect(() => {
     if (state.phase !== 'reveal' || !state.isHost) return;
     let cancelled = false;
-    let tries = 0;
+    let wait = ADVANCE_RETRY_MS;
+    let id: ReturnType<typeof setTimeout>;
     const attempt = async () => {
       const s = live.current;
       if (cancelled || s.phase !== 'reveal') return;
@@ -511,16 +523,25 @@ export function useVersus(): VersusApi {
         takeSnapshot(await callVersus({ action: 'advance', code: s.code, playerId: s.me.id }));
       } catch (err) {
         if (cancelled) return;
-        if (err instanceof ApiError && err.status === 422 && ++tries < ADVANCE_TRIES) {
-          setTimeout(() => { void attempt(); }, ADVANCE_RETRY_MS);
-        } else {
-          dispatch({ type: 'setError', error: err instanceof ApiError ? err.message : OFFLINE });
+        const e = err instanceof ApiError ? err : new ApiError(0, OFFLINE);
+        // No room to move on: the same treatment every other call gets.
+        if (e.status === 404 || e.status === 409 || e.status === 410) {
+          dropRoom();
+          clearUrlCode(s.code);
+          clearSeries();
+          dispatch({ type: 'roomClosed', error: e.message });
+          return;
         }
+        // A refusal is expected and says nothing worth showing; anything else
+        // is worth the player knowing about while it is being retried.
+        if (e.status !== 422) dispatch({ type: 'setError', error: e.message });
+        id = setTimeout(() => { void attempt(); }, wait);
+        wait = Math.min(ADVANCE_MAX_RETRY_MS, wait * 2);
       }
     };
-    const id = setTimeout(() => { void attempt(); }, REVEAL_MS);
+    id = setTimeout(() => { void attempt(); }, REVEAL_MS);
     return () => { cancelled = true; clearTimeout(id); };
-  }, [state.phase, state.round, state.isHost, takeSnapshot]);
+  }, [state.phase, state.round, state.isHost, state.link, takeSnapshot, dropRoom]);
 
   /* The countdown hands off to the first question. */
   useEffect(() => {
@@ -542,22 +563,37 @@ export function useVersus(): VersusApi {
     dispatch({ type: 'setName', name });
   }, []);
 
+  /* Each of these moves the control at once and tells the server after. The
+     reducer keeps this side's own word over the server's echo — which is what
+     stops a slow reply undoing a tap — so a call that never lands has to put
+     the control back itself, or it would sit there claiming something the
+     room never agreed to and the lobby would wait on a readiness nobody has. */
+
   const setDif = useCallback((dif: DiffKey) => {
+    const was = live.current.me.dif;
     dispatch({ type: 'setDif', dif });
-    void call({ action: 'player', dif });
+    void call({ action: 'player', dif }).then((snap) => {
+      if (!snap) dispatch({ type: 'setDif', dif: was });
+    });
   }, [call]);
 
   const setReady = useCallback((ready: boolean) => {
     // The tap that starts a match is the gesture the phone wants before it
     // will play a sound later.
     unlockAudio();
+    const was = live.current.me.ready;
     dispatch({ type: 'setReady', ready });
-    void call({ action: 'player', ready });
+    void call({ action: 'player', ready }).then((snap) => {
+      if (!snap) dispatch({ type: 'setReady', ready: was });
+    });
   }, [call]);
 
   const setDraft = useCallback((draft: { mode?: ModeKey; rounds?: number; scope?: Scope }) => {
+    const was = live.current.draft;
     dispatch({ type: 'setDraft', draft });
-    void call({ action: 'settings', ...draft });
+    void call({ action: 'settings', ...draft }).then((snap) => {
+      if (!snap) dispatch({ type: 'setDraft', draft: was });
+    });
   }, [call]);
 
   /* The host restarts both sides; a guest's ask registers on the host's screen. */
