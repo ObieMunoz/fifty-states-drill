@@ -137,6 +137,100 @@ describe('getting into a room', () => {
   });
 });
 
+describe('a snapshot that arrives out of order', () => {
+  it('will not roll a live question back to one already played', () => {
+    const onTwo = reducer(playing(), {
+      type: 'snapshot',
+      snap: snap(playingRoom({ round: 2, round_started_at: iso(T + 40000) }), both()),
+      at: T + 40000,
+    });
+    expect(onTwo.round).toBe(2);
+    const startedAt = onTwo.startedAt;
+
+    const late = reducer(onTwo, {
+      type: 'snapshot',
+      snap: snap(playingRoom({ round: 1, round_started_at: iso(T + 20000) }), both()),
+      at: T + 41000,
+    });
+
+    expect(late.round).toBe(2);
+    expect(late.startedAt).toBe(startedAt);
+  });
+
+  it('will not un-deliver an opponent answer already folded in', () => {
+    const withTheirs = reducer(playing(), {
+      type: 'snapshot',
+      snap: snap(playingRoom(), both(), [row('them', 0)]),
+      at: T + 4000,
+    });
+    expect(withTheirs.theirAnswers[0]).not.toBeNull();
+
+    const stale = reducer(withTheirs, {
+      type: 'snapshot',
+      snap: snap(playingRoom(), both(), []),
+      at: T + 4100,
+    });
+
+    expect(stale.theirAnswers[0]).not.toBeNull();
+  });
+
+  it('forgets their sheet when the match itself moves on', () => {
+    const withTheirs = reducer(playing(), {
+      type: 'snapshot',
+      snap: snap(playingRoom(), both(), [row('them', 0)]),
+      at: T + 4000,
+    });
+
+    const next = reducer(withTheirs, {
+      type: 'snapshot',
+      snap: snap(playingRoom({ match_no: 1, seed: 'ACDE:1', round_started_at: iso(T + 50000) }), both(), []),
+      at: T + 50000,
+    });
+
+    expect(next.theirAnswers.every((a) => a === null)).toBe(true);
+  });
+});
+
+describe('what counts as settled', () => {
+  it('counts the round on screen once it is revealed, and no further', () => {
+    const onTwo = reducer(playing(), {
+      type: 'snapshot',
+      snap: snap(playingRoom({ round: 2, round_started_at: iso(T + 40000) }), both()),
+      at: T + 40000,
+    });
+    expect(settledUpTo(onTwo)).toBe(2);
+
+    const revealed = reducer(onTwo, { type: 'reveal' });
+
+    expect(settledUpTo(revealed)).toBe(3);
+  });
+
+  it('keeps a streak lit through the reveal that earned it', () => {
+    const answers: AnswerRow[] = [];
+    for (let i = 0; i < 3; i++) answers.push(row('me', i, { correct: true }));
+    const onThree = reducer(playing(), {
+      type: 'snapshot',
+      snap: snap(playingRoom({ round: 2, round_started_at: iso(T + 40000) }), both(), answers),
+      at: T + 40000,
+    });
+    const revealed = reducer(onThree, { type: 'reveal' });
+
+    expect(streakInto(revealed, revealed.myAnswers)).toBe(3);
+  });
+
+  it('does not count rounds nobody has played as split', () => {
+    const revealed = reducer(reducer(playing(), {
+      type: 'snapshot',
+      snap: snap(playingRoom(), both(), [row('me', 0), row('them', 0, { points: 10 })]),
+      at: T + 4000,
+    }), { type: 'reveal' });
+
+    const won = roundsWon(revealed);
+
+    expect(won.me + won.them + won.split).toBe(1);
+  });
+});
+
 describe('the level a match is actually played at', () => {
   it('takes the locked level over the player row once a match is on', () => {
     const s = reducer(entered(false), {
