@@ -7,6 +7,7 @@ import { initialVersus } from '../versus/machine';
 import { roundLimitMs } from '../versus/scoring';
 import type { VersusApi } from '../versus/useVersus';
 import type { PlannedRound, RoundAnswer } from '../versus/types';
+import type { Abbr, DiffKey, ModeKey } from '../types';
 
 const SEED = 'ACDE:1';
 const PLAN: PlannedRound[] = [{ qm: 'find', abbr: 'OH' }, { qm: 'find', abbr: 'NV' }];
@@ -79,6 +80,30 @@ afterEach(cleanup);
 
 const theirTile = (c: HTMLElement) => c.querySelector('.vs-score.them')!;
 
+function asking(qm: ModeKey, abbr: Abbr, dif: DiffKey): VersusApi {
+  const plan: PlannedRound[] = [{ qm, abbr }];
+  const base = playing(null);
+  return {
+    ...base,
+    state: {
+      ...base.state,
+      me: { ...base.state.me, dif },
+      them: { ...base.state.them!, dif },
+      cfg: { seed: SEED, mode: qm, rounds: 1, scope: 'all' },
+      plan,
+      difs: { 'me-1': dif, 'them-1': dif },
+      myAnswers: [null],
+      theirAnswers: [null],
+    },
+    ask: askFor(SEED, 0, plan[0], dif),
+    theirAsk: askFor(SEED, 0, plan[0], dif),
+    limitMs: roundLimitMs(qm, [dif, dif]),
+  };
+}
+
+const canAnswer = (c: HTMLElement): boolean =>
+  !!c.querySelector('.vs-stage') || !!c.querySelector('.vs-opts button');
+
 describe('Versus play, Find It', () => {
   it('leaves the rows above the map untouched when the opponent locks in', () => {
     const { container, rerender } = render(<VersusPlay api={playing(null)} />);
@@ -123,5 +148,25 @@ describe('Versus play, Find It', () => {
     const { container } = render(<VersusPlay api={playing(THEY_ARE_IN)} />);
 
     expect(container.querySelector('.sr[role="status"]')?.textContent).toBe('Alex is in.');
+  });
+});
+
+describe('questions whose prompt is the map itself', () => {
+  const levels: DiffKey[] = ['guided', 'standard', 'expert'];
+  const shown: ModeKey[] = ['find', 'name', 'shape'];
+
+  it.each(shown.flatMap((qm) => levels.map((dif) => [qm, dif] as const)))(
+    'draws the target for %s at %s',
+    (qm, dif) => {
+      const { container } = render(<VersusPlay api={asking(qm, 'OH', dif)} />);
+
+      expect(container.querySelector('.vs-stage')).not.toBeNull();
+    },
+  );
+
+  it.each(levels)('leaves Name It at %s with a way to answer', (dif) => {
+    const { container } = render(<VersusPlay api={asking('name', 'OH', dif)} />);
+
+    expect(canAnswer(container)).toBe(true);
   });
 });
