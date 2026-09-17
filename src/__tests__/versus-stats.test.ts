@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BY } from '../data/states';
-import { awardsFor, bestStreakOf, sideStats } from '../versus/stats';
+import { matchPool } from '../versus/plan';
+import { awardsFor, bestStreakOf, raceAwards, raceStats, sideStats } from '../versus/stats';
 import type { PlannedRound, RoundAnswer } from '../versus/types';
 
 const ans = (points: number, over: Partial<RoundAnswer> = {}): RoundAnswer =>
@@ -113,5 +114,56 @@ describe('awards', () => {
     const mine = [miss(), miss(), ans(150, { ms: 600 }), ans(150), ans(340, { ms: 18500 })];
     const theirs = [ans(150), ans(150), miss(), miss(), ans(300)];
     expect(keys(awardsFor(plan(5), mine, theirs, limits(5)))).toEqual(['comeback', 'clutch', 'streak', 'fastest', 'buzzer']);
+  });
+});
+
+describe('a race, which has no rounds to read', () => {
+  const name = (abbr: string, ms: number): RoundAnswer =>
+    ({ correct: true, ms, points: 1, pick: abbr, timeout: false });
+
+  const list = (abbrs: string[], step: number): (RoundAnswer | null)[] =>
+    [...abbrs.map((a, i) => name(a, (i + 1) * step)), ...Array<null>(50 - abbrs.length).fill(null)];
+
+  it('counts the names, and when the first and last of them landed', () => {
+    expect(raceStats(list(['CA', 'TX', 'NY', 'FL'], 3000), 50)).toEqual({
+      named: 4, target: 50, firstMs: 3000, lastMs: 12000,
+    });
+  });
+
+  it('has nothing to say about a player who named nothing', () => {
+    expect(raceStats(Array<null>(50).fill(null), 50)).toEqual({
+      named: 0, target: 50, firstMs: null, lastMs: null,
+    });
+  });
+
+  it('gives only the awards a race can earn', () => {
+    const a = raceAwards(list(['CA', 'TX', 'NY'], 2000), list(['OH', 'WA'], 5000), 50);
+    expect(a.map((x) => x.key)).toEqual(['photo']);
+    expect(a[0]).toMatchObject({ who: 'me', note: 'Decided by 1 state' });
+  });
+
+  it('gives nothing to a player who named two states and stopped', () => {
+    // Two names in the first five seconds is not a performance worth an
+    // award beside forty over four minutes, however quickly the two landed.
+    const quitter = list(['CA', 'TX'], 2500);
+    const grinder = list(matchPool('all').slice(0, 40).map((st) => st.a), 5500);
+    const a = raceAwards(quitter, grinder, 50);
+
+    expect(a.filter((x) => x.who === 'me' || x.who === 'both')).toEqual([]);
+  });
+
+  it('calls naming the whole map a clean sweep', () => {
+    const all = list(['CA', 'TX', 'NY'], 1000).slice(0, 3);
+    const a = raceAwards(all, [], 3);
+    expect(a.find((x) => x.key === 'sweep')).toMatchObject({ who: 'me', note: 'All 3 named' });
+  });
+
+  it('gives nothing at all when neither player named a thing', () => {
+    expect(raceAwards([null, null], [null, null], 50)).toEqual([]);
+  });
+
+  it('gives a level race no winner to name', () => {
+    const a = raceAwards(list(['CA', 'TX'], 4000), list(['OH', 'WA'], 4000), 50);
+    expect(a.map((x) => x.key)).toEqual([]);
   });
 });

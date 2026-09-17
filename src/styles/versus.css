@@ -596,6 +596,14 @@ svg.vs-map .st.done{fill:color-mix(in srgb,var(--hydro) 38%,var(--paper));
 .vs-strip li .vs-pts{font-style:normal;font-size:10.5px;color:var(--ink-3);width:2.9em;
   text-align:right;flex:none}
 .vs-strip li .vs-pts.on{color:var(--ink);font-weight:500}
+
+/* A trial's two lists: one column each, the state and when it landed. Neither
+   column has anything to do with the other, so nothing lines them up but the
+   count down the left. */
+.vs-named{flex:1;min-width:0;display:flex;align-items:baseline;gap:6px;overflow:hidden}
+.vs-named em{font-style:normal;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--pc)}
+.vs-named i{font-style:normal;font-size:10.5px;color:var(--ink-3);flex:none}
+.vs-named.none em{color:var(--ink-3);opacity:.5}
 .vs-verdict .vs-tray{margin-top:14px}
 
 @media (min-width:620px){

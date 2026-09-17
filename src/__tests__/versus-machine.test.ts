@@ -386,12 +386,97 @@ describe('match flow', () => {
     expect(s.startedAt).toBe(T + 3000);
   });
 
-  it('starts the next question at this phone’s own paint', () => {
+  it('starts the next question where the server put it up, not where this phone painted it', () => {
     const revealed = reducer(playing(), { type: 'reveal' });
     const s = reducer(revealed, { type: 'snapshot', snap: snap(playingRoom({ round: 1, round_started_at: iso(T + 8500) }), both()), at: T + 9000 });
     expect(s.phase).toBe('question');
     expect(s.round).toBe(1);
+    expect(s.startedAt).toBe(T + 8500);
+  });
+
+  it('times the round the same on both phones however each of them heard about it', () => {
+    // The host learns of a new round from the reply to its own call and the
+    // guest from a pushed row; those do not land together. Timing from the
+    // paint handed the host every round by the width of that gap.
+    const round1 = playingRoom({ round: 1, round_started_at: iso(T + 8500) });
+    const host = reducer(reducer(playing(), { type: 'reveal' }), {
+      type: 'snapshot', snap: snap(round1, both()), at: T + 8750,
+    });
+    const guest = reducer(reducer(playing(), { type: 'reveal' }), {
+      type: 'snapshot', snap: snap(round1, both()), at: T + 8560,
+    });
+    expect(host.startedAt).toBe(guest.startedAt);
+  });
+
+  it('never dates a round in the future when a phone reads the server clock a beat early', () => {
+    const revealed = reducer(playing(), { type: 'reveal' });
+    const s = reducer(revealed, { type: 'snapshot', snap: snap(playingRoom({ round: 1, round_started_at: iso(T + 9200) }), both()), at: T + 9000 });
+    expect(s.phase).toBe('question');
+    expect(s.round).toBe(1);
     expect(s.startedAt).toBe(T + 9000);
+  });
+
+  it('starts the first question when the countdown was due, not when the timer fired', () => {
+    // A phone whose timer ran late is not handed the difference.
+    const s = reducer(kicked(), { type: 'beginQuestions', at: T + 3400 });
+    expect(s.phase).toBe('question');
+    expect(s.startedAt).toBe(T + 3000);
+  });
+
+  it('scores a finished race on names in, and the series with it', () => {
+    // Two equal lists are separated by who got there first, and the running
+    // series has to be told the same story the headline is: reading a race
+    // off points made a win on the tie-break read as a drawn match.
+    const raceRoom = (over: Partial<RoomRow> = {}): Partial<RoomRow> => ({
+      status: 'playing', seed: 'ACDE:0', mode: 'trial', rounds: 50, scope: 'all',
+      difs: { me: 'standard', them: 'guided' }, round: 0, round_started_at: iso(T + 3000), ...over,
+    });
+    const named = (id: string, n: number, step: number): AnswerRow[] =>
+      Array.from({ length: n }, (_, i) => row(id, i, { points: 1, ms: (i + 1) * step, pick: 'OH' }));
+    const answers = [...named('me', 20, 1000), ...named('them', 20, 1200)];
+    const s = reducer(
+      reducer(lobby(), { type: 'snapshot', snap: snap(raceRoom(), both()), at: T }),
+      { type: 'snapshot', snap: snap(raceRoom({ status: 'final' }), both(), answers), at: T + 60000 },
+    );
+
+    expect(matchResults(s).outcome).toBe('win');
+    expect(Object.values(s.series)).toEqual(['win']);
+  });
+
+  it('holds a race’s clock steady as names land', () => {
+    const raceRoom = (over: Partial<RoomRow> = {}): Partial<RoomRow> => ({
+      status: 'playing', seed: 'ACDE:0', mode: 'trial', rounds: 50, scope: 'all',
+      difs: { me: 'standard', them: 'standard' }, round: 0, round_started_at: iso(T + 3000), ...over,
+    });
+    const running = reducer(
+      reducer(lobby(), { type: 'snapshot', snap: snap(raceRoom(), both()), at: T }),
+      { type: 'beginQuestions', at: T + 3000 },
+    );
+    const named = reducer(running, {
+      type: 'snapshot',
+      snap: snap(raceRoom(), both(), [row('me', 0, { points: 1, ms: 7000, pick: 'OH' })]),
+      at: T + 10000,
+    });
+
+    expect(named.startedAt).toBe(T + 3000);
+    expect(named.round).toBe(0);
+  });
+
+  it('keeps a name a reply that overtook a newer one does not carry', () => {
+    // A trial is typed with several names in flight, so replies come back out
+    // of order. The shorter one is behind, not a correction.
+    const raceRoom = (over: Partial<RoomRow> = {}): Partial<RoomRow> => ({
+      status: 'playing', seed: 'ACDE:0', mode: 'trial', rounds: 50, scope: 'all',
+      difs: { me: 'standard', them: 'standard' }, round: 0, round_started_at: iso(T + 3000), ...over,
+    });
+    const ohio = row('me', 0, { points: 1, ms: 5000, pick: 'OH' });
+    const texas = row('me', 1, { points: 1, ms: 5200, pick: 'TX' });
+    const running = reducer(lobby(), { type: 'snapshot', snap: snap(raceRoom(), both()), at: T });
+    const two = reducer(running, { type: 'snapshot', snap: snap(raceRoom(), both(), [ohio, texas]), at: T + 9000 });
+    const stale = reducer(two, { type: 'snapshot', snap: snap(raceRoom(), both(), [ohio]), at: T + 9100 });
+
+    expect(stale.myAnswers.filter(Boolean)).toHaveLength(2);
+    expect(stale.myAnswers[1]?.pick).toBe('TX');
   });
 
   it('ends on the final snapshot', () => {
@@ -430,9 +515,21 @@ describe('who took the round', () => {
   it('goes to the side with more points, or nobody when level', () => {
     expect(roundTaker(ans({ points: 150 }), ans({ points: 120 }))).toBe('me');
     expect(roundTaker(ans({ points: 100 }), ans({ points: 120 }))).toBe('them');
-    expect(roundTaker(ans({ points: 130 }), ans({ points: 130 }))).toBe('split');
     expect(roundTaker(null, ans({ points: 0, correct: false }))).toBe('split');
     expect(roundTaker(ans({ points: 100 }), null)).toBe('me');
+  });
+
+  it('gives a round level on points to whoever was quicker', () => {
+    expect(roundTaker(ans({ points: 130, ms: 900 }), ans({ points: 130, ms: 1400 }))).toBe('me');
+    expect(roundTaker(ans({ points: 130, ms: 1400 }), ans({ points: 130, ms: 900 }))).toBe('them');
+    expect(roundTaker(ans({ points: 130, ms: 900 }), ans({ points: 130, ms: 900 }))).toBe('split');
+  });
+
+  it('gives nobody a round neither side scored on', () => {
+    const missed = ans({ points: 0, correct: false, ms: 500 });
+    const late = ans({ points: 0, correct: false, ms: 9000 });
+    expect(roundTaker(missed, late)).toBe('split');
+    expect(roundTaker(null, null)).toBe('split');
   });
 
   it('tallies revealed rounds only, like the score', () => {

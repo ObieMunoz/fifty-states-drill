@@ -1,6 +1,8 @@
+import { BY } from '../data/states';
 import { lev, norm } from '../lib/text';
 import { matchPool } from './plan';
-import type { Scope, State } from '../types';
+import type { RoundAnswer } from './types';
+import type { Abbr, Scope, State } from '../types';
 
 /**
  * Time Trial: both players race, on their own, to name every state.
@@ -44,6 +46,29 @@ export function findTrialHit(
 
 /** How many states a trial in this scope is asking for. */
 export const trialTarget = (scope: Scope): number => matchPool(scope).length;
+
+/** One name in a trial: the state, and how far into the four minutes it landed. */
+export interface TrialName {
+  abbr: Abbr;
+  ms: number;
+}
+
+/**
+ * The states one side named, earliest first.
+ *
+ * Ordered by when each landed rather than by the index it took: a player
+ * typing flat out has several names in flight at once, and which of them
+ * reaches the table first is not something either phone decided.
+ *
+ * This, not the match's plan, is what a trial has instead of rounds. The
+ * plan is fifty states the seed drew and nobody was ever asked, so reading
+ * the result off it listed a match neither player played.
+ */
+export function namesIn(answers: readonly (RoundAnswer | null)[]): TrialName[] {
+  return answers
+    .flatMap((a) => (a?.correct && a.pick && BY[a.pick as Abbr] ? [{ abbr: a.pick as Abbr, ms: a.ms }] : []))
+    .sort((x, y) => x.ms - y.ms);
+}
 
 /**
  * Who won, from the two lists.

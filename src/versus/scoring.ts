@@ -7,10 +7,10 @@ export const BASE_POINTS = 100;
 /** The most a fast answer can add on top. */
 export const SPEED_POINTS = 50;
 
-/** Each right answer in a row before this one adds this much more... */
-export const STREAK_POINTS = 10;
+/** Each right answer in a row before this one is worth this much of the speed bonus again... */
+export const STREAK_STEP = 0.1;
 
-/** ...up to this many: a streak of five pays as much as an instant answer. */
+/** ...up to this many: a streak of five is worth half as much again. */
 export const STREAK_CAP = 5;
 
 /** The last round pays this many times over, so nobody is out of it until the end. */
@@ -67,9 +67,17 @@ export function streakBefore(verdicts: readonly (boolean | null | undefined)[], 
   return n;
 }
 
-/** What a streak adds to the next right answer. */
-export const streakBonus = (streak: number): number =>
-  STREAK_POINTS * Math.min(STREAK_CAP, Math.max(0, Math.floor(streak)));
+/**
+ * What a streak does to the next right answer's speed bonus.
+ *
+ * A share of that bonus again rather than a sum of its own, so a run lifts
+ * what being quick earned instead of standing in for it. A flat bonus as big
+ * as the whole speed bonus — which is what this was — meant a right answer
+ * given half a clock late routinely outscored one given at once, and the
+ * round went the wrong way often enough to read as a bug.
+ */
+export const streakFactor = (streak: number): number =>
+  1 + STREAK_STEP * Math.min(STREAK_CAP, Math.max(0, Math.floor(streak)));
 
 /** Whether `round` is the match's last, which pays double. */
 export const isFinalRound = (round: number, rounds: number): boolean =>
@@ -84,9 +92,9 @@ export interface Bonus {
 }
 
 /**
- * Points for one answer: the flat reward for being right, a bonus that decays
- * linearly to zero across the round's clock, and a little more for each
- * right answer in a row before it — all doubled on the last round.
+ * Points for one answer: the flat reward for being right, plus a bonus that
+ * decays linearly to zero across the round's clock and is worth more again
+ * for each right answer in a row before it — all doubled on the last round.
  *
  * A wrong answer scores nothing and ends the streak — there is no penalty
  * for guessing, because on a twenty-second clock a guess already costs the
@@ -95,7 +103,7 @@ export interface Bonus {
 export function scoreAnswer(correct: boolean, ms: number, limitMs: number, bonus: Bonus = {}): number {
   if (!correct) return 0;
   const left = Math.max(0, 1 - Math.max(0, ms) / limitMs);
-  const points = BASE_POINTS + Math.round(SPEED_POINTS * left) + streakBonus(bonus.streak ?? 0);
+  const points = BASE_POINTS + Math.round(SPEED_POINTS * left * streakFactor(bonus.streak ?? 0));
   return bonus.final ? points * FINAL_ROUND_MULTIPLIER : points;
 }
 
@@ -107,8 +115,12 @@ export function breakdown(points: number, bonus: Bonus = {}): { base: number; sp
   if (points <= 0) return { base: 0, speed: 0, streak: 0, doubled: false };
   const doubled = !!bonus.final;
   const single = doubled ? points / FINAL_ROUND_MULTIPLIER : points;
-  const streak = streakBonus(bonus.streak ?? 0);
-  return { base: BASE_POINTS, speed: Math.max(0, single - BASE_POINTS - streak), streak, doubled };
+  // The score is what was recorded, so the parts are read back out of it
+  // rather than worked out again: whatever the two disagreed about, the
+  // chip still adds up to the number beside it.
+  const earned = Math.max(0, single - BASE_POINTS);
+  const speed = Math.round(earned / streakFactor(bonus.streak ?? 0));
+  return { base: BASE_POINTS, speed, streak: earned - speed, doubled };
 }
 
 /** Who won, from the two totals. */

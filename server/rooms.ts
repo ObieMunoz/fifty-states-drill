@@ -276,6 +276,15 @@ function limitFor(room: RoomRow): { qm: ModeKey; limit: number; abbr: string } {
 }
 
 /**
+ * How many times a name will try for an index of its own before giving up.
+ *
+ * A trial is typed as fast as the player can manage, so several calls are in
+ * flight at once and all of them read the same list. High enough to outlast
+ * anything ten thumbs could put in flight together.
+ */
+const RACE_TRIES = 12;
+
+/**
  * One name in a Time Trial.
  *
  * There is no shared round to check against: each player is working through
@@ -283,6 +292,15 @@ function limitFor(room: RoomRow): { qm: ModeKey; limit: number; abbr: string } {
  * free. A name that is not a state, or one they already have, is not an
  * error — it is a typo or a repeat, and the room comes back unchanged so the
  * phone can show what it actually holds.
+ *
+ * The index has to be settled against the table rather than against the list
+ * this call read: two names typed into the same instant both see the same
+ * free index, and the second insert is refused on the primary key. Taking
+ * that refusal as the end of it dropped the name silently, and the missing
+ * ones showed up as gaps in the list at the end of the match. A refusal
+ * means the index went to the other call, so the list is read again and the
+ * next one taken — unless that other call was this same state twice over,
+ * which is a repeat and nothing more.
  *
  * The clock is the server's here, unlike a round, because there is only one
  * of them for the whole match and both phones started it together.
@@ -295,17 +313,29 @@ async function race(db: Db, input: Record<string, unknown>, room: RoomRow, now: 
   if (elapsed < 0) throw new RoomError(422, 'The trial has not started yet.');
   if (elapsed > TRIAL_MS) throw new RoomError(422, 'The trial is over.');
 
-  const rows = await db.getAnswers(code, room.match_no);
-  const mine = rows.filter((a) => a.player_id === playerId);
+  const mineNow = async (): Promise<AnswerRow[]> =>
+    (await db.getAnswers(code, room.match_no)).filter((a) => a.player_id === playerId);
+
+  let mine = await mineNow();
   const got = new Set(mine.map((a) => a.pick).filter((p): p is string => !!p));
   const typed = typeof input.pick === 'string' ? input.pick.slice(0, 80) : '';
   const hit = findTrialHit(typed, room.scope, got, true);
   if (!hit) return snapshot(db, code, now);
 
-  await db.insertAnswer({
-    room_code: code, match_no: room.match_no, round: mine.length, player_id: playerId,
-    correct: true, ms: Math.max(0, Math.round(elapsed)), points: 1, pick: hit.a, timeout: false,
-  });
+  let placed = false;
+  for (let i = 0; i < RACE_TRIES; i++) {
+    placed = await db.insertAnswer({
+      room_code: code, match_no: room.match_no, round: mine.length, player_id: playerId,
+      correct: true, ms: Math.max(0, Math.round(elapsed)), points: 1, pick: hit.a, timeout: false,
+    });
+    if (placed) break;
+    mine = await mineNow();
+    // The index went to another call in flight. If that call was carrying
+    // this same state, the name is already on the list and there is nothing
+    // to add; otherwise the next free index is this one's.
+    if (mine.some((a) => a.pick === hit.a)) return snapshot(db, code, now);
+  }
+  if (!placed) return snapshot(db, code, now);
 
   // Naming them all ends it there and then, for both phones.
   if (mine.length + 1 >= trialTarget(room.scope)) {
@@ -322,10 +352,13 @@ async function answer(db: Db, input: Record<string, unknown>, now: Date): Promis
   const playerId = playerIdOf(input);
   const room = await openRoom(db, code);
   if (room.status !== 'playing' || !room.seed || !room.difs) throw new RoomError(422, 'No question is on.');
-  if (isRace(room.mode)) return race(db, input, room, now);
-  if (input.round !== room.round) throw new RoomError(422, 'That round is not the one on screen.');
+  // The levels locked at kick-off are the roll of who is playing, and a race
+  // needs checking against it as much as a round does: without this anyone
+  // holding the code could put names on a trial's board.
   const dif = room.difs[playerId];
   if (!dif) throw new RoomError(403, 'You are not in this match.');
+  if (isRace(room.mode)) return race(db, input, room, now);
+  if (input.round !== room.round) throw new RoomError(422, 'That round is not the one on screen.');
   if (!room.round_started_at) throw new RoomError(422, 'No question is on.');
   // Nothing can be answered before it is on screen. The first round is due a
   // countdown after kick-off, so this also closes those three seconds, where

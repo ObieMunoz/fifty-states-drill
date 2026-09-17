@@ -3,9 +3,10 @@ import { DIFFS, DIFF_KEYS, MODES } from '../../data/modes';
 import { REGS, ST } from '../../data/states';
 import { seriesOf } from '../../versus/machine';
 import {
-  BASE_POINTS, FINAL_ROUND_MULTIPLIER, SPEED_POINTS, STREAK_POINTS,
+  BASE_POINTS, FINAL_ROUND_MULTIPLIER, SPEED_POINTS, STREAK_CAP, streakFactor,
 } from '../../versus/scoring';
 import { roundsForMode } from '../../versus/plan';
+import { TRIAL_MS } from '../../versus/trial';
 import { COLOR_LABEL, FILLS_THE_MAP, ROUND_CHOICES, VERSUS_MODES, colorOf, isRace } from '../../versus/types';
 import type { PlayerColor } from '../../versus/types';
 import { ReactionBubbles, ReactionTray } from './Reactions';
@@ -83,12 +84,7 @@ export function VersusLobby({ api }: { api: VersusApi }) {
           : <GuestRules draft={draft} host={them?.name} />}
       </section>
 
-      <ul className="vs-howto" aria-label="How scoring works">
-        <li><b>{BASE_POINTS}</b><span>a right answer</span></li>
-        <li><b>+{SPEED_POINTS}</b><span>at most, for speed</span></li>
-        <li><b>+{STREAK_POINTS}</b><span>per answer in a streak</span></li>
-        <li><b>×{FINAL_ROUND_MULTIPLIER}</b><span>on the last round</span></li>
-      </ul>
+      <ScoringKey draft={draft} />
 
       <p className="vs-fine">
         {DIFFS[me.dif].blurb}
@@ -119,6 +115,41 @@ export function VersusLobby({ api }: { api: VersusApi }) {
 }
 
 type Draft = { mode: ModeKey; rounds: number; scope: Scope };
+
+/** Four minutes, as the clock on the trial screen reads it. */
+const trialClock = (): string => {
+  const t = Math.round(TRIAL_MS / 1000);
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+};
+
+/**
+ * What the match on offer pays for, in four figures.
+ *
+ * A race is scored on nothing a round is: there is no speed bonus to chase,
+ * no streak and no last round, so it gets a key of its own rather than one
+ * that describes a match nobody is about to play.
+ */
+function ScoringKey({ draft }: { draft: Draft }) {
+  return (
+    <ul className="vs-howto" aria-label="How scoring works">
+      {isRace(draft.mode) ? (
+        <>
+          <li><b>{trialClock()}</b><span>on the clock</span></li>
+          <li><b>+1</b><span>a state named</span></li>
+          <li><b>{roundsForMode(draft.mode, draft.scope)}</b><span>to name in all</span></li>
+          <li><b>1st</b><span>a level count goes to whoever got there first</span></li>
+        </>
+      ) : (
+        <>
+          <li><b>{BASE_POINTS}</b><span>a right answer</span></li>
+          <li><b>+{SPEED_POINTS}</b><span>at most, for speed</span></li>
+          <li><b>×{streakFactor(STREAK_CAP)}</b><span>that bonus, on a streak</span></li>
+          <li><b>×{FINAL_ROUND_MULTIPLIER}</b><span>on the last round</span></li>
+        </>
+      )}
+    </ul>
+  );
+}
 
 /** How a scope reads on its own, away from the chip that would have set it. */
 const scopeName = (scope: Scope) => (scope === 'all' ? 'All 50' : scope.slice(2));
