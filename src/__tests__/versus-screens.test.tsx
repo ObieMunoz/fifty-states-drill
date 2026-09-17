@@ -6,7 +6,7 @@ import { VersusLobby } from '../components/versus/VersusLobby';
 import { VersusMenu } from '../components/versus/VersusMenu';
 import { initialVersus } from '../versus/machine';
 import type { VersusState } from '../versus/machine';
-import { roundLimitMs } from '../versus/scoring';
+import { STREAK_CAP, roundLimitMs, streakFactor } from '../versus/scoring';
 import type { VersusApi } from '../versus/useVersus';
 import type { PlannedRound, RoundAnswer } from '../versus/types';
 
@@ -126,6 +126,29 @@ describe('the lobby', () => {
     })} />);
 
     expect(text(container)).toContain('reconnect');
+  });
+
+  it('says what a streak is worth in the terms the score uses', () => {
+    const { container } = render(<VersusLobby api={api()} />);
+    const key = text(container.querySelector('.vs-howto') as HTMLElement);
+
+    expect(key).toContain(`×${streakFactor(STREAK_CAP)}`);
+    expect(key).toContain('streak');
+    expect(key).not.toContain('+10');
+  });
+
+  it('says how a race is scored rather than how a round is', () => {
+    const { container } = render(<VersusLobby api={api({
+      draft: { mode: 'trial', rounds: 50, scope: 'all' },
+      cfg: null,
+    })} />);
+    const key = text(container.querySelector('.vs-howto') as HTMLElement);
+
+    expect(key).toContain('4:00');
+    expect(key).toContain('50');
+    expect(key).not.toContain('speed');
+    expect(key).not.toContain('streak');
+    expect(key).not.toContain('last round');
   });
 });
 

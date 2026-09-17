@@ -4,7 +4,7 @@ import { memoryDb } from '../../server/memory';
 import { RoomError, expireRooms, phone, versus } from '../../server/rooms';
 import type { Pusher } from '../../server/push';
 import { matchPool, planMatch } from '../versus/plan';
-import { FINAL_ROUND_MULTIPLIER, STREAK_POINTS, roundLimitMs, scoreAnswer } from '../versus/scoring';
+import { roundLimitMs, scoreAnswer } from '../versus/scoring';
 import {
   COUNTDOWN_MS, GRACE_MS, PAIRING_TTL_MS, REMATCH_COOLDOWN_MS, ROOM_TTL_MS,
 } from '../versus/timing';
@@ -193,16 +193,17 @@ describe('answering', () => {
       s = await call({ action: 'answer', code, playerId: 'guest', round: r, pick: guestPick, ms: 1000, timeout: false }, when);
       if (r < 4) s = await call({ action: 'advance', code, playerId: 'host' }, new Date(when.getTime() + 1));
     }
-    const base = scoreAnswer(true, 1000, limit);
-    expect(pts('host', 0)).toBe(base);
-    expect(pts('host', 1)).toBe(base + STREAK_POINTS);
-    expect(pts('host', 3)).toBe(base + 3 * STREAK_POINTS);
-    expect(pts('host', 4)).toBe((base + 4 * STREAK_POINTS) * FINAL_ROUND_MULTIPLIER);
+    const run = (streak: number, final = false) => scoreAnswer(true, 1000, limit, { streak, final });
+    expect(pts('host', 0)).toBe(run(0));
+    expect(pts('host', 1)).toBe(run(1));
+    expect(pts('host', 3)).toBe(run(3));
+    expect(pts('host', 4)).toBe(run(4, true));
+    expect(run(3)).toBeGreaterThan(run(1));
     // The guest's miss scores nothing and starts the count over.
     expect(pts('guest', 1)).toBe(0);
-    expect(pts('guest', 2)).toBe(base);
-    expect(pts('guest', 3)).toBe(base + STREAK_POINTS);
-    expect(pts('guest', 4)).toBe((base + 2 * STREAK_POINTS) * FINAL_ROUND_MULTIPLIER);
+    expect(pts('guest', 2)).toBe(run(0));
+    expect(pts('guest', 3)).toBe(run(1));
+    expect(pts('guest', 4)).toBe(run(2, true));
   });
 
   it('takes a timeout as no answer', async () => {

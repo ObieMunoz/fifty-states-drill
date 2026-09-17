@@ -4,7 +4,7 @@ import { cleanup, render } from '@testing-library/react';
 import { VersusPlay } from '../components/versus/VersusPlay';
 import { askFor } from '../versus/grade';
 import { initialVersus } from '../versus/machine';
-import { roundLimitMs } from '../versus/scoring';
+import { BASE_POINTS, roundLimitMs, scoreAnswer } from '../versus/scoring';
 import type { VersusApi } from '../versus/useVersus';
 import type { PlannedRound, RoundAnswer } from '../versus/types';
 import type { Abbr, DiffKey, ModeKey } from '../types';
@@ -81,6 +81,8 @@ afterEach(cleanup);
 
 const theirTile = (c: HTMLElement) => c.querySelector('.vs-score.them')!;
 
+const text = (c: HTMLElement) => (c.textContent ?? '').replace(/\s+/g, ' ');
+
 function asking(qm: ModeKey, abbr: Abbr, dif: DiffKey): VersusApi {
   const plan: PlannedRound[] = [{ qm, abbr }];
   const base = playing(null);
@@ -149,6 +151,64 @@ describe('Versus play, Find It', () => {
     const { container } = render(<VersusPlay api={playing(THEY_ARE_IN)} />);
 
     expect(container.querySelector('.sr[role="status"]')?.textContent).toBe('Alex is in.');
+  });
+});
+
+describe('the reveal', () => {
+  const revealed = (mine: RoundAnswer, theirs: RoundAnswer, over: Partial<VersusApi['state']> = {}): VersusApi => {
+    const base = playing(theirs);
+    return {
+      ...base,
+      state: { ...base.state, phase: 'reveal', myAnswers: [mine, null], theirAnswers: [theirs, null], ...over },
+      msLeft: null,
+    };
+  };
+
+  const hit = (points: number, ms: number): RoundAnswer =>
+    ({ correct: true, ms, points, pick: 'OH', timeout: false });
+
+  it('gives a round level on points to whoever was quicker', () => {
+    const { container } = render(<VersusPlay api={revealed(hit(140, 1800), hit(140, 2600))} />);
+
+    expect(container.querySelector('.vs-call')?.className).toContain('me');
+    expect(text(container)).toContain('Round to you');
+  });
+
+  it('says nobody had a round neither side scored on', () => {
+    const missed: RoundAnswer = { correct: false, ms: 1200, points: 0, pick: 'NV', timeout: false };
+    const late: RoundAnswer = { correct: false, ms: 9000, points: 0, pick: 'TX', timeout: false };
+    const { container } = render(<VersusPlay api={revealed(missed, late)} />);
+
+    expect(text(container)).toContain('Nobody had it');
+  });
+
+  it('breaks a score into parts that add back up to it', () => {
+    // Three right answers before this one, so the chip owes the player an
+    // account of where the points came from — and it has to make the number
+    // printed beside it.
+    const limit = roundLimitMs('find', ['standard', 'standard']);
+    const fourth = hit(scoreAnswer(true, 4000, limit, { streak: 3 }), 4000);
+    const base = revealed(fourth, hit(120, 6000));
+    const api: VersusApi = {
+      ...base,
+      state: {
+        ...base.state,
+        round: 3,
+        // Five rounds, so the one being revealed is not the doubled last one.
+        plan: [...PLAN, { qm: 'find', abbr: 'TX' }, { qm: 'find', abbr: 'CA' }, { qm: 'find', abbr: 'WA' }],
+        myAnswers: [hit(140, 1000), hit(140, 1000), hit(140, 1000), fourth, null],
+        theirAnswers: [null, null, null, hit(120, 6000), null],
+      },
+    };
+    const { container } = render(<VersusPlay api={api} />);
+    const chip = container.querySelector('.vs-chip.you') as HTMLElement;
+    const tags = [...chip.querySelectorAll('.vs-chip-tags i')].map((i) => i.textContent ?? '');
+    const total = Number((chip.querySelector('.vs-chip-pts em')?.textContent ?? '').replace('+', ''));
+    const parts = tags.map((t) => Number(/\+(\d+)/.exec(t)?.[1] ?? 0));
+
+    expect(total).toBe(fourth.points);
+    expect(tags.some((t) => t.includes('streak'))).toBe(true);
+    expect(BASE_POINTS + parts.reduce((a, b) => a + b, 0)).toBe(total);
   });
 });
 

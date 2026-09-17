@@ -1,6 +1,7 @@
 import { BY } from '../data/states';
 import { roundTaker } from './machine';
 import { outcomeOf } from './scoring';
+import { namesIn } from './trial';
 import type { PlannedRound, RoundAnswer } from './types';
 
 /**
@@ -50,6 +51,42 @@ export function sideStats(
     avgMs: answered.length ? Math.round(answered.reduce((n, a) => n + a.ms, 0) / answered.length) : null,
     bestStreak: bestStreakOf(mine),
     roundsWon: mine.reduce((n, a, i) => n + (roundTaker(a, theirs[i] ?? null) === 'me' ? 1 : 0), 0),
+  };
+}
+
+/* ---------------- a race ---------------- */
+
+/**
+ * What a finished race says about each player.
+ *
+ * Nothing a round's numbers measure survives the trip: there are no rounds
+ * to win, every name is worth the same one point, and a mean time over
+ * answers that are all timed from the same start rewards the player who
+ * named *fewer*. What is left that both players can be held against is how
+ * many went in, how soon they got going, and when their last one landed —
+ * which is what separates two equal lists.
+ *
+ * A rate of names per second is deliberately not here. Over the stretch a
+ * player was typing it flatters whoever stopped earliest — two names in the
+ * first five seconds beats forty over four minutes — and over the trial's
+ * own clock, which both players share, it is the count again in other units.
+ */
+export interface RaceStats {
+  named: number;
+  target: number;
+  /** When their first name landed; null with none. */
+  firstMs: number | null;
+  /** When their last name landed; null with none. */
+  lastMs: number | null;
+}
+
+export function raceStats(answers: readonly (RoundAnswer | null)[], target: number): RaceStats {
+  const names = namesIn(answers);
+  return {
+    named: names.length,
+    target,
+    firstMs: names.length ? names[0].ms : null,
+    lastMs: names.length ? names[names.length - 1].ms : null,
   };
 }
 
@@ -176,6 +213,39 @@ export function awardsFor(
   if (closest) {
     const c = closest as { left: number; me: boolean; them: boolean };
     out.push({ key: 'buzzer', label: 'Buzzer beater', note: `Right with ${secs(c.left)} to spare`, who: whoOf(c.me, c.them) as Who });
+  }
+
+  return out;
+}
+
+/**
+ * The awards a race earned.
+ *
+ * Deliberately short: a comeback, a clutch last round and a buzzer beater
+ * are all things a run of rounds has and a race does not, and handing them
+ * out anyway described a match nobody played — a clutch finish on a mode
+ * with no rounds, a buzzer beater on a clock four minutes long measured
+ * against a twenty-second one. Nor is there an award for speed of hand: any
+ * rate a race can be measured at rewards the player who stopped first, and
+ * an award is read as praise for the match as a whole. What is left is the
+ * two things a race can be plainly better or closer at.
+ */
+export function raceAwards(
+  mine: readonly (RoundAnswer | null)[],
+  theirs: readonly (RoundAnswer | null)[],
+  target: number,
+): Award[] {
+  const out: Award[] = [];
+  const a = namesIn(mine).length;
+  const b = namesIn(theirs).length;
+  if (!a && !b) return out;
+
+  const swept = whoOf(a >= target && target > 0, b >= target && target > 0);
+  if (swept) out.push({ key: 'sweep', label: 'Clean sweep', note: `All ${target} named`, who: swept });
+
+  const winner = a > b ? 'me' : b > a ? 'them' : null;
+  if (winner && Math.abs(a - b) <= 1) {
+    out.push({ key: 'photo', label: 'Photo finish', note: 'Decided by 1 state', who: winner });
   }
 
   return out;

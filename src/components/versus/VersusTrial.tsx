@@ -1,13 +1,13 @@
 import { useMemo, useRef, useState } from 'react';
 import { BY } from '../../data/states';
 import { fullBox } from '../../lib/geo';
-import { trialTarget } from '../../versus/trial';
+import { namesIn, trialTarget } from '../../versus/trial';
+import { colorOf } from '../../versus/types';
 import { ReactionBubbles, ReactionTray } from './Reactions';
 import { SoundToggle } from './SoundToggle';
 import { VersusMap } from './VersusMap';
 import { LinkNotice } from './LinkNotice';
 import type { VersusApi } from '../../versus/useVersus';
-import type { Abbr } from '../../types';
 
 /** Under this much left, the clock reads urgent. */
 const LOW_MS = 30_000;
@@ -30,21 +30,22 @@ export function VersusTrial({ api }: { api: VersusApi }) {
   const [text, setText] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Their seat, not a colour of its own: on the guest's phone this side is
+  // already coral, and falling back to it painted both players the same.
+  const theirColor = state.them?.color ?? colorOf(!state.isHost);
+  const themName = state.them?.name || state.lastOpponent || 'Opponent';
+
   const target = trialTarget(state.cfg?.scope ?? 'all');
   const left = msLeft ?? 0;
   const low = left <= LOW_MS;
 
-  /* Everything this player has named, in the order they named it. The map
-     paints the set; the last one is called out under the box, which is the
-     only acknowledgement a name gets — there is no reveal to wait for. */
-  const named = useMemo(() => {
-    const out: Abbr[] = [];
-    for (const a of state.myAnswers) if (a?.pick) out.push(a.pick as Abbr);
-    return out;
-  }, [state.myAnswers]);
+  /* Everything this player has named, earliest first. The map paints the set;
+     the last one is called out under the box, which is the only
+     acknowledgement a name gets — there is no reveal to wait for. */
+  const named = useMemo(() => namesIn(state.myAnswers), [state.myAnswers]);
 
-  const placed = useMemo(() => new Set(named), [named]);
-  const last = named.length ? BY[named[named.length - 1]] : null;
+  const placed = useMemo(() => new Set(named.map((n) => n.abbr)), [named]);
+  const last = named.length ? BY[named[named.length - 1].abbr] : null;
 
   const send = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,11 +62,11 @@ export function VersusTrial({ api }: { api: VersusApi }) {
           <span className="vs-score-name">{state.me.name}</span>
           <b className="mono">{myTotal}</b>
         </div>
-        <div className="vs-score them" data-pc={state.them?.color ?? 'coral'}>
-          <span className="vs-score-name">{state.them?.name ?? (state.lastOpponent || 'Opponent')}</span>
+        <div className="vs-score them" data-pc={theirColor}>
+          <span className="vs-score-name">{themName}</span>
           <b className="mono">{theirTotal}</b>
         </div>
-        <ReactionBubbles reactions={api.reactions} them={state.them?.name ?? 'Opponent'} />
+        <ReactionBubbles reactions={api.reactions} them={themName} />
       </div>
 
       <div className="vs-clock" aria-hidden="true">
@@ -81,7 +82,7 @@ export function VersusTrial({ api }: { api: VersusApi }) {
       </div>
 
       <div className="vs-stage">
-        <VersusMap zoom={fullBox()} placed={placed} colors={{ mine: state.me.color, theirs: state.them?.color ?? 'coral' }} />
+        <VersusMap zoom={fullBox()} placed={placed} colors={{ mine: state.me.color, theirs: theirColor }} />
       </div>
 
       <form className="vs-entry" onSubmit={send}>

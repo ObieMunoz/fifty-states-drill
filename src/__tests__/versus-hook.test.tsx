@@ -341,6 +341,31 @@ describe('folding a finished match into the standings', () => {
     expect(obie?.wins).toBe(1);
     expect(obie?.points).toBe(500);
   });
+
+  it('takes a race’s verdict from the race’s own rule, not from the points', async () => {
+    // Level on states named: the player whose last name landed first took it,
+    // and the standings have to say what the result screen says.
+    const raceRoom = {
+      status: 'final' as const, mode: 'trial' as const, rounds: 50,
+      seed: `${CODE}:0`, difs: { me: 'standard' as const, them: 'standard' as const },
+      round: 0, round_started_at: null,
+    };
+    const named = (id: string, n: number, step: number): AnswerRow[] =>
+      Array.from({ length: n }, (_, i) => row(id, i, { points: 1, ms: (i + 1) * step, pick: 'OH' }));
+    callVersus.mockResolvedValueOnce(snapshot({ status: 'waiting' }, [player('me')]));
+    const hook = renderHook(() => useVersus());
+    await act(async () => { hook.result.current.host('Obie'); });
+    await act(async () => {
+      events.onSnapshot({
+        ...snapshot(raceRoom, [player('me'), player('them')],
+          [...named('me', 12, 1000), ...named('them', 12, 1500)]),
+        receivedAt: Date.now(),
+      } as LiveSnapshot);
+    });
+
+    expect(hook.result.current.board.find((r) => r.name === 'Obie')?.wins).toBe(1);
+    expect(hook.result.current.board.find((r) => r.name === 'Sam')?.losses).toBe(1);
+  });
 });
 
 describe('what a match teaches the device', () => {

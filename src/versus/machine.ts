@@ -23,10 +23,12 @@ import type { DiffKey, ModeKey, Scope } from '../types';
  * the same room and land on the same screens without either sending the
  * other anything.
  *
- * Clocks are local on purpose. A question's timer starts when it is painted
- * on this phone, not when the server wrote the row, so a slow link costs a
- * player nothing. The server's time is consulted only to place the clock
- * when a phone joins a match already in progress.
+ * Clocks are the server's. A question is timed from the moment the server
+ * put it up, read through this device's measured offset from the server's
+ * clock, rather than from the moment this phone painted it. The two phones
+ * hear about a round by different routes — the host in the reply to its own
+ * call, the guest in a pushed row — so timing from the paint gave them two
+ * different starts for the same question and quietly favoured one seat.
  */
 export interface VersusState {
   phase: Phase;
@@ -45,9 +47,10 @@ export interface VersusState {
   difs: Record<string, DiffKey>;
   round: number;
   /**
-   * When the thing on screen started: the countdown, then each question.
-   * Passed in with the action rather than read from the clock, so the reducer
-   * stays pure and each device times from its own paint.
+   * When the thing on screen started — the countdown, then each question — on
+   * this device's clock. Placed from the server's `round_started_at`, so both
+   * phones measure the same round from the same moment. The clock is passed
+   * in with the action rather than read here, so the reducer stays pure.
    */
   startedAt: number;
   myAnswers: (RoundAnswer | null)[];
@@ -131,7 +134,7 @@ export function initialVersus(
 }
 
 /** Running total, so the score is always derived rather than tracked. */
-export const totalOf = (answers: (RoundAnswer | null)[]): number =>
+export const totalOf = (answers: readonly (RoundAnswer | null)[]): number =>
   answers.reduce((n, a) => n + (a?.points ?? 0), 0);
 
 /**
@@ -160,7 +163,7 @@ export function settledTotal(s: VersusState, answers: (RoundAnswer | null)[]): n
   return answers.reduce((n, a, i) => (i < upTo ? n + (a?.points ?? 0) : n), 0);
 }
 
-export const correctOf = (answers: (RoundAnswer | null)[]): number =>
+export const correctOf = (answers: readonly (RoundAnswer | null)[]): number =>
   answers.reduce((n, a) => n + (a?.correct ? 1 : 0), 0);
 
 /** One side's verdicts by round, in the shape the streak rule reads. */
@@ -171,13 +174,46 @@ export const verdictsOf = (answers: readonly (RoundAnswer | null)[]): (boolean |
 export const streakInto = (s: VersusState, answers: readonly (RoundAnswer | null)[]): number =>
   streakBefore(verdictsOf(answers), settledUpTo(s));
 
+/** When one side's last name landed, for separating two equal lists. */
+export const finishedAt = (answers: readonly (RoundAnswer | null)[]): number =>
+  answers.reduce((n, a) => (a ? Math.max(n, a.ms) : n), 0);
+
+/**
+ * Who won, by the rule the mode is scored on.
+ *
+ * A race is won on names in, and a tie on those is separated by who got
+ * there first — which is the only thing left between two equal lists, and
+ * what makes the last minute of a close trial worth typing through. Every
+ * other mode is won on points. One place, because the result screen, the
+ * room's running series and this device's standings all have to agree:
+ * reading a race off points made a win on the tie-break read as a draw in
+ * two of the three.
+ */
+export function outcomeFor(
+  mode: ModeKey | null | undefined,
+  mine: readonly (RoundAnswer | null)[],
+  theirs: readonly (RoundAnswer | null)[],
+): Outcome {
+  if (mode && isRace(mode)) {
+    return trialOutcome(
+      { count: correctOf(mine), ms: finishedAt(mine) },
+      { count: correctOf(theirs), ms: finishedAt(theirs) },
+    );
+  }
+  return outcomeOf(totalOf(mine), totalOf(theirs));
+}
+
 /** Who took a round: the side with more points, or nobody when level. */
 export type Taker = 'me' | 'them' | 'split';
 
 export function roundTaker(mine: RoundAnswer | null, theirs: RoundAnswer | null): Taker {
   const a = mine?.points ?? 0;
   const b = theirs?.points ?? 0;
-  return a > b ? 'me' : b > a ? 'them' : 'split';
+  if (a !== b) return a > b ? 'me' : 'them';
+  // Level on points: the quicker of the two takes it, which is what the
+  // players themselves saw happen. A round neither side scored on is nobody's.
+  if (a === 0 || !mine || !theirs || mine.ms === theirs.ms) return 'split';
+  return mine.ms < theirs.ms ? 'me' : 'them';
 }
 
 /** Rounds taken by each side so far, over the rounds already revealed. */
@@ -291,7 +327,7 @@ function applySnapshot(s: VersusState, snap: LiveSnapshot, at: number): VersusSt
   // A finished match goes into the room's running score, and stays open to
   // correction while it is on screen: a straggling row may still land.
   const series = room.status === 'final' && cfg
-    ? { ...carried, [cfg.seed]: outcomeOf(totalOf(myAnswers), totalOf(theirAnswers)) }
+    ? { ...carried, [cfg.seed]: outcomeFor(room.mode, myAnswers, theirAnswers) }
     : carried;
 
   let { phase, round, startedAt } = s;
@@ -306,34 +342,35 @@ function applySnapshot(s: VersusState, snap: LiveSnapshot, at: number): VersusSt
       round = 0;
       startedAt = 0;
       break;
-    case 'playing':
-      if (sameMatch && inMatch(s.phase)) {
-        // Live: the host moved the match on. The clock starts at this paint.
-        // Only ever forwards: a reply that overtakes a newer one would
-        // otherwise put a played round back on screen and restart its clock.
-        // Within a match the round only ever climbs; a rematch changes the
-        // seed, which the other branch handles.
-        if (room.round > s.round) {
-          phase = 'question';
-          round = room.round;
-          startedAt = at;
-        }
+    case 'playing': {
+      // Only ever forwards: a reply that overtakes a newer one would
+      // otherwise put a played round back on screen and restart its clock,
+      // and a reveal holds until the host has actually moved the match on.
+      // Within a match the round only ever climbs; a rematch changes the
+      // seed, which `sameMatch` catches.
+      if (sameMatch && inMatch(s.phase) && room.round <= s.round) break;
+      // Every round is placed where the server put it up, read through this
+      // device's measured offset from the server's clock — not where this
+      // phone happened to paint it. The host hears of a new round in the
+      // reply to its own call and the guest in a pushed row, and those do
+      // not land together, so timing from the paint quietly handed the host
+      // the width of that gap on every round of the match.
+      const serverNow = at + (Date.parse(snap.now) - snap.receivedAt);
+      const elapsed = serverNow - Date.parse(room.round_started_at ?? snap.now);
+      // The countdown is the first round's alone; a later round reading as
+      // not up yet is this phone's clock estimate running a beat ahead, and
+      // dating the round in the future would hand it extra time.
+      if (elapsed < 0 && room.round === 0) {
+        phase = 'countdown';
+        round = 0;
+        startedAt = at - (COUNTDOWN_MS + elapsed);
       } else {
-        // A match just started, or this phone is joining one in progress:
-        // place the clock where the server says it is.
-        const serverNow = at + (Date.parse(snap.now) - snap.receivedAt);
-        const elapsed = serverNow - Date.parse(room.round_started_at ?? snap.now);
-        if (elapsed < 0) {
-          phase = 'countdown';
-          round = 0;
-          startedAt = at - (COUNTDOWN_MS + elapsed);
-        } else {
-          phase = 'question';
-          round = room.round;
-          startedAt = at - elapsed;
-        }
+        phase = 'question';
+        round = room.round;
+        startedAt = at - Math.max(0, elapsed);
       }
       break;
+    }
     case 'final':
       phase = 'final';
       round = room.round;
@@ -404,7 +441,11 @@ export function reducer(s: VersusState, a: VersusAction): VersusState {
       return { ...s, draft: { ...s.draft, ...a.draft } };
 
     case 'beginQuestions':
-      return s.phase === 'countdown' ? { ...s, phase: 'question', startedAt: a.at } : s;
+      // The question is due the moment the countdown is up, not the moment
+      // the timer watching it happened to fire: a phone whose timer ran late
+      // must not be handed the difference.
+      if (s.phase !== 'countdown') return s;
+      return { ...s, phase: 'question', startedAt: s.startedAt ? s.startedAt + COUNTDOWN_MS : a.at };
 
     case 'answer': {
       // Late or duplicate submissions are ignored: the first one stands.
@@ -429,10 +470,6 @@ export function reducer(s: VersusState, a: VersusAction): VersusState {
   }
 }
 
-/** When one side's last name landed, for separating two equal lists. */
-export const finishedAt = (answers: readonly (RoundAnswer | null)[]): number =>
-  answers.reduce((n, a) => (a ? Math.max(n, a.ms) : n), 0);
-
 /** The finished match, in the shape the leaderboard wants. */
 export function matchResults(s: VersusState): {
   mine: { points: number; correct: number; asked: number };
@@ -449,14 +486,5 @@ export function matchResults(s: VersusState): {
     correct: correctOf(s.theirAnswers),
     asked: s.plan.length,
   };
-  // A race is won on names in, and a tie on those is separated by who got
-  // there first — which is the only thing left between two equal lists, and
-  // what makes the last minute of a close trial worth typing through.
-  const outcome = s.cfg && isRace(s.cfg.mode)
-    ? trialOutcome(
-      { count: mine.correct, ms: finishedAt(s.myAnswers) },
-      { count: theirs.correct, ms: finishedAt(s.theirAnswers) },
-    )
-    : outcomeOf(mine.points, theirs.points);
-  return { mine, theirs, outcome };
+  return { mine, theirs, outcome: outcomeFor(s.cfg?.mode, s.myAnswers, s.theirAnswers) };
 }

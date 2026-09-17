@@ -103,10 +103,21 @@ A head-to-head match for two people, usually in the same room, on their own phon
 
 Both players get the **same question at the same moment** and score on speed: 100 points
 for a right answer plus up to 50 more, decaying to zero across the round's clock. Right
-answers in a row build a **streak** worth 10 more each, up to 50, and the **last round
-pays double**, so nobody is out of it until the end. Whoever banks more over 5, 10 or 15
-rounds takes the match. It runs on the six scored quiz types plus Mixed; Roll Call and
-Name All 50 sit it out, being long-form solo sprints rather than one question at a time.
+answers in a row build a **streak**, which is worth a tenth of that speed bonus again for
+each one, up to half as much again. The streak multiplies what speed earned rather than
+standing in for it: it is worth nothing at the buzzer, and even at its longest it can
+only make up a third of the round's clock — where a flat bonus the size of the whole
+speed bonus, which is what this was, let an answer given fourteen seconds late outscore
+one given at once. The **last round pays double**, so nobody is out of it until the end.
+Whoever banks more over 5, 10 or 15 rounds takes the match. A round the two are level on
+goes to whoever was quicker. It runs on the six scored quiz types plus Mixed; Roll Call
+and Name All 50 sit it out, being long-form solo sprints rather than one question at a time.
+
+Both clocks are the server's. A round is timed from the moment the server put the
+question up, read through each phone's measured offset from the server's clock, rather
+than from the moment that phone painted it: the two phones hear about a round by
+different routes — the host in the reply to its own call, the guest in a pushed row —
+and timing from the paint gave them two different starts for the same question.
 
 **Time Trial** is the one mode that is not a run of shared rounds at all. Both players
 get the same four minutes and race, independently, to type the name of every state; each
@@ -120,7 +131,15 @@ forgiving on Enter, as everywhere else.
 Because the two sides move independently, a trial records each player's entries at their
 *own* indices — their first name is round 0, their second round 1 — so the two lists sit
 side by side without either constraining the other. The server owns the list, since it is
-the only thing that knows whether a name is already on it.
+the only thing that knows whether a name is already on it, and it settles each index
+against the table rather than against the list a call read: a player typing flat out has
+several names in flight at once, and they would otherwise all claim the same index and
+all but one be dropped. The result screen shows the two lists themselves, ordered by when
+each name landed, and compares the pair on what a race has: names in, when the first one
+went, and when the last one landed, which is what separates two equal lists. Deliberately
+not a rate of names per second — over the stretch a player was typing it flatters whoever
+stopped earliest, and over the four minutes both of them share it is the count again in
+other units.
 
 **Place It** is head-to-head only, and sets its own length: the map starts blank, states
 are called one at a time for both players to place, and every state a player gets right
@@ -136,8 +155,9 @@ each answer was worth and why, and a row of pips above the clock keeps the match
 story so far in view. The result screen adds the margin, the numbers behind it —
 rounds won, fastest answer, average, best streak — and the awards the match earned:
 a clean sweep, a comeback, a clutch finish, a photo finish, a streak, the fastest
-finger, a buzzer beater. A rematch keeps a running series in the same room, so the
-lobby and the result can say *you lead 2–1*.
+finger, a buzzer beater. A race, having no rounds, gets numbers and awards of its own
+rather than those read off a plan nobody was asked. A rematch keeps a running series in
+the same room, so the lobby and the result can say *you lead 2–1*.
 
 Either player can send the other an emoji at any point — the lobby, the wait for the
 other answer, the result — which floats up over their card on both phones. A handful

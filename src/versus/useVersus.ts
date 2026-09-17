@@ -8,7 +8,7 @@ import {
   currentRound, initialVersus, matchResults, reducer, settledTotal, settledUpTo, streakInto, verdictsOf,
 } from './machine';
 import { studyRound } from './learning';
-import { TRIAL_MS } from './trial';
+import { TRIAL_MS, trialOutcome } from './trial';
 import type { VersusState } from './machine';
 import { cleanName, displayName, loadName, saveName } from './identity';
 import { loadBoard, rankBoard, recordMatch } from './leaderboard';
@@ -120,11 +120,21 @@ export interface VersusApi {
 const countOf = (answers: (RoundAnswer | null)[]): number =>
   answers.reduce((n, a) => n + (a ? 1 : 0), 0);
 
-/** Sum one player's rows in a snapshot, for the standings. */
-function tally(snap: Snapshot, id: string | undefined): { points: number; correct: number } {
+/**
+ * Sum one player's rows in a snapshot, for the standings. `lastMs` is when
+ * their last answer landed, which is what separates two equal lists in a race.
+ */
+function tally(snap: Snapshot, id: string | undefined): { points: number; correct: number; lastMs: number } {
   return snap.answers
     .filter((a) => a.player_id === id)
-    .reduce((t, a) => ({ points: t.points + a.points, correct: t.correct + (a.correct ? 1 : 0) }), { points: 0, correct: 0 });
+    .reduce(
+      (t, a) => ({
+        points: t.points + a.points,
+        correct: t.correct + (a.correct ? 1 : 0),
+        lastMs: Math.max(t.lastMs, a.ms),
+      }),
+      { points: 0, correct: 0, lastMs: 0 },
+    );
 }
 
 export function useVersus(): VersusApi {
@@ -213,13 +223,20 @@ export function useVersus(): VersusApi {
     const them = players.find((p) => p.id !== myId);
     const mine = tally(snap, myId);
     const theirs = tally(snap, them?.id);
-    const outcome = outcomeOf(mine.points, theirs.points);
+    // A race is won on names in and separated on who got there first, so the
+    // standings have to be told what the result screen shows rather than
+    // reading the row of one-point answers as a score.
+    const outcome = isRace(r.mode)
+      ? trialOutcome({ count: mine.correct, ms: mine.lastMs }, { count: theirs.correct, ms: theirs.lastMs })
+      : outcomeOf(mine.points, theirs.points);
     setBoard(recordMatch(seed, [
-      { name: displayName(live.current.me.name), ...mine, asked: r.rounds, outcome },
+      {
+        name: displayName(live.current.me.name),
+        points: mine.points, correct: mine.correct, asked: r.rounds, outcome,
+      },
       {
         name: displayName(them?.name ?? live.current.lastOpponent, 'Opponent'),
-        ...theirs,
-        asked: r.rounds,
+        points: theirs.points, correct: theirs.correct, asked: r.rounds,
         outcome: outcome === 'win' ? 'loss' : outcome === 'loss' ? 'win' : 'draw',
       },
     ]));

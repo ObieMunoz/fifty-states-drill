@@ -5,8 +5,8 @@ import { buildAsk } from '../game/question';
 import { hashSeed, mulberry32, pickRnd, shuffle, weightedIndex } from '../lib/random';
 import { askRng, matchPool, planMatch } from '../versus/plan';
 import {
-  BASE_POINTS, FINAL_ROUND_MULTIPLIER, SPEED_POINTS, STREAK_CAP, STREAK_POINTS, breakdown, isFinalRound,
-  isTyped, outcomeOf, roundLimitMs, scoreAnswer, streakBefore, streakBonus,
+  BASE_POINTS, FINAL_ROUND_MULTIPLIER, SPEED_POINTS, STREAK_CAP, STREAK_STEP, breakdown, isFinalRound,
+  isTyped, outcomeOf, roundLimitMs, scoreAnswer, streakBefore, streakFactor,
 } from '../versus/scoring';
 import {
   CODE_LENGTH, clearUrlCode, codeFromUrl, isCompleteCode, joinUrl, matchSeed, newRoomCode, normalizeCode,
@@ -257,18 +257,58 @@ describe('scoring', () => {
     expect(streakBefore([true, undefined, true], 2)).toBe(0);
   });
 
-  it('pays the streak a step at a time, up to the cap', () => {
-    expect(streakBonus(0)).toBe(0);
-    expect(streakBonus(1)).toBe(STREAK_POINTS);
-    expect(streakBonus(STREAK_CAP)).toBe(STREAK_POINTS * STREAK_CAP);
-    expect(streakBonus(STREAK_CAP + 4)).toBe(STREAK_POINTS * STREAK_CAP);
-    expect(streakBonus(-2)).toBe(0);
+  it('grows the streak a step at a time, up to the cap', () => {
+    expect(streakFactor(0)).toBe(1);
+    expect(streakFactor(1)).toBeCloseTo(1 + STREAK_STEP);
+    expect(streakFactor(STREAK_CAP)).toBeCloseTo(1 + STREAK_STEP * STREAK_CAP);
+    expect(streakFactor(STREAK_CAP + 4)).toBeCloseTo(1 + STREAK_STEP * STREAK_CAP);
+    expect(streakFactor(-2)).toBe(1);
   });
 
-  it('adds the streak to a right answer and never to a wrong one', () => {
-    expect(scoreAnswer(true, 0, 20000, { streak: 3 })).toBe(BASE_POINTS + SPEED_POINTS + 3 * STREAK_POINTS);
-    expect(scoreAnswer(true, 20000, 20000, { streak: 9 })).toBe(BASE_POINTS + STREAK_CAP * STREAK_POINTS);
+  it('pays the streak out of the speed it earned, and nothing on a wrong answer', () => {
+    expect(scoreAnswer(true, 0, 20000, { streak: 3 }))
+      .toBe(BASE_POINTS + Math.round(SPEED_POINTS * streakFactor(3)));
+    expect(scoreAnswer(true, 10000, 20000, { streak: 5 }))
+      .toBe(BASE_POINTS + Math.round(SPEED_POINTS * 0.5 * streakFactor(5)));
     expect(scoreAnswer(false, 0, 20000, { streak: 5 })).toBe(0);
+  });
+
+  it('gives a streak nothing to multiply once the clock is gone', () => {
+    expect(scoreAnswer(true, 20000, 20000, { streak: 5 })).toBe(BASE_POINTS);
+    expect(scoreAnswer(true, 20000, 20000, { streak: 0 })).toBe(BASE_POINTS);
+  });
+
+  it('never pays a slower right answer more than a much quicker one', () => {
+    // The whole point of the rebalance: a streak lifts what speed earned
+    // rather than standing in for it, so it can only overturn an answer that
+    // was close. Half the clock against none of it is never close.
+    for (let streak = 0; streak <= STREAK_CAP + 2; streak++) {
+      const slowButStreaked = scoreAnswer(true, 10000, 20000, { streak });
+      const quickAndCold = scoreAnswer(true, 1000, 20000, { streak: 0 });
+      expect(quickAndCold).toBeGreaterThan(slowButStreaked);
+    }
+  });
+
+  it('lets a maxed streak overturn only an answer given in the first third of the clock', () => {
+    // The bound the rebalance buys: a streak is worth half the speed bonus
+    // again, so it cannot make up more than a third of the round's clock,
+    // however long a run is behind it. A flat bonus the size of the whole
+    // speed bonus could make up all of it.
+    for (const limit of [20_000, 25_000, 30_000]) {
+      const instant = scoreAnswer(true, 0, limit, { streak: 0 });
+      for (let ms = Math.ceil(limit / 3); ms <= limit; ms += 250) {
+        expect(scoreAnswer(true, ms, limit, { streak: STREAK_CAP })).toBeLessThanOrEqual(instant);
+      }
+    }
+  });
+
+  it('keeps a quicker answer ahead of a slower one on the same streak', () => {
+    for (let streak = 0; streak <= STREAK_CAP; streak++) {
+      for (let ms = 0; ms < 20000; ms += 250) {
+        expect(scoreAnswer(true, ms, 20000, { streak }))
+          .toBeGreaterThanOrEqual(scoreAnswer(true, ms + 250, 20000, { streak }));
+      }
+    }
   });
 
   it('doubles the last round of a match', () => {
@@ -276,15 +316,30 @@ describe('scoring', () => {
     expect(isFinalRound(3, 5)).toBe(false);
     expect(isFinalRound(0, 0)).toBe(false);
     expect(scoreAnswer(true, 10000, 20000, { final: true })).toBe((BASE_POINTS + SPEED_POINTS / 2) * FINAL_ROUND_MULTIPLIER);
-    expect(scoreAnswer(true, 0, 20000, { streak: 5, final: true })).toBe(400);
+    expect(scoreAnswer(true, 0, 20000, { streak: STREAK_CAP, final: true }))
+      .toBe((BASE_POINTS + Math.round(SPEED_POINTS * streakFactor(STREAK_CAP))) * FINAL_ROUND_MULTIPLIER);
     expect(scoreAnswer(false, 0, 20000, { final: true })).toBe(0);
   });
 
   it('reads a score back into its parts', () => {
     expect(breakdown(0)).toEqual({ base: 0, speed: 0, streak: 0, doubled: false });
     expect(breakdown(142)).toEqual({ base: BASE_POINTS, speed: 42, streak: 0, doubled: false });
-    expect(breakdown(162, { streak: 2 })).toEqual({ base: BASE_POINTS, speed: 42, streak: 20, doubled: false });
-    expect(breakdown(324, { streak: 2, final: true })).toEqual({ base: BASE_POINTS, speed: 42, streak: 20, doubled: true });
+    expect(breakdown(150, { streak: 2 })).toEqual({ base: BASE_POINTS, speed: 42, streak: 8, doubled: false });
+    expect(breakdown(300, { streak: 2, final: true })).toEqual({ base: BASE_POINTS, speed: 42, streak: 8, doubled: true });
+  });
+
+  it('reads back parts that always add up to the score', () => {
+    for (const streak of [0, 1, 3, 5, 9]) {
+      for (const ms of [0, 1234, 9000, 19999, 20000]) {
+        for (const final of [false, true]) {
+          const points = scoreAnswer(true, ms, 20000, { streak, final });
+          const b = breakdown(points, { streak, final });
+          const single = b.base + b.speed + b.streak;
+          expect(single * (b.doubled ? FINAL_ROUND_MULTIPLIER : 1)).toBe(points);
+          expect(b.streak).toBeGreaterThanOrEqual(0);
+        }
+      }
+    }
   });
 });
 

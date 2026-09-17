@@ -130,6 +130,51 @@ describe('a trial on the server', () => {
     expect(mineIn(again, 'host')).toHaveLength(1);
   });
 
+  it('keeps both names when two are typed into the same instant', async () => {
+    // A trial is typed as fast as the player can go, so two calls are in
+    // flight together all the time. Both used to claim the same index and
+    // the second was dropped without a word, so names went missing from a
+    // player's list and from the board at the end.
+    const s = await running();
+    const code = s.room.code;
+    const [, second] = await Promise.all([
+      call({ action: 'answer', code, playerId: 'host', pick: 'Ohio' }, at(s, 1000)),
+      call({ action: 'answer', code, playerId: 'host', pick: 'Texas' }, at(s, 1010)),
+    ]);
+
+    expect(mineIn(second, 'host').map((a) => a.pick).sort()).toEqual(['OH', 'TX']);
+    expect(mineIn(second, 'host').map((a) => a.round).sort()).toEqual([0, 1]);
+  });
+
+  it('still takes one name once when it is sent twice at once', async () => {
+    const s = await running();
+    const code = s.room.code;
+    await Promise.all([
+      call({ action: 'answer', code, playerId: 'host', pick: 'Ohio' }, at(s, 1000)),
+      call({ action: 'answer', code, playerId: 'host', pick: 'Ohio' }, at(s, 1000)),
+    ]);
+    const after = await call({ action: 'sync', code, playerId: 'host' }, at(s, 1200));
+
+    expect(mineIn(after, 'host')).toHaveLength(1);
+  });
+
+  it('keeps every name of a whole list typed at once', async () => {
+    const s = await running();
+    const code = s.room.code;
+    const names = matchPool('all').slice(0, 12).map((st) => st.n);
+    await Promise.all(names.map((n, i) => call({ action: 'answer', code, playerId: 'host', pick: n }, at(s, 1000 + i))));
+    const after = await call({ action: 'sync', code, playerId: 'host' }, at(s, 2000));
+
+    expect(mineIn(after, 'host')).toHaveLength(12);
+    expect(new Set(mineIn(after, 'host').map((a) => a.round)).size).toBe(12);
+  });
+
+  it('takes no name from a phone that is not in the match', async () => {
+    const s = await running();
+    await expect(call({ action: 'answer', code: s.room.code, playerId: 'stranger', pick: 'Ohio' }, at(s, 1000)))
+      .rejects.toMatchObject({ status: 403 });
+  });
+
   it('keeps the time each name landed', async () => {
     const s = await running();
     const got = await call({ action: 'answer', code: s.room.code, playerId: 'host', pick: 'Ohio' }, at(s, 7000));
